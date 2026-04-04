@@ -3,6 +3,7 @@ import healthRouter from "./health";
 import devicesRouter from "./devices";
 import usersRouter from "./users";
 import auditLogsRouter from "./audit-logs";
+import settingsRouter from "./settings";
 
 const router: IRouter = Router();
 
@@ -10,5 +11,6 @@ router.use(healthRouter);
 router.use(devicesRouter);
 router.use(usersRouter);
 router.use(auditLogsRouter);
+router.use(settingsRouter);
 
 export default router;

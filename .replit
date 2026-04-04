@@ -27,3 +27,9 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+HIK_ACCOUNT = "light_rajasthan"
+HIK_PASSWORD = "tz7jHgGWWbEdAKvYbl78XbkAdyHoto64zmGwLmamczEbZWYtrZn8ibbAOdJ8kObrdwz8K8ac8+tUMYPMBx4ezUWaINzWYzhjN8VbK9J1P39ievtGtRPQIy73b9xnSxs1XYQLjCYFogC8gD9JgA4iPLXw7JFxf1ZfWB1OMj5s4oMn+cq1KN5d3TiVAEM3IWTS5ewWE8XnIf/QVhvoLmQYoHCyGV2m9KhrWJG1FRKxTxjROsAT0YHWscm+WGuG6bBjNjZQzeg/HN9ppfhCXgUcJeWZzCZSVIr1h3l/BWArnOpmPVVHhbEzIILgJ4GY/Bz/MKt0QLh4dooojI0apkLROg=="

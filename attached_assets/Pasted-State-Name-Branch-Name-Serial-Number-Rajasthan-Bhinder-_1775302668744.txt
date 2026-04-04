@@ -1,0 +1,256 @@
+State Name	Branch Name	Serial Number
+Rajasthan	Bhinder	781735831
+Rajasthan	Udaipurwati	781735832
+Rajasthan	Behror	781735993
+Rajasthan	Bijoliya	781735997
+Madhya Pradesh	Mandsaur	781736676
+Rajasthan	Nagaur	781736747
+Rajasthan	Degana	781736821
+Odisha	Dhenkanal	AF3418514
+Odisha	Bhadrak	AG8501787
+Jharkhand	Domchanch	AG8501791
+Utter Pradesh	Jalesar	AW2501977
+Odisha	Hinjilicut	AW2501979
+Odisha	Balikuda	AW2501981
+Gujarat	Singvad	AW2503110
+Gujarat	Damnagar	AW2503122
+Rajasthan	Sikar	AW2503127
+Rajasthan	Khairthal	AW2503128
+Rajasthan	Mahwa	AW2503136
+Jharkhand	Bundu	AW2503512
+Haryana	Jind-2	AW2503601
+Odisha	Talcher	AX6697909
+Madhya Pradesh	Malhargarh	AX7795134
+Rajasthan	Ramsar	AX7795139
+Gujarat	Waghjipur	AX7795140
+Rajasthan	Kalyanpur	AX7795141
+Rajasthan	Gira	AX7795142
+Rajasthan	Laxmangarh	AX7795143
+Madhya Pradesh	Raghogarh	AX7795145
+Rajasthan	Sindhari	AX7795148
+Rajasthan	Gangapur	AX7795182
+Odisha	Bhanjanagar	AG8501832
+Utter Pradesh	Bulandshahr	AG8501834
+Jharkhand	Bisrampur	AG8501835
+Odisha	Aska	AG8501836
+Madhya Pradesh	Indore Ro	AH5944746
+Gujarat	Limdi-2	AW2501934
+Gujarat	Shant Road	AW2501940
+Utter Pradesh	Sasni	AW2501970
+Odisha	Buguda	AW2501971
+Utter Pradesh	Kasganj	AW2501975
+Jharkhand	Giridih	AW2503617
+Jharkhand	Hazaribagh	AX6697862
+Odisha	Angul	AX6697864
+Jharkhand	Deoghar	AX6697874
+Jharkhand	Rajdhanwar	AX6697875
+Odisha	Chhendipada	AX6697882
+Jharkhand	Panki	AX6697886
+Jharkhand	Gumla	AX6697891
+Jharkhand	Patan	AX6697893
+Odisha	Digapahandi	AX6697905
+Rajasthan	Jojawar	AX7795183
+Rajasthan	Rupbas	AX7795184
+Gujarat	Garbada	AX7795185
+Rajasthan	Kumher	AX7795186
+Haryana	Rania	AX7795193
+Rajasthan	Rajsamand	C30965439
+Madhya Pradesh	Ratlam	C30965441
+Rajasthan	Bhim	C30965457
+Madhya Pradesh	Jhabua	C30965460
+Rajasthan	Shahpura 2	C30965465
+Odisha	Rahema	AW2503602
+Jharkhand	Rajganj	AW2503603
+Jharkhand	Chatra	AW2503609
+Odisha	Kamakhyanagar	AW2503610
+Jharkhand	Mandar	AW2503611
+Odisha	Nayagarh	AW2503612
+Odisha	Basudevpur	AW2503613
+Jharkhand	Chandankiyari	AW2503614
+Gujarat	Shehera	AW2503615
+Jharkhand	Barhi	AW2503616
+Gujarat	Vyara	C74516585
+Gujarat	Botad	C74516597
+Gujarat	Gandhinagar	C74516614
+Gujarat	Morbi	C74516645
+Gujarat	Vadali	C74516722
+Gujarat	Dhrangadhra	C74516734
+Gujarat	Palitana	C74516810
+Gujarat	Lunawada	C74516813
+Gujarat	Idar	C74516836
+Gujarat	Valsad	C74516841
+Rajasthan	Singhana	C30965472
+Rajasthan	Hanumangarh	C30965476
+Rajasthan	Thanagazi	C30965477
+Rajasthan	Ameth	C30965598
+Rajasthan	Kota	C74516398
+Rajasthan	Parbatsar	C74516406
+Gujarat	Halol	C74516414
+Rajasthan	Falna	C74516431
+Gujarat	Padra	C74516520
+Rajasthan	Salumbar	C74516527
+Rajasthan	Pali	C74516904
+Gujarat	Santrampur	C74516909
+Rajasthan	Bayana	C74516917
+Gujarat	Waghodia	C74516918
+Rajasthan	Pilani	C74516952
+Rajasthan	Taranagar	C74517012
+Gujarat	Ghoghamba	C74517051
+Gujarat	Gandhidham2	C74517054
+Gujarat	Jasdan	C74517056
+Rajasthan	Sardarshahar	C74517092
+Gujarat	Viramgam	C74516846
+Rajasthan	Beawar	C74516851
+Rajasthan	Bhilwara	C74516856
+Gujarat	Rajkot	C74516870
+Rajasthan	Abu Road	C74516881
+Gujarat	Morva	C74516882
+Rajasthan	Barmer	C74516894
+Gujarat	Anand	C74516897
+Gujarat	Petlad	C74516898
+Gujarat	Piplod	C74516902
+Rajasthan	Ahore	C74517093
+Gujarat	Meghraj	C74517108
+Gujarat	Thasra	C74517120
+Rajasthan	Jhunjhunu	C74517123
+Gujarat	Sanjeli	C74517182
+Gujarat	Limkheda	C74517193
+Gujarat	Bardoli	C74517197
+Gujarat	Gadhada	C74517263
+Rajasthan	Bikaner	C74517292
+Rajasthan	Sirohi	C74517329
+Rajasthan	Bijainagar	C74517381
+Gujarat	Nadiad	C74517385
+Gujarat	Kheda	C74517390
+Rajasthan	Bagidora	C74517403
+Rajasthan	Bharatpur	D14952501
+Rajasthan	Jaipur RO	D16116473
+Rajasthan	Bansur	D16116475
+Rajasthan	Mandalgarh	D16116793
+Gujarat	Dholka	D16117152
+Madhya Pradesh	Jaora	D16117153
+Rajasthan	Neem Ka Thana	D16117165
+Rajasthan	Nohar	D16117170
+Rajasthan	Padampur	D16117179
+Rajasthan	Sagwara	D16117238
+Rajasthan	Nimbahera	D16117247
+Gujarat	Fatepura	D16117269
+Gujarat	Maninagar	D27682566
+Madhya Pradesh	Ujjain	D27682590
+Rajasthan	Bhawanimandi	D27682592
+Rajasthan	Jhalawar	D27682595
+Gujarat	Limdi	D27682740
+Rajasthan	Suratgarh	D27682743
+Rajasthan	Ratangarh	D27682799
+Haryana	Panipat RO 2	E01746017
+Rajasthan	Kherli	E06678665
+Rajasthan	Bhinmal	E06679636
+Haryana	Pataudi	E06778137
+Madhya Pradesh	Badnagar	E06778144
+Haryana	Charkhi Dadri	E06778150
+Rajasthan	Khatushyamji	E06778155
+Haryana	Sirsa	E06778156
+Haryana	Hisar	E06778157
+Haryana	Naraingarh	E06778159
+Haryana	Kosli	E06778160
+Haryana	Kaithal	E06778173
+Haryana	Jhajjar	E06778174
+Haryana	Ladwa	E06778178
+Madhya Pradesh	Guna	E06778242
+Haryana	Gharaunda	E06778606
+Madhya Pradesh	Hoshangabad	E10440171
+Haryana	Panipat Ro 1	F04101294
+Haryana	Bhiwani	F04101440
+Rajasthan	Losal	F55591586
+Madhya Pradesh	Jirapur	F57315544
+Haryana	Bilaspur	F57315545
+Madhya Pradesh	Shamgarh	F57315547
+Haryana	Jind	F57315553
+Madhya Pradesh	Thandla	F57315556
+Madhya Pradesh	Agar Malwa	F57315557
+Utter Pradesh	Meerut RO	FB3521208
+Jharkhand	Ranchi Ro	FB3521215
+Odisha	Bhubaneswar RO	FB3521217
+Gujarat	Bhavnagar	G76704721
+Rajasthan	Nokha	G76704791
+Haryana	Uklana Mandi	G92002085
+Uttrakhand	Kashipur	H43535978
+Haryana	Sonipat	J36100455
+Rajasthan	Bassi	J36100463
+Rajasthan	Sanchore	J36100506
+Utter Pradesh	Kiraoli	J36101808
+Utter Pradesh	Najibabad	J36101909
+Odisha	Odagaon	J36101973
+Gujarat	Godhra	J36102757
+Rajasthan	Osian	J36102910
+Madhya Pradesh	Anuppur	J36103460
+Madhya Pradesh	Mandla	J36103516
+Madhya Pradesh	Rewa	J36103517
+Madhya Pradesh	Sidhi	J36103549
+Madhya Pradesh	Katni	J36103624
+Madhya Pradesh	Satna	J36103637
+Haryana	Gohana	J57314720
+Madhya Pradesh	Dabra	J57314722
+Himachal Pradesh	Kangra	J57326681
+Odisha	Sakhigopal	J57326757
+Himachal Pradesh	Una	J57326765
+Gujarat	Nakhatrana	J57326792
+Odisha	Balakati	J91974195
+Utter Pradesh	Mawana	J91975255
+Gujarat	Khambhat	J91975265
+Rajasthan	Deoli	K10312185
+Madhya Pradesh	Chhatarpur	J36103640
+Gujarat	Dahod	J36105545
+Himachal Pradesh	Paonta Sahib	J36105559
+Haryana	Lohgarh	J36105562
+Himachal Pradesh	Bilaspur_Hp	J36105596
+Gujarat	Jamnagar	J57314014
+Rajasthan	Malpura	J57314019
+Rajasthan	Gudha Malani	J57314023
+Gujarat	Khambhalia	J57314407
+Gujarat	Jetpur	J57314593
+Rajasthan	Bhopalgarh	K10312417
+Utter Pradesh	Tundla	K10320399
+Odisha	Champua	K10320519
+Utter Pradesh	Siyana	K10320523
+Utter Pradesh	Gajraula	K10320700
+Utter Pradesh	Govardhan	K10320710
+Uttrakhand	Laksar	K10320743
+Rajasthan	Balotra	K10320772
+Gujarat	Ellishbridge	K84959857
+Gujarat	Mora	L51043837
+Utter Pradesh	Muzaffarnagar	L51045428
+Utter Pradesh	Chhata	L51045434
+Odisha	Nischintakoili	L51045435
+Odisha	Khordha	L51045436
+Odisha	Chandikhol	L51045437
+Utter Pradesh	Shikohabad	L51045438
+Rajasthan	Ramganjmandi	L51045489
+Madhya Pradesh	Meghnagar	L51045509
+Rajasthan	Bar	L51045512
+Rajasthan	Didwana	L51045514
+Gujarat	Gangartalai	L51043838
+Gujarat	Naroda	L51043875
+Utter Pradesh	Khair	L51044076
+Haryana	Bhattu Mandi	L51044203
+Rajasthan	Chauhtan	L51044216
+Haryana	Dharuhera	L51044220
+Rajasthan	Shakkargarh	L51045253
+Utter Pradesh	Nagal	L51045349
+Utter Pradesh	Dhampur	L51045363
+Gujarat	Diwada	L51045413
+Odisha	Balugaon	L51045936
+Uttrakhand	Rudrapur	L51046149
+Utter Pradesh	Khatauli	L51046172
+Jharkhand	Bagodar	L51046173
+Utter Pradesh	Fatehabad	L51046185
+Rajasthan	Asind	L51045517
+Gujarat	Zalod	L51045522
+Gujarat	Devgarhbaria	L51045523
+Utter Pradesh	Sarsawa	L51045571
+Uttrakhand	Jhabrera	L51045572
+Utter Pradesh	Shamli	L51045575
+Gujarat	Sukhsar	L51045576
+Gujarat	Dhanpur	L51045585
+Haryana	Pundri	L51045588
+Odisha	Keonjhar	L51045925

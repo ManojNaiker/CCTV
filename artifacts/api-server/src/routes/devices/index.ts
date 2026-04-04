@@ -9,6 +9,8 @@ import {
   UpdateDeviceBody,
   DeleteDeviceParams,
 } from "@workspace/api-zod";
+import { fetchAllDevicesWithRetry, mapHikStatus } from "../../lib/hikconnect";
+import { logger } from "../../lib/logger";
 
 const router: IRouter = Router();
 
@@ -86,17 +88,84 @@ router.post("/devices", async (req, res): Promise<void> => {
 });
 
 router.post("/devices/refresh", async (req, res): Promise<void> => {
-  const now = new Date();
-  // Simulate update: update updatedAt for all devices (in real case, this would ping the API)
-  await db.update(devicesTable).set({ updatedAt: now });
+  try {
+    logger.info("Starting Hik-Connect device status refresh...");
 
-  await logAction("REFRESH", "device", "all", "Manual device status refresh triggered");
+    // Fetch all devices from Hik-Connect API
+    const hikDeviceMap = await fetchAllDevicesWithRetry();
+    logger.info({ count: hikDeviceMap.size }, "Fetched devices from Hik-Connect");
 
-  res.json({
-    message: "Device status refreshed successfully",
-    updatedAt: now.toISOString(),
-    devicesUpdated: await db.select({ count: sql<number>`count(*)` }).from(devicesTable).then(r => Number(r[0]?.count ?? 0)),
-  });
+    // Load all devices from our DB
+    const allDevices = await db.select().from(devicesTable);
+
+    const now = new Date();
+    let updatedCount = 0;
+    let onlineCount = 0;
+    let offlineCount = 0;
+    let unknownCount = 0;
+
+    for (const device of allDevices) {
+      const hikDevice = hikDeviceMap.get(device.serialNumber);
+      const newStatus = hikDevice ? mapHikStatus(hikDevice.status) : "unknown";
+
+      // Track offline days
+      let newOfflineDays = device.offlineDays ?? 0;
+      let newRemark = device.remark;
+
+      if (newStatus === "offline") {
+        newOfflineDays = (device.offlineDays ?? 0) + 1;
+        // Auto-remark if no manual remark set
+        if (!newRemark || newRemark === "-" || newRemark === "") {
+          if (newOfflineDays === 1) {
+            newRemark = "CCTV has been offline since today.";
+          } else {
+            newRemark = `CCTV has been offline from last ${newOfflineDays} days.`;
+          }
+        }
+        offlineCount++;
+      } else if (newStatus === "online") {
+        // Clear offline tracking when device comes back online
+        newOfflineDays = 0;
+        newRemark = null; // Clear auto-remarks when online
+        onlineCount++;
+      } else {
+        unknownCount++;
+      }
+
+      // Only update if status changed or offline days changed
+      if (newStatus !== device.status || newOfflineDays !== device.offlineDays) {
+        await db.update(devicesTable)
+          .set({
+            status: newStatus,
+            offlineDays: newOfflineDays,
+            remark: newRemark,
+            updatedAt: now,
+          })
+          .where(eq(devicesTable.id, device.id));
+        updatedCount++;
+      }
+    }
+
+    const totalDevices = allDevices.length;
+    const description = `Hik-Connect refresh: ${totalDevices} devices checked. Online: ${onlineCount}, Offline: ${offlineCount}, Unknown: ${unknownCount}`;
+    await logAction("REFRESH", "device", "all", description);
+
+    logger.info({ updatedCount, onlineCount, offlineCount, unknownCount }, "Refresh complete");
+
+    res.json({
+      message: "Device status refreshed from Hik-Connect",
+      updatedAt: now.toISOString(),
+      devicesChecked: totalDevices,
+      devicesUpdated: updatedCount,
+      hikDevicesFetched: hikDeviceMap.size,
+      stats: { online: onlineCount, offline: offlineCount, unknown: unknownCount },
+    });
+  } catch (err) {
+    const msg = (err as Error).message;
+    logger.error({ err }, "Hik-Connect refresh failed");
+    await logAction("REFRESH_ERROR", "device", "all", `Hik-Connect refresh failed: ${msg}`);
+    res.status(502).json({ error: `Hik-Connect API error: ${msg}` });
+  }
 });
 
 router.get("/devices/stats/summary", async (req, res): Promise<void> => {

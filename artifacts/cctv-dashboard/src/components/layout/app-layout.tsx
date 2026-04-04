@@ -1,12 +1,12 @@
 import { Link, useLocation } from "wouter";
 import { 
-  Monitor, 
   Users, 
   Activity, 
   Settings, 
   LogOut, 
   Menu, 
-  ShieldCheck
+  ShieldCheck,
+  LayoutDashboard
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -17,7 +17,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
-    { href: "/", label: "Dashboard", icon: Monitor },
+    { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/devices", label: "Devices", icon: ShieldCheck },
     { href: "/users", label: "Users", icon: Users },
     { href: "/audit-logs", label: "Audit Logs", icon: Activity },
@@ -47,16 +47,24 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     </>
   );
 
+  const LogoBlock = () => (
+    <div className="flex items-center gap-2 px-2 mb-8">
+      <img
+        src="/logo.png"
+        alt="Light Finance"
+        className="h-10 w-auto object-contain"
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.display = "none";
+        }}
+      />
+    </div>
+  );
+
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40 md:flex-row">
       {/* Desktop Sidebar */}
       <aside className="hidden w-64 flex-col border-r bg-card px-4 py-6 md:flex">
-        <div className="flex items-center gap-2 px-2 mb-8">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Monitor className="h-5 w-5" />
-          </div>
-          <span className="text-lg font-bold tracking-tight">Light Finance</span>
-        </div>
+        <LogoBlock />
         <nav className="flex flex-1 flex-col gap-2">
           <NavLinks />
         </nav>
@@ -79,17 +87,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-64 sm:max-w-none">
-              <div className="flex items-center gap-2 px-2 mb-8">
-                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                  <Monitor className="h-5 w-5" />
-                </div>
-                <span className="text-lg font-bold tracking-tight">Light Finance</span>
+              <div className="px-2 mb-8 pt-2">
+                <img
+                  src="/logo.png"
+                  alt="Light Finance"
+                  className="h-10 w-auto object-contain"
+                />
               </div>
               <nav className="flex flex-col gap-2">
                 <NavLinks />
               </nav>
             </SheetContent>
           </Sheet>
+          <div className="flex items-center">
+            <img src="/logo.png" alt="Light Finance" className="h-8 w-auto object-contain" />
+          </div>
         </header>
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8">

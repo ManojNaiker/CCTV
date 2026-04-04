@@ -1,0 +1,1328 @@
+# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
+"""
+Light Finance Branch CCTV Monitoring Tool – Hik-Connect (Tkinter)
+
+- Split view: Left = Online, Right = Offline/Not Found
+- 5-min auto refresh (status only; online remarks auto-cleared to "-")
+- Starts even if Excel is missing/locked (empty model; UI still works)
+- Excel lock retry; State Name from Excel by Serial match
+- Generate PDF -> Ask: Local Folder (Save As) OR Email Report (enter recipients)
+- BEFORE saving/emailing PDF or sending Offline Mail: do a fresh login + fetch (blocking modal)
+- HTML offline email table (State | Branch | Remark) **NO WRAP** (Serial removed)
+- Cleaner, more professional UI
+- GUI starts maximized (user can still minimize / resize)
+- Offline branches logged into PostgreSQL (branch + date; duplicates skipped)
+- Remarks auto-updated based on offline streak from DB
+- Small DB connection status "light" in status bar
+"""
+
+import os
+import time
+import tempfile
+from datetime import datetime, date, timedelta
+import threading
+import tkinter as tk
+from tkinter import ttk, messagebox, simpledialog, filedialog
+
+import pandas as pd
+import requests
+
+# email deps
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
+import smtplib, ssl
+
+# ---------------- CONFIG ----------------
+HIK_LOGIN_URL = "https://www.hik-connect.com/v3/users/login/v6"
+HIK_DEVICE_LIST_URL = "https://www.hik-connect.com/v3/hcweb/devices/list"
+
+ACCOUNT = os.getenv("HIK_ACCOUNT", "light_rajasthan")
+PASSWORD = os.getenv("HIK_PASSWORD", "tz7jHgGWWbEdAKvYbl78XbkAdyHoto64zmGwLmamczEbZWYtrZn8ibbAOdJ8kObrdwz8K8ac8+tUMYPMBx4ezUWaINzWYzhjN8VbK9J1P39ievtGtRPQIy73b9xnSxs1XYQLjCYFogC8gD9JgA4iPLXw7JFxf1ZfWB1OMj5s4oMn+cq1KN5d3TiVAEM3IWTS5ewWE8XnIf/QVhvoLmQYoHCyGV2m9KhrWJG1FRKxTxjROsAT0YHWscm+WGuG6bBjNjZQzeg/HN9ppfhCXgUcJeWZzCZSVIr1h3l/BWArnOpmPVVHhbEzIILgJ4GY/Bz/MKt0QLh4dooojI0apkLROg==")
+if not ACCOUNT or not PASSWORD:
+    raise SystemExit("ERROR: Set HIK_ACCOUNT and HIK_PASSWORD environment variables.")
+
+CUSTOMNO = "1000002"
+FEATURECODE = "f0778a92eb09c76139747987a4b83cf8"
+CLIENTTYPE = "48"
+CLIENTSOURCE = "0"
+
+EXCEL_FILE = "cctv_devices.xlsx"
+PAGE_SIZE = 300
+LOGO_FILE = "logo.png"  # optional
+
+# Email configuration (defaults; can be overridden when sending)
+SMTP_SERVER = "mail.lightfinance.com"
+SMTP_PORT = 465
+SMTP_USER = os.getenv("SMTP_USER", "no_reply@lightfinance.com")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "L!m@F#N6261")
+DEFAULT_TO_EMAIL = "Smitkumar.patel@lightfinance.com"
+DEFAULT_CC_EMAIL = "Smitkumar.patel@lightfinance.com"
+
+AUTO_REFRESH_MS = 300_000  # 5 minutes
+
+# ---------- PostgreSQL configuration (match working tester) ----------
+DB_HOST = "172.16.0.44"
+DB_USER = "postgres"
+DB_PASSWORD = "root"
+DB_NAME = "CCTV"
+DB_PORT = 5432
+
+# ---------------- HELPERS ----------------
+def _split_emails(raw: str):
+    """Split email addresses by comma/semicolon/newline/whitespace."""
+    if not raw:
+        return []
+    tmp = raw.replace(";", ",").replace("\n", ",").replace("\r", ",").replace("\t", ",")
+    parts = [p.strip() for p in tmp.split(",") if p.strip()]
+    return parts
+
+# ---------------- API HELPERS ----------------
+def login_get_session(account: str, password: str) -> str:
+    headers = {
+        "accept": "application/json, text/plain, */*",
+        "content-type": "application/x-www-form-urlencoded",
+        "appid": "Hik-Connect-Portal",
+        "clientsource": CLIENTSOURCE,
+        "clienttype": CLIENTTYPE,
+        "customno": CUSTOMNO,
+        "featurecode": FEATURECODE,
+        "user-agent": "Mozilla/5.0"
+    }
+    payload = {"checkSign": "false", "cuName": "d2Vi", "account": account, "password": password, "imageCode": ""}
+    r = requests.post(HIK_LOGIN_URL, headers=headers, data=payload, timeout=20)
+    r.raise_for_status()
+    j = r.json()
+    sessionid = (
+        j.get("loginSession", {}).get("sessionId")
+        or j.get("data", {}).get("token")
+        or j.get("sessionid")
+    )
+    if not sessionid:
+        raise ValueError(f"Session ID not in login response: {j}")
+    return sessionid
+
+def fetch_device_list(sessionid: str, offset: int = 0, limit: int = PAGE_SIZE) -> list:
+    headers = {
+        "accept": "application/json, text/plain, */*",
+        "clientsource": CLIENTSOURCE,
+        "clienttype": CLIENTTYPE,
+        "customno": CUSTOMNO,
+        "featurecode": FEATURECODE,
+        "sessionid": sessionid,
+        "user-agent": "Mozilla/5.0",
+        "referer": "https://www.hik-connect.com/views/main/index.html",
+    }
+    params = {"limit": limit, "offset": offset}
+    r = requests.get(HIK_DEVICE_LIST_URL, headers=headers, params=params, timeout=15)
+    if r.status_code == 401:
+        raise requests.HTTPError("401 – session expired")
+    r.raise_for_status()
+    json_resp = r.json()
+    return json_resp.get("data", {}).get("data", []) or []
+
+def fetch_all_devices(sessionid: str) -> dict:
+    all_devices = {}
+    offset = 0
+    while True:
+        devices = fetch_device_list(sessionid, offset)
+        if not devices:
+            break
+        for dev in devices:
+            all_devices[dev.get("subSerial")] = dev
+        offset += PAGE_SIZE
+        time.sleep(0.25)
+    return all_devices
+
+# ---------------- PDF ----------------
+def generate_pdf(device_data: list, output_path: str):
+    """Generate a colored PDF for the given device_data list."""
+    # Lazy import ReportLab so the app can start without it
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+    except Exception as e:
+        raise RuntimeError(
+            "ReportLab is required to generate PDFs. Install it with:\n"
+            "    pip install reportlab\n"
+            f"Details: {e}"
+        )
+
+    doc = SimpleDocTemplate(
+        output_path,
+        pagesize=A4,
+        rightMargin=40,
+        leftMargin=40,
+        topMargin=40,
+        bottomMargin=40
+    )
+    elements = []
+    styles = getSampleStyleSheet()
+
+    if os.path.isfile(LOGO_FILE):
+        elements.append(Image(LOGO_FILE, width=100, height=50, hAlign="LEFT"))
+        elements.append(Spacer(1, 10))
+
+    header_style = ParagraphStyle(name="CenteredHeader", parent=styles["Heading1"], alignment=TA_CENTER)
+    elements.append(Paragraph("CCTV Device Status Report", header_style))
+    elements.append(Paragraph(
+        f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} IST",
+        ParagraphStyle(name="meta", fontSize=9, alignment=TA_LEFT)
+    ))
+    elements.append(Spacer(1, 12))
+
+    table_data = [["S.No", "Branch Name", "Serial Number", "Status", "Remark"]]
+    for i, d in enumerate(device_data, start=1):
+        table_data.append([i, d.get("branch", ""), d.get("serial", ""), d.get("status", ""), d.get("remark", "-")])
+
+    col_widths = [30, 150, 150, 70, 160]
+    table = Table(table_data, colWidths=col_widths, repeatRows=1)
+    tbl_style = TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f6feb")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#c9d1d9")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+    ])
+
+    for row_idx, row in enumerate(table_data[1:], start=1):
+        status = str(row[3]).lower()
+        if status == "online":
+            bg = colors.HexColor("#DFF2E1"); txt = colors.HexColor("#1A7F2A")
+        elif status == "offline":
+            bg = colors.HexColor("#F8D7DA"); txt = colors.HexColor("#8B1A21")
+        else:
+            bg = colors.HexColor("#FFF3CD"); txt = colors.HexColor("#856404")
+        tbl_style.add("BACKGROUND", (3, row_idx), (3, row_idx), bg)
+        tbl_style.add("TEXTCOLOR", (3, row_idx), (3, row_idx), txt)
+
+    table.setStyle(tbl_style)
+    elements.append(table)
+    doc.build(elements)
+
+# ---------------- HTML EMAIL (NO-WRAP TABLE; SERIAL REMOVED) ----------------
+def build_offline_email_html(rows_offline: list) -> str:
+    """Email table columns: State Name | Branch Name | Remark (no wrapping)."""
+    row_html = []
+    for r in rows_offline:
+        row_html.append(f"""
+        <tr>
+            <td style="padding:8px;border:1px solid #d0d7de;white-space:nowrap;">{r.get('state','-')}</td>
+            <td style="padding:8px;border:1px solid #d0d7de;white-space:nowrap;">{r.get('branch','')}</td>
+            <td style="padding:8px;border:1px solid #d0d7de;white-space:nowrap;">{r.get('remark','-')}</td>
+        </tr>
+        """)
+
+    if not row_html:
+        row_html.append("""
+        <tr>
+            <td colspan="3" style="padding:10px;border:1px solid #d0d7de;text-align:center;color:#6a737d;white-space:nowrap;">
+                No offline devices at the moment.
+            </td>
+        </tr>
+        """)
+
+    return f"""\
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>CCTV Offline Report</title></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;color:#0f1419;">
+  <div style="max-width:900px;margin:0 auto;padding:24px;line-height:1.4;">
+    <p>Dear Branch Team,</p>
+    <p>Please find below the CCTV status of your branches; please check your internet cable if any issue persists; and please contact the IT team.</p>
+    <p>कृपया  अपनी  शाखाओं की सीसीटीवी  स्थिति  नीचे  देखें; कृपया अपना  इंटरनेट  केबल जांचें;  यदि  समस्या  बनी  रहती है  तो आईटी  टीम से सं पर्क करें।</p>
+    <p>કૃપા કરીને તમારી શાખાઓની સીસીટીવી સ્થિતિ નીચે શોધો; કૃપા કરીને તમારી ઇન્ટરનેટ કેબલ તપાસો; જો સમસ્યા ચાલું રહે તો કૃપા કરીને IT ટીમનો સંપર્ક કરો.</p>
+    <p><strong>Dear RM's,</strong></p>
+    <p>The CCTV cameras at the following branches are showing as offline; please coordinate with your branch BMs to resolve the issue as soon as possible.</p>
+    <p>निम्नलिखित शाखाओं के सीसीटीवी कैमरे ऑफ़लाइन दिख रहे हैं; कृपया समस्या को यथाशीघ्र हल करने के लिए अपनी शाखा के बीएम के साथ समन्वय करें।</p>
+    <p>નીચેની શાખાઓ પરના સીસીટીવી કેમેરા ઑફલાઇનként દેખાઈ રહ્યા છે; શક્ય તેટલી વહેલી તકે સમસ્યાનો ઉકેલ લાવવા માટે કૃપા કરીને તમારી શાખા BM સાથે સંકલન કરો</p>
+    <p>Since the branch has been offline for more than 3 days, CBM,DM, SH, please coordinate with your branch.</p>
+
+    <!-- NO-WRAP STATUS TABLE (State | Branch | Remark) -->
+    <table cellspacing="0" cellpadding="0"
+           style="border-collapse:collapse;border:1px solid #d0d7de;margin-top:12px;table-layout:auto;width:auto;max-width:100%;">
+      <thead>
+        <tr style="background:#f6f8fa;">
+          <th style="padding:10px;border:1px solid #d0d7de;text-align:left;white-space:nowrap;">State Name</th>
+          <th style="padding:10px;border:1px solid #d0d7de;text-align:left;white-space:nowrap;">Branch Name</th>
+          <th style="padding:10px;border:1px solid #d0d7de;text-align:left;white-space:nowrap;">Remark</th>
+        </tr>
+      </thead>
+      <tbody>
+        {''.join(row_html)}
+      </tbody>
+    </table>
+
+    <p style="margin-top:24px;">Regards,<br>IT Team</p>
+  </div>
+</body>
+</html>
+"""
+
+# ---------------- EMAIL SENDER ----------------
+
+def upload_excel(path):
+    df = pd.read_excel(path)
+    print("Excel uploaded successfully!")
+    print(df.head())   # show first rows
+    return df
+
+def send_email(subject, plain_text_body, html_body, to_email, cc_email, attachment_path):
+    msg = MIMEMultipart("mixed")
+    msg["From"] = SMTP_USER
+    msg["To"] = to_email
+    if cc_email:
+        msg["Cc"] = cc_email
+    msg["Subject"] = subject
+
+    alt = MIMEMultipart("alternative")
+    alt.attach(MIMEText(plain_text_body or "Please see the attached report.", "plain", "utf-8"))
+    alt.attach(MIMEText(html_body or "<p>Please see the attached report.</p>", "html", "utf-8"))
+    msg.attach(alt)
+
+    if attachment_path and os.path.isfile(attachment_path):
+        with open(attachment_path, "rb") as f:
+            part = MIMEBase("application", "pdf")
+            part.set_payload(f.read())
+        encoders.encode_base64(part)
+        part.add_header("Content-Disposition", "attachment", filename=os.path.basename(attachment_path))
+        msg.attach(part)
+
+    recipients = _split_emails(to_email)
+    if cc_email:
+        recipients += _split_emails(cc_email)
+
+    context = ssl.create_default_context()
+    with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context) as server:
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.sendmail(SMTP_USER, recipients, msg.as_string())
+
+# ---------------- GUI ----------------
+class CCTVApp(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Branch CCTV Monitoring Tool")
+        self.geometry("1250x720")
+        self.minsize(1160, 640)
+        
+        # Initialize uploaded_emails attribute
+        self.uploaded_emails = DEFAULT_TO_EMAIL
+        
+        # Always start maximized; user can minimize/resize
+        try:
+            self.after(0, lambda: self.state("zoomed"))
+        except Exception:
+            pass
+
+        self.sessionid = None
+        self.df_excel = None
+        self.device_rows = []  # dict(state, branch, serial, status, remark)
+        self.serial_to_state = {}
+
+        self._apply_styles()
+        self._build_headerbar()
+        self._build_toolbar()
+        self._build_split_tables()
+        self._build_statusbar()
+
+        self._safe_load_excel()
+
+        # Initial manual refresh to update data & SQL immediately
+        self.full_refresh_from_api()
+        # And then schedule auto refresh
+        self.after(1000, self._auto_refresh_tick)
+
+    # -------- Thread-safe UI helpers --------
+    def _ui(self, fn, *args, **kwargs):
+        try:
+            self.after(0, lambda: fn(*args, **kwargs))
+        except tk.TclError:
+            pass
+
+    def _set_status(self, txt: str):
+        if hasattr(self, "var_status"):
+            self._ui(self.var_status.set, txt)
+
+    def _alert_info(self, title: str, msg: str):
+        self._ui(messagebox.showinfo, title, msg)
+
+    def _alert_error(self, title: str, msg: str):
+        self._ui(messagebox.showerror, title, msg)
+
+    def _set_db_light(self, ok: bool = None, msg: str = None):
+        """Update small DB light in status bar."""
+        if not hasattr(self, "lbl_db_status"):
+            return
+        if ok is None:
+            self.lbl_db_status.config(text="DB ●", foreground="#9ca3af")  # grey / idle
+        elif ok:
+            self.lbl_db_status.config(text="DB ●", foreground="#16a34a")  # green
+        else:
+            self.lbl_db_status.config(text="DB ●", foreground="#dc2626")  # red
+        if msg:
+            self._set_status(msg)
+
+    # ---------- Styles ----------
+    def _apply_styles(self):
+        style = ttk.Style()
+        for theme in ('vista', 'xpnative', 'clam', 'alt', 'default', 'classic'):
+            try:
+                style.theme_use(theme)
+                break
+            except tk.TclError:
+                continue
+        base_font = ("Segoe UI", 10)
+        header_font = ("Segoe UI Semibold", 10)
+
+        style.configure(".", font=base_font)
+        style.configure("TButton", padding=(12, 7))
+        style.configure("TLabel", padding=(2, 0))
+        style.configure("Accent.TButton", padding=(12, 7))
+
+        # Treeview
+        style.configure("Pro.Treeview",
+                        background="#ffffff",
+                        fieldbackground="#ffffff",
+                        bordercolor="#e5e7eb",
+                        rowheight=27)
+        style.configure("Pro.Treeview.Heading",
+                        font=header_font,
+                        background="#f3f4f6",
+                        relief="flat")
+        style.map("Pro.Treeview.Heading",
+                  background=[("active", "#e5e7eb")])
+
+    # ---------- Header bar ----------
+    def _build_headerbar(self):
+        header = tk.Frame(self, bg="#0f172a")  # slate-900
+        header.pack(side=tk.TOP, fill=tk.X)
+
+        inner = tk.Frame(header, bg="#0f172a")
+        inner.pack(side=tk.TOP, fill=tk.X, padx=12, pady=10)
+
+        # Optional logo
+        if os.path.isfile(LOGO_FILE):
+            try:
+                from PIL import Image, ImageTk  # optional
+                img = Image.open(LOGO_FILE)
+                img = img.resize((120, 36))
+                self._logo_img = ImageTk.PhotoImage(img)
+                tk.Label(inner, image=self._logo_img, bg="#0f172a").pack(side=tk.LEFT, padx=(0, 8))
+            except Exception:
+                pass
+
+        tk.Label(
+            inner,
+            text="Light Finance Branch CCTV Monitoring Tool",
+            font=("Segoe UI Semibold", 15),
+            fg="white",
+            bg="#0f172a"
+        ).pack(side=tk.LEFT)
+
+    # ---------- Toolbar ----------
+    def _upload_excel_emails(self):
+        """Open file dialog to select Excel file and extract email addresses."""
+        file_path = filedialog.askopenfilename(
+            title="Select Excel File with Email Addresses",
+            filetypes=[("Excel files", "*.xlsx *.xls"), ("All files", "*.*")]
+        )
+        if not file_path:
+            return
+            
+        try:
+            # Read the Excel file
+            df = pd.read_excel(file_path)
+            
+            # Find columns that might contain emails
+            email_columns = []
+            for col in df.columns:
+                if any(x in str(col).lower() for x in ['email', 'mail', 'e-mail']):
+                    email_columns.append(col)
+            
+            if not email_columns:
+                # If no obvious email columns, try to find any string column with @ symbol
+                for col in df.columns:
+                    if df[col].dtype == 'object' and df[col].astype(str).str.contains('@').any():
+                        email_columns.append(col)
+                        break
+            
+            if not email_columns:
+                self._alert_info("No Email Column", "Could not find any column containing email addresses.")
+                return
+                
+            # Get unique emails from all identified columns
+            emails = set()
+            for col in email_columns:
+                emails.update(df[col].dropna().astype(str).str.strip())
+            
+            # Filter valid emails
+            valid_emails = [e for e in emails if '@' in e and '.' in e.split('@')[-1]]
+            
+            if not valid_emails:
+                self._alert_info("No Valid Emails", "No valid email addresses found in the selected file.")
+                return
+                
+            # Store the emails for later use
+            self.uploaded_emails = ", ".join(valid_emails)
+            self._alert_info("Success", f"Successfully loaded {len(valid_emails)} email addresses from {os.path.basename(file_path)}")
+            
+        except Exception as e:
+            self._alert_error("Error", f"Failed to read Excel file: {str(e)}")
+
+    def _build_toolbar(self):
+        bar = ttk.Frame(self, padding=(12, 10))
+        bar.pack(side=tk.TOP, fill=tk.X)
+
+        ttk.Button(bar, text="🔐  Login + Full Status Refresh", style="Accent.TButton",
+                   command=self.full_refresh_from_api).pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Button(bar, text="💾  Save Remarks", command=self.save_to_excel)\
+            .pack(side=tk.LEFT, padx=6)
+        ttk.Label(bar, text="PDF filter:", padding=(14, 0)).pack(side=tk.LEFT)
+        self.var_pdf_online = tk.BooleanVar(value=True)
+        self.var_pdf_offline = tk.BooleanVar(value=True)
+        ttk.Checkbutton(bar, text="Online", variable=self.var_pdf_online).pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Checkbutton(bar, text="Offline", variable=self.var_pdf_offline).pack(side=tk.LEFT, padx=(0, 12))
+
+        ttk.Button(bar, text="📄  Generate PDF", command=self.generate_pdf_action)\
+            .pack(side=tk.LEFT, padx=6)
+
+        ttk.Button(bar, text="   Upload Email Excel", command=self._upload_excel_emails)\
+            .pack(side=tk.LEFT, padx=6)
+
+        ttk.Button(bar, text=" 📨  Send Offline Email", command=self.send_offline_email_from_ui)\
+            .pack(side=tk.LEFT, padx=6)
+        ttk.Button(bar, text="✏️  Edit Remark", command=self.edit_selected_remark)\
+            .pack(side=tk.LEFT, padx=6)
+
+        # Search
+        ttk.Label(bar, text="Search:", padding=(14, 0)).pack(side=tk.LEFT)
+        self.var_search = tk.StringVar()
+        entry = ttk.Entry(bar, textvariable=self.var_search, width=40)
+        entry.pack(side=tk.LEFT)
+        entry.insert(0, "Type to filter by State / Branch / Serial")
+        entry.configure(foreground="#9ca3af")
+
+        def on_focus_in(_):
+            if self.var_search.get().startswith("Type to filter"):
+                self.var_search.set("")
+                entry.configure(foreground="#111827")
+
+        def on_focus_out(_):
+            if not self.var_search.get().strip():
+                self.var_search.set("")
+                entry.delete(0, tk.END)
+                entry.insert(0, "Type to filter by State / Branch / Serial")
+                entry.configure(foreground="#9ca3af")
+
+        entry.bind("<FocusIn>", on_focus_in)
+        entry.bind("<FocusOut>", on_focus_out)
+        self.var_search.trace_add("write", lambda *_: self._apply_filter())
+
+    # ---------- Tables ----------
+    def _build_split_tables(self):
+        paned = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
+        paned.pack(fill=tk.BOTH, expand=True, padx=12, pady=(6, 12))
+        left_frame, right_frame = ttk.Frame(paned), ttk.Frame(paned)
+        paned.add(left_frame, weight=1)
+        paned.add(right_frame, weight=1)
+
+        self.lbl_left = ttk.Label(left_frame, text="Online (0)", font=("Segoe UI Semibold", 11))
+        self.lbl_left.pack(anchor="w", pady=(2, 6))
+        self.lbl_right = ttk.Label(right_frame, text="Offline / Not Found (0)", font=("Segoe UI Semibold", 11))
+        self.lbl_right.pack(anchor="w", pady=(2, 6))
+
+        self.left_tree = self._make_tree(left_frame)
+        self.right_tree = self._make_tree(right_frame)
+        self.right_tree.bind("<Double-1>", lambda e: self.edit_selected_remark())
+
+        for tv in (self.left_tree, self.right_tree):
+            for cid in ("state", "branch", "serial", "status", "remark"):
+                tv.heading(cid, command=lambda c=cid, t=tv: self._sort_treeview(t, c, False))
+
+    def _make_tree(self, parent):
+        wrap = ttk.Frame(parent)
+        wrap.pack(fill=tk.BOTH, expand=True)
+        cols = ("state", "branch", "serial", "status", "remark")
+        tree = ttk.Treeview(wrap, columns=cols, show="headings", selectmode="browse", style="Pro.Treeview")
+        config = (
+            ("state", "State Name", 160, tk.W),
+            ("branch", "Branch Name", 260, tk.W),
+            ("serial", "Serial Number", 160, tk.CENTER),
+            ("status", "Status", 90, tk.CENTER),
+            ("remark", "Remark", 300, tk.W),
+        )
+        for cid, text, w, anchor in config:
+            tree.heading(cid, text=text, anchor=anchor)
+            tree.column(cid, width=w, stretch=True, anchor=anchor)
+        tree.tag_configure("online", background="#E7F6EA")
+        tree.tag_configure("offline", background="#FCE8E8")
+        tree.tag_configure("notfound", background="#FFF7E5")
+        tree.tag_configure("odd", background="#fafafa")
+
+        vsb = ttk.Scrollbar(wrap, orient="vertical", command=tree.yview)
+        hsb = ttk.Scrollbar(wrap, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        tree.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="ew")
+        wrap.rowconfigure(0, weight=1)
+        wrap.columnconfigure(0, weight=1)
+        return tree
+
+    # ---------- Status bar ----------
+    def _build_statusbar(self):
+        sb = ttk.Frame(self, padding=(12, 8))
+        sb.pack(side=tk.BOTTOM, fill=tk.X)
+        self.var_status = tk.StringVar(value="Ready")
+        ttk.Label(sb, textvariable=self.var_status, anchor=tk.W).pack(side=tk.LEFT)
+
+        # Right side: DB light + last refresh
+        self.lbl_db_status = ttk.Label(sb, text="DB ●", foreground="#9ca3af", anchor=tk.E)
+        self.lbl_db_status.pack(side=tk.RIGHT, padx=(0, 10))
+
+        self.lbl_last_status = ttk.Label(sb, text="", anchor=tk.E, foreground="#6b7280")
+        self.lbl_last_status.pack(side=tk.RIGHT)
+
+    # ---------- Excel helpers ----------
+    def _read_excel_with_fallback(self, path: str) -> pd.DataFrame:
+        try:
+            return pd.read_excel(path, engine="openpyxl")
+        except Exception:
+            return pd.read_excel(path)
+
+    def _safe_load_excel(self):
+        if not os.path.isfile(EXCEL_FILE):
+            self.df_excel = pd.DataFrame(columns=["State Name", "Branch Name", "Serial Number", "Remark"])
+            self.device_rows = []
+            self.serial_to_state = {}
+            self._apply_filter()
+            self._set_status(f"Excel not found: {EXCEL_FILE}. Starting with empty list.")
+            return
+
+        df = None
+        for attempt in range(8):
+            try:
+                df = self._read_excel_with_fallback(EXCEL_FILE)
+                break
+            except PermissionError:
+                self._set_status(f"Excel locked. Retrying ({attempt+1}/8)… Close '{EXCEL_FILE}'.")
+                time.sleep(0.8)
+            except Exception as e:
+                self._set_status(f"Excel read error: {e}")
+                break
+
+        if df is None:
+            self.df_excel = pd.DataFrame(columns=["State Name", "Branch Name", "Serial Number", "Remark"])
+            self.device_rows = []
+            self.serial_to_state = {}
+            self._apply_filter()
+            self._alert_info(
+                "Excel Unavailable",
+                f"Couldn't load '{EXCEL_FILE}'. The app started with empty list. "
+                "Use 'Login + Full Status Refresh' or try again later."
+            )
+            return
+
+        try:
+            df.columns = [c.strip() for c in df.columns]
+            if "Serial Number" not in df.columns:
+                raise ValueError("Excel must have a 'Serial Number' column.")
+            df["Serial Number"] = df["Serial Number"].astype(str).str.strip()
+        except Exception as e:
+            self.df_excel = pd.DataFrame(columns=["State Name", "Branch Name", "Serial Number", "Remark"])
+            self.device_rows = []
+            self.serial_to_state = {}
+            self._apply_filter()
+            self._alert_error(
+                "Excel Format",
+                f"Invalid Excel format: {e}\n"
+                "Expected columns at least: Serial Number (and optionally State Name, Branch Name, Remark)."
+            )
+            return
+
+        state_col = "State Name" if "State Name" in df.columns else ("State" if "State" in df.columns else None)
+        if state_col:
+            self.serial_to_state = {
+                str(r["Serial Number"]).strip(): (str(r[state_col]).strip() if pd.notna(r[state_col]) else "-")
+                for _, r in df.iterrows()
+            }
+        else:
+            self.serial_to_state = {}
+
+        self.df_excel = df
+        self.device_rows = []
+        for _, r in df.iterrows():
+            serial = str(r["Serial Number"]).strip()
+            self.device_rows.append({
+                "state": self.serial_to_state.get(serial, "-"),
+                "branch": r.get("Branch Name", "") if "Branch Name" in df.columns else "",
+                "serial": serial,
+                "status": "Not Found",
+                "remark": (
+                    r.get("Remark")
+                    if "Remark" in df.columns and pd.notna(r.get("Remark", "-")) and str(r.get("Remark", "-")).strip()
+                    else "-"
+                ),
+            })
+        self._apply_filter()
+
+    # ---------- PostgreSQL helpers ----------
+    def _get_db_conn(self):
+        """Use same signature as your working tester code."""
+        try:
+            import psycopg2
+        except Exception:
+            self._set_db_light(False, "psycopg2 not installed; PostgreSQL logging disabled.")
+            return None
+        try:
+            conn = psycopg2.connect(
+                host=DB_HOST,
+                user=DB_USER,
+                password=DB_PASSWORD,
+                database=DB_NAME,   # IMPORTANT: use database= (same as tester)
+                port=DB_PORT
+            )
+            self._set_db_light(True, "DB connected")
+            return conn
+        except Exception as e:
+            self._set_db_light(False, f"DB connection failed: {e}")
+            return None
+
+    def _ensure_offline_table(self, conn):
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS offline_logs (
+                        id SERIAL PRIMARY KEY,
+                        branch_name TEXT NOT NULL,
+                        offline_date DATE NOT NULL,
+                        created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now(),
+                        UNIQUE (branch_name, offline_date)
+                    )
+                    """
+                )
+            conn.commit()
+        except Exception as e:
+            self._set_status(f"DB table check failed: {e}")
+
+    def _log_offline_branches_to_db(self):
+        """Insert today's offline branches into DB (skip duplicates)."""
+        offline_branches = sorted({
+            r["branch"]
+            for r in self.device_rows
+            if str(r.get("status", "")).lower() in ("offline", "not found")
+            and str(r.get("branch", "")).strip()
+        })
+        if not offline_branches:
+            return
+        conn = self._get_db_conn()
+        if not conn:
+            return
+        try:
+            self._ensure_offline_table(conn)
+            today = date.today()
+            with conn.cursor() as cur:
+                for b in offline_branches:
+                    cur.execute(
+                        """
+                        INSERT INTO offline_logs (branch_name, offline_date)
+                        VALUES (%s, %s)
+                        ON CONFLICT (branch_name, offline_date) DO NOTHING
+                        """,
+                        (b, today),
+                    )
+            conn.commit()
+        except Exception as e:
+            self._set_status(f"DB log insert failed: {e}")
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    def _update_offline_remarks_from_db(self):
+        """
+        For offline/not-found rows where remark is '-' or empty,
+        look at offline_logs table and compute consecutive offline days streak.
+        """
+        branches = {
+            r["branch"]
+            for r in self.device_rows
+            if str(r.get("status", "")).lower() in ("offline", "not found")
+            and str(r.get("branch", "")).strip()
+        }
+        if not branches:
+            return
+        conn = self._get_db_conn()
+        if not conn:
+            return
+        try:
+            self._ensure_offline_table(conn)
+            today = date.today()
+            cache = {}
+            with conn.cursor() as cur:
+                for branch in branches:
+                    cur.execute(
+                        """
+                        SELECT offline_date
+                        FROM offline_logs
+                        WHERE branch_name = %s AND offline_date <= %s
+                        """,
+                        (branch, today),
+                    )
+                    dates = [row[0] for row in cur.fetchall()]
+                    cache[branch] = set(dates)
+
+            for r in self.device_rows:
+                if str(r.get("status", "")).lower() not in ("offline", "not found"):
+                    continue
+                # keep manual remarks if user already set something
+                current_remark = str(r.get("remark", "")).strip()
+                if current_remark and current_remark != "-":
+                    continue
+                branch = r.get("branch", "")
+                if not branch:
+                    continue
+                date_set = cache.get(branch)
+                if not date_set:
+                    continue
+                if today not in date_set:
+                    continue
+                # compute consecutive streak ending today
+                streak = 1
+                d = today - timedelta(days=1)
+                while d in date_set:
+                    streak += 1
+                    d -= timedelta(days=1)
+                if streak <= 0:
+                    continue
+                if streak == 1:
+                    text = "CCTV has been offline since today."
+                else:
+                    text = f"CCTV has been offline from last {streak} days."
+                r["remark"] = text
+        except Exception as e:
+            self._set_status(f"DB remark update failed: {e}")
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    # ---------- Core status update ----------
+    def _update_statuses_from_latest(self, latest_map: dict):
+        serial_to_status = {
+            s: ("Online" if d.get("status", 0) == 1 else "Offline" if d.get("status", 0) == 2 else "Not Found")
+            for s, d in latest_map.items()
+        }
+        changed = 0
+        for row in self.device_rows:
+            new_status = serial_to_status.get(row["serial"], "Not Found")
+            if new_status != row["status"]:
+                row["status"] = new_status
+                changed += 1
+            if new_status == "Online":
+                row["remark"] = "-"
+        # Log offline branches into DB and then auto-update remarks based on streak
+        try:
+            self._log_offline_branches_to_db()
+            self._update_offline_remarks_from_db()
+        except Exception:
+            pass
+        self._apply_filter()
+        return changed
+
+    # ---------- Auto refresh ----------
+    def _auto_refresh_tick(self):
+        def worker():
+            try:
+                self._set_status("Auto refresh: logging in / fetching…")
+                if self.sessionid is None:
+                    self.sessionid = login_get_session(ACCOUNT, PASSWORD)
+                try:
+                    latest_map = fetch_all_devices(self.sessionid)
+                except requests.HTTPError:
+                    self.sessionid = login_get_session(ACCOUNT, PASSWORD)
+                    latest_map = fetch_all_devices(self.sessionid)
+                changed = self._update_statuses_from_latest(latest_map)
+                ts = datetime.now().strftime('%H:%M:%S')
+                self._set_status(f"Auto-refreshed {changed} rows at {ts} (every 5 min)")
+                self.lbl_last_status.config(text=f"Last refresh: {ts}")
+            except Exception as e:
+                self._set_status(f"Auto-refresh error: {e}")
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.after(AUTO_REFRESH_MS, self._auto_refresh_tick)
+
+    def full_refresh_from_api(self):
+        def worker():
+            try:
+                self._set_status("Manual refresh: Logging in…")
+                self.sessionid = login_get_session(ACCOUNT, PASSWORD)
+                latest_map = fetch_all_devices(self.sessionid)
+                self._update_statuses_from_latest(latest_map)
+                self._set_status("Manual refresh complete.")
+                ts = datetime.now().strftime('%H:%M:%S')
+                self.lbl_last_status.config(text=f"Last refresh: {ts}")
+            except Exception as e:
+                self._set_status(f"Error: {e}")
+                self._alert_error("Error", str(e))
+        threading.Thread(target=worker, daemon=True).start()
+
+    # ---------- Blocking refresh helper (for PDF/Email actions) ----------
+    def _run_refresh_blocking(self):
+        done = tk.BooleanVar(value=False)
+        error = {"msg": None}
+
+        win = tk.Toplevel(self)
+        win.title("Refreshing…")
+        win.transient(self)
+        win.grab_set()
+        win.resizable(False, False)
+        ttk.Label(win, text="Refreshing latest status from Hik-Connect…", padding=14)\
+            .grid(row=0, column=0, padx=12, pady=(12, 6))
+        pb = ttk.Progressbar(win, mode="indeterminate", length=260)
+        pb.grid(row=1, column=0, padx=12, pady=(0, 12))
+        pb.start(12)
+
+        def worker():
+            try:
+                if self.sessionid is None:
+                    self.sessionid = login_get_session(ACCOUNT, PASSWORD)
+                try:
+                    latest_map = fetch_all_devices(self.sessionid)
+                except requests.HTTPError:
+                    self.sessionid = login_get_session(ACCOUNT, PASSWORD)
+                    latest_map = fetch_all_devices(self.sessionid)
+                self._update_statuses_from_latest(latest_map)
+            except Exception as e:
+                error["msg"] = str(e)
+            finally:
+                self.after(0, lambda: done.set(True))
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.wait_variable(done)
+        pb.stop()
+        win.destroy()
+        return (error["msg"] is None, error["msg"])
+
+    # ---------- Edit / Save / PDF / Email ----------
+    def save_to_excel(self):
+        try:
+            if self.df_excel is None or "Serial Number" not in getattr(self.df_excel, "columns", []):
+                self._alert_info("Save", "No Excel model to save yet.")
+                return
+            df = self.df_excel.copy()
+            serial_to_remark = {r["serial"]: "-" if r["status"] == "Online" else r["remark"] for r in self.device_rows}
+            df["Remark"] = df["Serial Number"].astype(str).str.strip().map(serial_to_remark).fillna(df.get("Remark"))
+            for attempt in range(10):
+                try:
+                    df.to_excel(EXCEL_FILE, index=False)
+                    break
+                except PermissionError:
+                    self._set_status(f"Excel is locked for writing. Retrying save ({attempt+1}/10)…")
+                    time.sleep(1)
+            else:
+                self._alert_error(
+                    "Save Failed",
+                    f"Could not save '{EXCEL_FILE}' because it is in use.\nClose it in Excel/OneDrive and try again."
+                )
+                return
+            self.df_excel = df
+            self._alert_info("Saved", f"Remarks saved to {EXCEL_FILE}")
+        except Exception as e:
+            self._alert_error("Error", f"Failed to save Excel: {e}")
+
+    def edit_selected_remark(self):
+        sel = self.right_tree.selection()
+        if not sel:
+            self._alert_info("Edit Remark", "Select a row on the right (Offline/Not Found).")
+            return
+        state, branch, serial, status, remark = self.right_tree.item(sel[0], "values")
+        if str(status).lower() not in ("offline", "not found"):
+            self._alert_info("Not Allowed", "Remarks can be edited only for OFFLINE or NOT FOUND devices.")
+            return
+        new_remark = simpledialog.askstring(
+            "Edit Remark",
+            f"State: {state}\nBranch: {branch}\nSerial: {serial}\nStatus: {status}\n\nEnter remark:",
+            initialvalue=remark, parent=self
+        )
+        if new_remark is None:
+            return
+        new_remark = new_remark.strip() if new_remark.strip() else "-"
+        for r in self.device_rows:
+            if r["serial"] == serial and r["branch"] == branch:
+                r["remark"] = new_remark
+                r["state"] = self.serial_to_state.get(serial, r.get("state", "-")) or "-"
+                break
+        self._apply_filter()
+
+    # === Generate PDF flow (pre-refresh) ===
+    def generate_pdf_action(self):
+        ok, err = self._run_refresh_blocking()
+        if not ok:
+            self._alert_error("Refresh Failed", f"Could not refresh latest status:\n{err}")
+            return
+        filtered, suffix = self._get_filtered_rows_for_pdf()
+        if filtered is None:
+            return
+        self._open_pdf_choice_dialog(filtered, suffix)
+
+    def _get_filtered_rows_for_pdf(self):
+        if not self.device_rows:
+            self._alert_info("PDF", "No data.")
+            return None, None
+
+        include_online = self.var_pdf_online.get()
+        include_offline = self.var_pdf_offline.get()
+        if not include_online and not include_offline:
+            self._alert_info("PDF", "Please tick at least one option: Online and/or Offline.")
+            return None, None
+
+        def is_offish(st: str) -> bool:
+            return (st or "").lower() in ("offline", "not found")
+
+        filtered = []
+        for d in self.device_rows:
+            s = (d.get("status", "")).lower()
+            if include_online and s == "online":
+                filtered.append(d)
+            elif include_offline and is_offish(s):
+                filtered.append(d)
+
+        if not filtered:
+            self._alert_info("PDF", "No matching rows for the selected filter.")
+            return None, None
+
+        suffix = "ALL"
+        if include_online and not include_offline:
+            suffix = "ONLINE"
+        if include_offline and not include_online:
+            suffix = "OFFLINE"
+        return filtered, suffix
+
+    def _open_pdf_choice_dialog(self, rows, suffix):
+        dlg = tk.Toplevel(self)
+        dlg.title("Generate PDF")
+        dlg.transient(self)
+        dlg.grab_set()
+        dlg.resizable(False, False)
+        ttk.Label(dlg, text="Choose an action for the PDF:", font=("Segoe UI Semibold", 11))\
+            .grid(row=0, column=0, columnspan=2, padx=14, pady=(14, 8), sticky="w")
+
+        ttk.Button(
+            dlg,
+            text="💾  Local Folder",
+            width=22,
+            command=lambda: (dlg.destroy(), self._save_pdf_locally(rows, suffix))
+        ).grid(row=1, column=0, padx=14, pady=(6, 14))
+
+        ttk.Button(
+            dlg,
+            text="📨  Email Report",
+            width=22,
+            command=lambda: (dlg.destroy(), self._email_pdf_flow(rows, suffix))
+        ).grid(row=1, column=1, padx=14, pady=(6, 14))
+
+    def _save_pdf_locally(self, rows, suffix):
+        suggested = f"CCTV_Report_{suffix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        path = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF files", "*.pdf")],
+            initialfile=suggested,
+            title="Save CCTV Report as PDF"
+        )
+        if not path:
+            return
+        try:
+            generate_pdf(rows, path)
+            self._alert_info("PDF Saved", f"PDF saved to:\n{path}")
+        except Exception as e:
+            self._alert_error("PDF Error", f"Failed to generate PDF:\n{e}")
+
+    def _email_pdf_flow(self, rows, suffix):
+        win = tk.Toplevel(self)
+        win.title("Email Report")
+        win.transient(self)
+        win.grab_set()
+        win.resizable(False, False)
+
+        ttk.Label(win, text="Send PDF report by email", font=("Segoe UI Semibold", 11))\
+            .grid(row=0, column=0, columnspan=2, padx=14, pady=(14, 8), sticky="w")
+
+        ttk.Label(win, text="To (multiple, comma or newline):")\
+            .grid(row=1, column=0, padx=14, pady=6, sticky="e")
+        # Use uploaded emails if available, otherwise use default
+        default_emails = getattr(self, 'uploaded_emails', DEFAULT_TO_EMAIL)
+        var_to = tk.StringVar(value=default_emails)
+        ttk.Entry(win, textvariable=var_to, width=42)\
+            .grid(row=1, column=1, padx=14, pady=6, sticky="w")
+
+        ttk.Label(win, text="CC (optional):")\
+            .grid(row=2, column=0, padx=14, pady=6, sticky="e")
+        var_cc = tk.StringVar(value=DEFAULT_CC_EMAIL)
+        ttk.Entry(win, textvariable=var_cc, width=42)\
+            .grid(row=2, column=1, padx=14, pady=6, sticky="w")
+
+        ttk.Label(win, text="Subject:")\
+            .grid(row=3, column=0, padx=14, pady=6, sticky="e")
+        default_subject = f"CCTV Report ({suffix}) - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} IST"
+        var_subj = tk.StringVar(value=default_subject)
+        ttk.Entry(win, textvariable=var_subj, width=42)\
+            .grid(row=3, column=1, padx=14, pady=6, sticky="w")
+
+        btns = ttk.Frame(win)
+        btns.grid(row=4, column=0, columnspan=2, pady=(10, 14))
+
+        def do_send():
+            to_val = var_to.get().strip()
+            if not _split_emails(to_val):
+                messagebox.showwarning("Email", "Please enter at least one recipient (To).", parent=win)
+                return
+            try:
+                with tempfile.NamedTemporaryFile(prefix=f"CCTV_{suffix}_", suffix=".pdf", delete=False) as tmp:
+                    tmp_path = tmp.name
+                generate_pdf(rows, tmp_path)
+            except Exception as e:
+                messagebox.showerror("PDF Error", f"Failed to generate PDF:\n{e}", parent=win)
+                return
+            plain = "Please find the attached CCTV report."
+            html = "<p>Please find the attached CCTV report.</p>"
+            try:
+                send_email(
+                    subject=var_subj.get().strip() or default_subject,
+                    plain_text_body=plain,
+                    html_body=html,
+                    to_email=to_val,
+                    cc_email=var_cc.get().strip(),
+                    attachment_path=tmp_path
+                )
+            except Exception as e:
+                messagebox.showerror("Email Error", f"Failed to send email:\n{e}", parent=win)
+                return
+            messagebox.showinfo("Email", "Email sent successfully.", parent=win)
+            win.destroy()
+
+        ttk.Button(btns, text="Send", command=do_send, width=14).pack(side=tk.LEFT, padx=8)
+        ttk.Button(btns, text="Cancel", command=win.destroy, width=14).pack(side=tk.LEFT, padx=8)
+
+    # === Send Offline Email (toolbar) ===
+    def send_offline_email_from_ui(self):
+        ok, err = self._run_refresh_blocking()
+        if not ok:
+            self._alert_error("Refresh Failed", f"Could not refresh latest status:\n{err}")
+            return
+
+        if not self.device_rows:
+            self._alert_info("Email", "No data.")
+            return
+        offline = [d for d in self.device_rows if str(d.get("status", "")).lower() in ("offline", "not found")]
+        if not offline:
+            self._alert_info("Email", "No offline/not found devices.")
+            return
+
+        enriched_offline = []
+        for d in offline:
+            serial = str(d.get("serial", "")).strip()
+            enriched_offline.append({
+                **d,
+                "state": self.serial_to_state.get(serial, d.get("state", "-")) or "-"
+            })
+
+        html_body = build_offline_email_html(enriched_offline)
+
+        table_rows_txt = "\n".join([
+            f"{self.serial_to_state.get(str(d.get('serial', '')).strip(), d.get('state', '-'))}\t{d['branch']}\t{d['remark']}"
+            for d in offline
+        ])
+        plain_body = (
+            "Dear Branch Team,\n\n"
+            "Please find below the CCTV status of your branches; please check your internet cable if any issue persists; "
+            "and please contact the IT team.\n\n"
+            "कृपया अपनी शाखाओं की सीसीटीवी स्थिति नीचे देखें; कृपया अपना इंटरनेट केबल जांचें; यदि समस्या बनी रहती है तो आईटी टीम से संपर्क करें।\n\n"
+            "કૃપા કરીને તમારી શાખાઓની સીસીટીવી સ્થિતિ નીચે શોધો; કૃપા કરીને તમારી ઇન્ટરનેટ કેબલ તપાસો; જો સમસ્યા ચાલુ રહે તો કૃપા કરીને IT ટીમનો સંપર્ક કરો.\n\n"
+            "Dear RM's,\n\n"
+            "The CCTV cameras at the following branches are showing as offline; please coordinate with your branch BMs to resolve the issue as soon as possible.\n\n"
+            "निम्नलिखित शाखाओं के सीसीटीवी कैमरे ऑफ़लाइन दिख रहे हैं; कृपया समस्या को यथाशीघ्र हल करने के लिए अपनी शाखा के बीएम के साथ समन्वय करें।\n\n"
+            "નીચેની શાખાઓ પરના સીસીટીવી કેમેરા ઑફલાઇનként દેખાઈ રહ્યા છે; શક્ય તેટલી વહેલી તકે સમસ્યાનો ઉકેલ લાવવા માટે કૃપા કરીને તમારી શાખા BM સાથે સંકલન કરો\n\n"
+            "Since the branch has been offline for more than 3 days, CBM, DM, SH, please coordinate with your branch.\n\n"
+            "State\tBranch\tRemark\n"
+            f"{table_rows_txt}\n"
+        )
+
+        subject_default = f"CCTV Offline Report - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} IST"
+
+        # Ask user for To / CC with multi-line support
+        win = tk.Toplevel(self)
+        win.title("Send Offline Email")
+        win.transient(self)
+        win.grab_set()
+        win.resizable(False, False)
+
+        ttk.Label(win, text="Send offline CCTV status email", font=("Segoe UI Semibold", 11))\
+            .grid(row=0, column=0, columnspan=2, padx=14, pady=(14, 8), sticky="w")
+
+        ttk.Label(win, text="To (one per line or comma-separated):")\
+            .grid(row=1, column=0, padx=14, pady=6, sticky="ne")
+        txt_to = tk.Text(win, width=50, height=4)
+        txt_to.grid(row=1, column=1, padx=14, pady=6, sticky="w")
+        # Use uploaded_emails if available, otherwise use default
+        default_emails = getattr(self, 'uploaded_emails', DEFAULT_TO_EMAIL)
+        txt_to.insert("1.0", default_emails)
+
+        ttk.Label(win, text="CC (optional, one per line or comma-separated):")\
+            .grid(row=2, column=0, padx=14, pady=6, sticky="ne")
+        txt_cc = tk.Text(win, width=50, height=4)
+        txt_cc.grid(row=2, column=1, padx=14, pady=6, sticky="w")
+        txt_cc.insert("1.0", DEFAULT_CC_EMAIL)
+
+        ttk.Label(win, text="Subject:")\
+            .grid(row=3, column=0, padx=14, pady=6, sticky="e")
+        var_subj = tk.StringVar(value=subject_default)
+        ttk.Entry(win, textvariable=var_subj, width=50)\
+            .grid(row=3, column=1, padx=14, pady=6, sticky="w")
+
+        # Add attachment option
+        var_attach = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            win, 
+            text="Attach PDF report", 
+            variable=var_attach, 
+            onvalue=True, 
+            offvalue=False
+        ).grid(row=4, column=1, padx=14, pady=6, sticky="w")
+
+        btns = ttk.Frame(win)
+        btns.grid(row=5, column=0, columnspan=2, pady=(10, 14))
+
+        def do_send_offline():
+            raw_to = txt_to.get("1.0", "end").strip()
+            if not _split_emails(raw_to):
+                messagebox.showwarning("Email", "Please enter at least one recipient (To).", parent=win)
+                return
+            raw_cc = txt_cc.get("1.0", "end").strip()
+            subj = var_subj.get().strip() or subject_default
+
+            attachment_path = None
+            if var_attach.get():
+                out_pdf = os.path.join(
+                    tempfile.gettempdir(),
+                    f"CCTV_Report_Offline_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                )
+                try:
+                    generate_pdf(self.device_rows, out_pdf)
+                    attachment_path = out_pdf
+                except Exception as e:
+                    if messagebox.askyesno("PDF Error", f"Failed to generate PDF. Send email without attachment?\n\nError: {e}", parent=win):
+                        attachment_path = None
+                    else:
+                        return
+
+            try:
+                send_email(
+                    subject=subj,
+                    plain_text_body=plain_body,
+                    html_body=html_body,
+                    to_email=raw_to,
+                    cc_email=raw_cc,
+                    attachment_path=attachment_path
+                )
+                messagebox.showinfo("Email", "Email sent successfully.", parent=win)
+                win.destroy()
+            except Exception as e:
+                messagebox.showerror("Email Error", f"Failed to send email:\n{e}", parent=win)
+
+        ttk.Button(btns, text="Send", width=14, command=do_send_offline)\
+            .pack(side=tk.LEFT, padx=8)
+        ttk.Button(btns, text="Cancel", width=14, command=win.destroy)\
+            .pack(side=tk.LEFT, padx=8)
+
+    # ---------- Filtering & painting ----------
+    def _apply_filter(self):
+        for r in self.device_rows:
+            r["state"] = self.serial_to_state.get(str(r.get("serial", "")).strip(), r.get("state", "-")) or "-"
+
+        q = self.var_search.get().strip().lower()
+        data = self.device_rows
+        if q and not q.startswith("type to filter"):
+            data = [
+                r for r in self.device_rows
+                if q in str(r.get("state", "-")).lower()
+                or q in str(r["branch"]).lower()
+                or q in str(r["serial"]).lower()
+            ]
+        self._refresh_split_tables(data)
+
+    def _refresh_split_tables(self, data):
+        online = [r for r in data if str(r["status"]).lower() == "online"]
+        offish = [r for r in data if str(r["status"]).lower() in ("offline", "not found")]
+
+        for tv in (self.left_tree, self.right_tree):
+            for item in tv.get_children():
+                tv.delete(item)
+
+        for idx, r in enumerate(online):
+            tags = ["online"]
+            if idx % 2 == 1:
+                tags.append("odd")
+            self.left_tree.insert(
+                "",
+                tk.END,
+                values=(r.get("state", "-"), r["branch"], r["serial"], r["status"], r["remark"]),
+                tags=tuple(tags)
+            )
+
+        for idx, r in enumerate(offish):
+            t = "offline" if str(r["status"]).lower() == "offline" else "notfound"
+            tags = [t]
+            if idx % 2 == 1:
+                tags.append("odd")
+            self.right_tree.insert(
+                "",
+                tk.END,
+                values=(r.get("state", "-"), r["branch"], r["serial"], r["status"], r["remark"]),
+                tags=tuple(tags)
+            )
+
+        self.lbl_left.config(text=f"Online ({len(online)})")
+        self.lbl_right.config(text=f"Offline / Not Found ({len(offish)})")
+        self._set_status(f"Online: {len(online)} | Offline/Not Found: {len(offish)}")
+
+    # ---------- Sorting ----------
+    def _sort_treeview(self, tree: ttk.Treeview, col: str, reverse: bool):
+        rows = [(tree.set(k, col), k) for k in tree.get_children("")]
+
+        def to_key(v):
+            s = str(v).strip()
+            if col in ("serial",):
+                return (len(s), s)
+            return s.lower()
+
+        rows.sort(key=lambda x: to_key(x[0]), reverse=reverse)
+        for idx, (_, k) in enumerate(rows):
+            tree.move(k, "", idx)
+        tree.heading(col, command=lambda: self._sort_treeview(tree, col, not reverse))
+
+# ---------------- main ----------------
+if __name__ == "__main__":
+    try:
+        app = CCTVApp()
+        app.mainloop()
+    except Exception as e:
+        print("Failed to start application:", e)
+        try:
+            root = tk.Tk()
+            root.withdraw()
+            messagebox.showerror("Startup Error", f"Application failed to start:\n\n{e}")
+            root.destroy()
+        except Exception:
+            pass
+        raise

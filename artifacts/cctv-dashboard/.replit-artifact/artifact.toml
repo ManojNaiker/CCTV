@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "CCTV Monitoring Dashboard"
+version = "1.0.0"
+id = "artifacts/cctv-dashboard"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20524
+
+[services.development]
+run = "pnpm --filter @workspace/cctv-dashboard run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/cctv-dashboard", "run", "build" ]
+publicDir = "artifacts/cctv-dashboard/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20524"
+BASE_PATH = "/"

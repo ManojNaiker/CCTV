@@ -3,20 +3,28 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: CCTV Monitoring Dashboard API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: devices
+    description: CCTV device operations
+  - name: users
+    description: User management operations
+  - name: audit
+    description: Audit log operations
+  - name: stats
+    description: Dashboard statistics
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +32,298 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /devices:
+    get:
+      operationId: listDevices
+      tags: [devices]
+      summary: List all CCTV devices
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [online, offline, all]
+          required: false
+        - in: query
+          name: state
+          schema:
+            type: string
+          required: false
+        - in: query
+          name: search
+          schema:
+            type: string
+          required: false
+      responses:
+        "200":
+          description: List of devices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Device"
+
+    post:
+      operationId: createDevice
+      tags: [devices]
+      summary: Add a new CCTV device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDeviceBody"
+      responses:
+        "201":
+          description: Device created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+
+  /devices/refresh:
+    post:
+      operationId: refreshDeviceStatuses
+      tags: [devices]
+      summary: Manually trigger device status refresh
+      responses:
+        "200":
+          description: Refresh triggered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshResult"
+
+  /devices/{id}:
+    get:
+      operationId: getDevice
+      tags: [devices]
+      summary: Get a single device
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      responses:
+        "200":
+          description: Device found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "404":
+          description: Not found
+
+    patch:
+      operationId: updateDevice
+      tags: [devices]
+      summary: Update device info or remark
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDeviceBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+
+    delete:
+      operationId: deleteDevice
+      tags: [devices]
+      summary: Delete a device
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      responses:
+        "204":
+          description: Deleted
+
+  /devices/stats/summary:
+    get:
+      operationId: getDeviceStats
+      tags: [stats]
+      summary: Get dashboard summary stats
+      responses:
+        "200":
+          description: Summary stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceStats"
+
+  /devices/offline-streak:
+    get:
+      operationId: getOfflineStreak
+      tags: [devices]
+      summary: Get devices with offline streak info
+      responses:
+        "200":
+          description: Offline streak data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OfflineStreak"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserBody"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get a user
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      responses:
+        "200":
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+    delete:
+      operationId: deleteUser
+      tags: [users]
+      summary: Delete user
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+      responses:
+        "204":
+          description: Deleted
+
+  /audit-logs:
+    get:
+      operationId: listAuditLogs
+      tags: [audit]
+      summary: List audit logs
+      parameters:
+        - in: query
+          name: userId
+          schema:
+            type: ["integer", "null"]
+          required: false
+        - in: query
+          name: action
+          schema:
+            type: string
+          required: false
+        - in: query
+          name: limit
+          schema:
+            type: integer
+          required: false
+        - in: query
+          name: offset
+          schema:
+            type: integer
+          required: false
+      responses:
+        "200":
+          description: Audit log list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogList"
+
+  /audit-logs/recent:
+    get:
+      operationId: getRecentAuditLogs
+      tags: [audit]
+      summary: Get recent audit log entries (last 20)
+      responses:
+        "200":
+          description: Recent audit logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditLog"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +334,231 @@ components:
       required:
         - status
 
+    Device:
+      type: object
+      properties:
+        id:
+          type: integer
+        serialNumber:
+          type: string
+        branchName:
+          type: string
+        stateName:
+          type: string
+        status:
+          type: string
+          enum: [online, offline, unknown]
+        remark:
+          type: ["string", "null"]
+        offlineDays:
+          type: ["integer", "null"]
+        lastSeenAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - serialNumber
+        - branchName
+        - stateName
+        - status
+        - createdAt
+        - updatedAt
+
+    CreateDeviceBody:
+      type: object
+      properties:
+        serialNumber:
+          type: string
+        branchName:
+          type: string
+        stateName:
+          type: string
+        remark:
+          type: ["string", "null"]
+      required:
+        - serialNumber
+        - branchName
+        - stateName
+
+    UpdateDeviceBody:
+      type: object
+      properties:
+        branchName:
+          type: string
+        stateName:
+          type: string
+        status:
+          type: string
+          enum: [online, offline, unknown]
+        remark:
+          type: ["string", "null"]
+
+    RefreshResult:
+      type: object
+      properties:
+        message:
+          type: string
+        updatedAt:
+          type: string
+        devicesUpdated:
+          type: integer
+      required:
+        - message
+        - updatedAt
+        - devicesUpdated
+
+    DeviceStats:
+      type: object
+      properties:
+        total:
+          type: integer
+        online:
+          type: integer
+        offline:
+          type: integer
+        unknown:
+          type: integer
+        lastRefreshedAt:
+          type: ["string", "null"]
+      required:
+        - total
+        - online
+        - offline
+        - unknown
+
+    OfflineStreak:
+      type: object
+      properties:
+        id:
+          type: integer
+        serialNumber:
+          type: string
+        branchName:
+          type: string
+        stateName:
+          type: string
+        offlineDays:
+          type: integer
+        remark:
+          type: ["string", "null"]
+      required:
+        - id
+        - serialNumber
+        - branchName
+        - stateName
+        - offlineDays
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [admin, operator, viewer]
+        isActive:
+          type: boolean
+        lastLoginAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - username
+        - fullName
+        - email
+        - role
+        - isActive
+        - createdAt
+
+    CreateUserBody:
+      type: object
+      properties:
+        username:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [admin, operator, viewer]
+        password:
+          type: string
+      required:
+        - username
+        - fullName
+        - email
+        - role
+        - password
+
+    UpdateUserBody:
+      type: object
+      properties:
+        fullName:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [admin, operator, viewer]
+        isActive:
+          type: boolean
+        password:
+          type: ["string", "null"]
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: ["integer", "null"]
+        username:
+          type: ["string", "null"]
+        action:
+          type: string
+        entityType:
+          type: string
+        entityId:
+          type: ["string", "null"]
+        description:
+          type: string
+        ipAddress:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - action
+        - entityType
+        - description
+        - createdAt
+
+    AuditLogList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLog"
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required:
+        - items
+        - total
+        - limit
+        - offset

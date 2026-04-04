@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { useTheme } from "next-themes";
 import { 
   Users, 
   Activity, 
@@ -6,11 +7,51 @@ import {
   LogOut, 
   Menu, 
   ShieldCheck,
-  LayoutDashboard
+  LayoutDashboard,
+  Sun,
+  Moon,
+  Monitor,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useState } from "react";
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  const icon =
+    theme === "dark" ? <Moon className="h-4 w-4" /> :
+    theme === "light" ? <Sun className="h-4 w-4" /> :
+    <Monitor className="h-4 w-4" />;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" title="Toggle theme">
+          {icon}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[130px]">
+        <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => setTheme("light")}>
+          <Sun className="h-3.5 w-3.5" /> Light
+          {theme === "light" && <span className="ml-auto text-primary text-xs">✓</span>}
+        </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => setTheme("dark")}>
+          <Moon className="h-3.5 w-3.5" /> Dark
+          {theme === "dark" && <span className="ml-auto text-primary text-xs">✓</span>}
+        </DropdownMenuItem>
+        <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => setTheme("system")}>
+          <Monitor className="h-3.5 w-3.5" /> System
+          {theme === "system" && <span className="ml-auto text-primary text-xs">✓</span>}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -68,11 +109,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <nav className="flex flex-1 flex-col gap-2">
           <NavLinks />
         </nav>
-        <div className="mt-auto">
-          <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground">
+        <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-border">
+          <Button variant="ghost" className="flex-1 justify-start gap-3 text-muted-foreground hover:text-foreground text-sm h-9">
             <LogOut className="h-4 w-4" />
             Sign Out
           </Button>
+          <ThemeToggle />
         </div>
       </aside>
 
@@ -99,9 +141,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </nav>
             </SheetContent>
           </Sheet>
-          <div className="flex items-center">
+          <div className="flex items-center flex-1">
             <img src="/logo.png" alt="Light Finance" className="h-8 w-auto object-contain" />
           </div>
+          <ThemeToggle />
         </header>
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8">

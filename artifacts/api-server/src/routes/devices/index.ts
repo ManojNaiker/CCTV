@@ -4,6 +4,7 @@ import { db, devicesTable, auditLogsTable } from "@workspace/db";
 import {
   ListDevicesQueryParams,
   CreateDeviceBody,
+  BulkCreateDevicesBody,
   GetDeviceParams,
   UpdateDeviceParams,
   UpdateDeviceBody,
@@ -85,6 +86,41 @@ router.post("/devices", async (req, res): Promise<void> => {
   await logAction("CREATE", "device", String(device.id), `Device '${device.branchName}' (${device.serialNumber}) added`);
 
   res.status(201).json(device);
+});
+
+router.post("/devices/bulk", async (req, res): Promise<void> => {
+  const parsed = BulkCreateDevicesBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { devices } = parsed.data;
+  let created = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (const deviceData of devices) {
+    try {
+      const [device] = await db.insert(devicesTable).values({
+        serialNumber: deviceData.serialNumber.trim(),
+        branchName: deviceData.branchName.trim(),
+        stateName: deviceData.stateName.trim(),
+        remark: deviceData.remark ?? null,
+      }).returning();
+
+      await logAction("CREATE", "device", String(device.id), `Device '${device.branchName}' (${device.serialNumber}) added via bulk import`);
+      created++;
+    } catch (err: any) {
+      if (err?.code === "23505") {
+        skipped++;
+      } else {
+        errors.push(`${deviceData.serialNumber}: ${err?.message ?? "Unknown error"}`);
+      }
+    }
+  }
+
+  res.status(201).json({ created, skipped, errors });
 });
 
 router.post("/devices/refresh", async (req, res): Promise<void> => {

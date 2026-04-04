@@ -8,6 +8,8 @@
 
 export * from "./auditLog";
 export * from "./auditLogList";
+export * from "./bulkCreateDevicesBody";
+export * from "./bulkCreateResult";
 export * from "./createDeviceBody";
 export * from "./createUserBody";
 export * from "./createUserBodyRole";

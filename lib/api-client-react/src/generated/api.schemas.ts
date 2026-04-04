@@ -41,6 +41,16 @@ export interface CreateDeviceBody {
   remark?: string | null;
 }
 
+export interface BulkCreateDevicesBody {
+  devices: CreateDeviceBody[];
+}
+
+export interface BulkCreateResult {
+  created: number;
+  skipped: number;
+  errors: string[];
+}
+
 export type UpdateDeviceBodyStatus =
   (typeof UpdateDeviceBodyStatus)[keyof typeof UpdateDeviceBodyStatus];
 

@@ -19,6 +19,8 @@ import type {
 import type {
   AuditLog,
   AuditLogList,
+  BulkCreateDevicesBody,
+  BulkCreateResult,
   CreateDeviceBody,
   CreateUserBody,
   Device,
@@ -295,6 +297,92 @@ export const useCreateDevice = <
   TContext
 > => {
   return useMutation(getCreateDeviceMutationOptions(options));
+};
+
+/**
+ * @summary Bulk add multiple CCTV devices
+ */
+export const getBulkCreateDevicesUrl = () => {
+  return `/api/devices/bulk`;
+};
+
+export const bulkCreateDevices = async (
+  bulkCreateDevicesBody: BulkCreateDevicesBody,
+  options?: RequestInit,
+): Promise<BulkCreateResult> => {
+  return customFetch<BulkCreateResult>(getBulkCreateDevicesUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(bulkCreateDevicesBody),
+  });
+};
+
+export const getBulkCreateDevicesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkCreateDevices>>,
+    TError,
+    { data: BodyType<BulkCreateDevicesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bulkCreateDevices>>,
+  TError,
+  { data: BodyType<BulkCreateDevicesBody> },
+  TContext
+> => {
+  const mutationKey = ["bulkCreateDevices"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bulkCreateDevices>>,
+    { data: BodyType<BulkCreateDevicesBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return bulkCreateDevices(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BulkCreateDevicesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bulkCreateDevices>>
+>;
+export type BulkCreateDevicesMutationBody = BodyType<BulkCreateDevicesBody>;
+export type BulkCreateDevicesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Bulk add multiple CCTV devices
+ */
+export const useBulkCreateDevices = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkCreateDevices>>,
+    TError,
+    { data: BodyType<BulkCreateDevicesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof bulkCreateDevices>>,
+  TError,
+  { data: BodyType<BulkCreateDevicesBody> },
+  TContext
+> => {
+  return useMutation(getBulkCreateDevicesMutationOptions(options));
 };
 
 /**

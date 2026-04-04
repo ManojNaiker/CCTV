@@ -48,6 +48,20 @@ export const CreateDeviceBody = zod.object({
 });
 
 /**
+ * @summary Bulk add multiple CCTV devices
+ */
+export const BulkCreateDevicesBody = zod.object({
+  devices: zod.array(
+    zod.object({
+      serialNumber: zod.string(),
+      branchName: zod.string(),
+      stateName: zod.string(),
+      remark: zod.string().nullish(),
+    }),
+  ),
+});
+
+/**
  * @summary Manually trigger device status refresh
  */
 export const RefreshDeviceStatusesResponse = zod.object({

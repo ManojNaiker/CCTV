@@ -1,15 +1,15 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { format } from "date-fns";
-import { Search, Plus, MoreHorizontal, FileEdit, Trash2, Video } from "lucide-react";
+import { Search, Plus, MoreHorizontal, FileEdit, Trash2, Video, Upload, ChevronRight, CheckCircle2, AlertCircle, SkipForward } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { 
   useListDevices,
   useCreateDevice,
   useUpdateDevice,
   useDeleteDevice,
+  useBulkCreateDevices,
   getListDevicesQueryKey
 } from "@workspace/api-client-react";
-import { DeviceStatus } from "@workspace/api-client-react/src/generated/api.schemas";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,8 +44,63 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+
+function StatusBadge({ status, offlineDays }: { status: string; offlineDays?: number | null }) {
+  if (status === "online") {
+    return (
+      <Badge className="gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 font-mono text-[10px] px-2 py-0.5 rounded-sm">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
+        ONLINE
+      </Badge>
+    );
+  }
+  if (status === "offline") {
+    return (
+      <div className="flex items-center gap-1.5">
+        <Badge className="gap-1.5 bg-red-500/10 text-red-400 border border-red-500/25 font-mono text-[10px] px-2 py-0.5 rounded-sm">
+          <span className="h-1.5 w-1.5 rounded-full bg-red-400 inline-block" />
+          OFFLINE
+        </Badge>
+        {offlineDays && offlineDays > 0 && (
+          <span className="text-[10px] font-mono text-red-400/70">{offlineDays}d</span>
+        )}
+      </div>
+    );
+  }
+  return (
+    <Badge className="gap-1.5 bg-yellow-500/10 text-yellow-400 border border-yellow-500/25 font-mono text-[10px] px-2 py-0.5 rounded-sm">
+      <span className="h-1.5 w-1.5 rounded-full bg-yellow-400 inline-block" />
+      UNKNOWN
+    </Badge>
+  );
+}
+
+type ParsedRow = {
+  stateName: string;
+  branchName: string;
+  serialNumber: string;
+  error?: string;
+};
+
+function parseBulkInput(raw: string): ParsedRow[] {
+  const lines = raw.split("\n").map(l => l.trim()).filter(Boolean);
+  return lines.map((line, i) => {
+    const parts = line.split(/\t|,/).map(p => p.trim());
+    if (parts.length < 3) {
+      return { stateName: "", branchName: "", serialNumber: "", error: `Row ${i + 1}: needs 3 columns` };
+    }
+    const [stateName, branchName, serialNumber] = parts;
+    if (!stateName || !branchName || !serialNumber) {
+      return { stateName, branchName, serialNumber, error: `Row ${i + 1}: empty field detected` };
+    }
+    return { stateName, branchName, serialNumber };
+  });
+}
 
 export default function Devices() {
   const { toast } = useToast();
@@ -62,6 +117,14 @@ export default function Devices() {
 
   const [deleteDevice, setDeleteDevice] = useState<any>(null);
 
+  const [isBulkOpen, setIsBulkOpen] = useState(false);
+  const [bulkText, setBulkText] = useState("");
+  const [bulkResult, setBulkResult] = useState<{ created: number; skipped: number; errors: string[] } | null>(null);
+
+  const parsedRows = useMemo(() => parseBulkInput(bulkText), [bulkText]);
+  const validRows = parsedRows.filter(r => !r.error);
+  const errorRows = parsedRows.filter(r => !!r.error);
+
   const { data: devices, isLoading } = useListDevices(
     { search: search || undefined, status: statusFilter !== "all" ? statusFilter as any : undefined },
     { query: { queryKey: getListDevicesQueryKey({ search: search || undefined, status: statusFilter !== "all" ? statusFilter as any : undefined }) } }
@@ -74,6 +137,23 @@ export default function Devices() {
         setIsCreateOpen(false);
         setCreateData({ serialNumber: "", branchName: "", stateName: "", remark: "" });
         toast({ title: "Device added" });
+      }
+    }
+  });
+
+  const bulkMutation = useBulkCreateDevices({
+    mutation: {
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({ queryKey: getListDevicesQueryKey() });
+        setBulkResult(data);
+        setBulkText("");
+        toast({
+          title: "Bulk import complete",
+          description: `${data.created} added, ${data.skipped} skipped`,
+        });
+      },
+      onError: () => {
+        toast({ title: "Bulk import failed", variant: "destructive" });
       }
     }
   });
@@ -102,6 +182,19 @@ export default function Devices() {
     createMutation.mutate({ data: createData });
   };
 
+  const handleBulkImport = () => {
+    if (validRows.length === 0) return;
+    bulkMutation.mutate({
+      data: {
+        devices: validRows.map(r => ({
+          stateName: r.stateName,
+          branchName: r.branchName,
+          serialNumber: r.serialNumber,
+        })),
+      },
+    });
+  };
+
   const handleUpdate = () => {
     updateMutation.mutate({ id: editDevice.id, data: editData });
   };
@@ -115,39 +208,58 @@ export default function Devices() {
     setEditData({ branchName: device.branchName, stateName: device.stateName, status: device.status, remark: device.remark || "" });
   };
 
+  const handleBulkClose = () => {
+    setIsBulkOpen(false);
+    setBulkText("");
+    setBulkResult(null);
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Device Inventory</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage and track all CCTV cameras across branches.
+          <h1 className="text-xl font-bold tracking-tight font-mono">
+            <span className="text-primary">~/</span>device-inventory
+          </h1>
+          <p className="text-muted-foreground mt-0.5 text-xs font-mono">
+            Manage CCTV devices across all branches
           </p>
         </div>
-        <Button className="gap-2" onClick={() => setIsCreateOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Add Device
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 font-mono text-xs border-primary/30 text-primary hover:bg-primary/10 hover:text-primary"
+            onClick={() => setIsBulkOpen(true)}
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Bulk Import
+          </Button>
+          <Button size="sm" className="gap-1.5 font-mono text-xs" onClick={() => setIsCreateOpen(true)}>
+            <Plus className="h-3.5 w-3.5" />
+            Add Device
+          </Button>
+        </div>
       </div>
 
-      <Card>
+      <Card className="border-border/50">
         <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Search by branch or serial number..."
-                className="pl-9"
+                placeholder="Search branch, serial, state..."
+                className="pl-8 font-mono text-xs h-8 bg-background/50"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filter by Status" />
+              <SelectTrigger className="w-full sm:w-[150px] h-8 font-mono text-xs bg-background/50">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="online">Online</SelectItem>
                 <SelectItem value="offline">Offline</SelectItem>
                 <SelectItem value="unknown">Unknown</SelectItem>
@@ -155,84 +267,69 @@ export default function Devices() {
             </Select>
           </div>
 
-          <div className="border rounded-md">
+          <div className="rounded border border-border/50 overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Branch</TableHead>
-                  <TableHead>Serial Number</TableHead>
-                  <TableHead>State</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Last Seen</TableHead>
-                  <TableHead>Remarks</TableHead>
-                  <TableHead className="w-[80px]"></TableHead>
+                <TableRow className="bg-muted/20 hover:bg-muted/20 border-border/50">
+                  <TableHead className="font-mono text-[10px] text-muted-foreground/70 uppercase tracking-widest h-8">Branch</TableHead>
+                  <TableHead className="font-mono text-[10px] text-muted-foreground/70 uppercase tracking-widest h-8">Serial No.</TableHead>
+                  <TableHead className="font-mono text-[10px] text-muted-foreground/70 uppercase tracking-widest h-8">State</TableHead>
+                  <TableHead className="font-mono text-[10px] text-muted-foreground/70 uppercase tracking-widest h-8">Status</TableHead>
+                  <TableHead className="font-mono text-[10px] text-muted-foreground/70 uppercase tracking-widest h-8">Updated</TableHead>
+                  <TableHead className="font-mono text-[10px] text-muted-foreground/70 uppercase tracking-widest h-8">Remarks</TableHead>
+                  <TableHead className="w-[50px] h-8" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={i}>
-                      <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                      <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-28" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                      <TableCell><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <TableRow key={i} className="border-border/30">
+                      <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-20 rounded-sm" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-6 w-6 rounded" /></TableCell>
                     </TableRow>
                   ))
                 ) : devices?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
-                      <div className="flex flex-col items-center justify-center">
-                        <Video className="h-8 w-8 mb-2 opacity-20" />
-                        No devices found matching your criteria.
+                    <TableCell colSpan={7} className="h-32 text-center">
+                      <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground/40">
+                        <Video className="h-7 w-7" />
+                        <span className="font-mono text-[10px] tracking-widest uppercase">No devices found</span>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : (
                   devices?.map((device) => (
-                    <TableRow key={device.id}>
-                      <TableCell className="font-medium">{device.branchName}</TableCell>
-                      <TableCell className="font-mono text-xs">{device.serialNumber}</TableCell>
-                      <TableCell>{device.stateName}</TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant={device.status === 'online' ? 'default' : device.status === 'offline' ? 'destructive' : 'secondary'}
-                          className={device.status === 'online' ? 'bg-green-500 hover:bg-green-600 text-white' : ''}
-                        >
-                          {device.status}
-                        </Badge>
-                        {device.status === 'offline' && device.offlineDays && device.offlineDays > 0 && (
-                          <span className="ml-2 text-xs text-destructive font-medium">
-                            {device.offlineDays}d
-                          </span>
-                        )}
+                    <TableRow key={device.id} className="border-border/30 hover:bg-muted/10">
+                      <TableCell className="font-medium text-sm py-2.5">{device.branchName}</TableCell>
+                      <TableCell className="font-mono text-[11px] text-muted-foreground py-2.5">{device.serialNumber}</TableCell>
+                      <TableCell className="text-sm py-2.5">{device.stateName}</TableCell>
+                      <TableCell className="py-2.5">
+                        <StatusBadge status={device.status} offlineDays={device.offlineDays} />
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {device.lastSeenAt ? format(new Date(device.lastSeenAt), "MMM d, yyyy HH:mm") : 'Never'}
+                      <TableCell className="text-[11px] text-muted-foreground font-mono py-2.5">
+                        {device.updatedAt ? format(new Date(device.updatedAt), "dd MMM HH:mm") : "—"}
                       </TableCell>
-                      <TableCell>
-                        <div className="text-sm truncate max-w-[200px]" title={device.remark || ""}>
-                          {device.remark || <span className="text-muted-foreground italic">None</span>}
-                        </div>
+                      <TableCell className="text-xs text-muted-foreground/70 max-w-[160px] truncate italic py-2.5">
+                        {device.remark || <span className="opacity-30 not-italic">—</span>}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-2.5">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <span className="sr-only">Open menu</span>
-                              <MoreHorizontal className="h-4 w-4" />
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground">
+                              <MoreHorizontal className="h-3.5 w-3.5" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEdit(device)}>
-                              <FileEdit className="mr-2 h-4 w-4" />
-                              Edit Device
+                          <DropdownMenuContent align="end" className="font-mono text-xs min-w-[120px]">
+                            <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => openEdit(device)}>
+                              <FileEdit className="h-3.5 w-3.5" /> Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive" onClick={() => setDeleteDevice(device)}>
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete Device
+                            <DropdownMenuItem className="gap-2 cursor-pointer text-destructive focus:text-destructive" onClick={() => setDeleteDevice(device)}>
+                              <Trash2 className="h-3.5 w-3.5" /> Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -243,57 +340,195 @@ export default function Devices() {
               </TableBody>
             </Table>
           </div>
+
+          {devices && devices.length > 0 && (
+            <p className="text-[10px] text-muted-foreground/50 font-mono mt-2">
+              {devices.length} record{devices.length !== 1 ? "s" : ""}
+            </p>
+          )}
         </CardContent>
       </Card>
 
+      {/* ── Add Device ── */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add New Device</DialogTitle>
+            <DialogTitle className="font-mono text-sm">
+              <span className="text-primary">+</span> Add Device
+            </DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>Serial Number</Label>
-              <Input value={createData.serialNumber} onChange={e => setCreateData({...createData, serialNumber: e.target.value})} />
-            </div>
-            <div className="grid gap-2">
-              <Label>Branch Name</Label>
-              <Input value={createData.branchName} onChange={e => setCreateData({...createData, branchName: e.target.value})} />
-            </div>
-            <div className="grid gap-2">
-              <Label>State Name</Label>
-              <Input value={createData.stateName} onChange={e => setCreateData({...createData, stateName: e.target.value})} />
-            </div>
-            <div className="grid gap-2">
-              <Label>Remark</Label>
-              <Input value={createData.remark} onChange={e => setCreateData({...createData, remark: e.target.value})} />
-            </div>
+          <div className="grid gap-3 py-1">
+            {[
+              { label: "Serial Number", key: "serialNumber", placeholder: "DS-2CD2143G2-I", mono: true },
+              { label: "Branch Name", key: "branchName", placeholder: "e.g. Bhinder" },
+              { label: "State Name", key: "stateName", placeholder: "e.g. Rajasthan" },
+              { label: "Remark", key: "remark", placeholder: "Optional note..." },
+            ].map(({ label, key, placeholder, mono }) => (
+              <div key={key} className="grid gap-1">
+                <Label className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">{label}</Label>
+                <Input
+                  className={`text-sm h-8 bg-background/50 ${mono ? "font-mono" : ""}`}
+                  placeholder={placeholder}
+                  value={(createData as any)[key]}
+                  onChange={e => setCreateData({ ...createData, [key]: e.target.value })}
+                />
+              </div>
+            ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={createMutation.isPending || !createData.serialNumber || !createData.branchName}>Add Device</Button>
+            <Button variant="outline" size="sm" className="font-mono text-xs h-8" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
+            <Button
+              size="sm"
+              className="font-mono text-xs h-8"
+              onClick={handleCreate}
+              disabled={createMutation.isPending || !createData.serialNumber || !createData.branchName || !createData.stateName}
+            >
+              {createMutation.isPending ? "Adding..." : "Add Device"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editDevice} onOpenChange={(open) => !open && setEditDevice(null)}>
-        <DialogContent>
+      {/* ── Bulk Import ── */}
+      <Dialog open={isBulkOpen} onOpenChange={handleBulkClose}>
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Edit Device: {editDevice?.serialNumber}</DialogTitle>
+            <DialogTitle className="font-mono text-sm">
+              <span className="text-primary">↑</span> Bulk Import Devices
+            </DialogTitle>
+            <DialogDescription className="font-mono text-[11px] text-muted-foreground pt-1">
+              One device per line. Format:&nbsp;
+              <span className="text-primary">State Name</span>
+              <ChevronRight className="inline h-3 w-3 mx-0.5 opacity-50" />
+              <span className="text-primary">Branch Name</span>
+              <ChevronRight className="inline h-3 w-3 mx-0.5 opacity-50" />
+              <span className="text-primary">Serial Number</span>
+              &nbsp;— tab or comma separated.
+            </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>Branch Name</Label>
-              <Input value={editData.branchName} onChange={e => setEditData({...editData, branchName: e.target.value})} />
+
+          {bulkResult ? (
+            <>
+              <div className="py-3 space-y-4">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded border border-emerald-500/20 bg-emerald-500/5 p-4 flex flex-col items-center gap-1.5">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                    <span className="font-mono text-2xl font-bold text-emerald-400">{bulkResult.created}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">Created</span>
+                  </div>
+                  <div className="rounded border border-yellow-500/20 bg-yellow-500/5 p-4 flex flex-col items-center gap-1.5">
+                    <SkipForward className="h-5 w-5 text-yellow-400" />
+                    <span className="font-mono text-2xl font-bold text-yellow-400">{bulkResult.skipped}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">Skipped</span>
+                  </div>
+                  <div className="rounded border border-red-500/20 bg-red-500/5 p-4 flex flex-col items-center gap-1.5">
+                    <AlertCircle className="h-5 w-5 text-red-400" />
+                    <span className="font-mono text-2xl font-bold text-red-400">{bulkResult.errors.length}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">Errors</span>
+                  </div>
+                </div>
+                {bulkResult.errors.length > 0 && (
+                  <div className="rounded border border-red-500/20 bg-red-500/5 p-3 space-y-1 max-h-28 overflow-auto">
+                    {bulkResult.errors.map((e, i) => (
+                      <p key={i} className="font-mono text-[11px] text-red-400">{e}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button size="sm" className="font-mono text-xs h-8" onClick={handleBulkClose}>Done</Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <div className="space-y-3 py-1">
+                <Textarea
+                  className="font-mono text-xs h-40 bg-background/50 border-border/50 resize-none placeholder:text-muted-foreground/30 leading-relaxed"
+                  placeholder={"Rajasthan\tBhinder\tDS-ABC123\nMaharashtra\tPune Main\tDS-XYZ456\nGujarat\tAhmedabad\tDS-DEF789"}
+                  value={bulkText}
+                  onChange={e => setBulkText(e.target.value)}
+                />
+
+                {parsedRows.length > 0 && (
+                  <>
+                    <Separator className="bg-border/40" />
+                    <div className="space-y-2">
+                      <p className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
+                        Preview &mdash; {validRows.length} valid&nbsp;&nbsp;·&nbsp;&nbsp;{errorRows.length} invalid
+                      </p>
+                      <div className="rounded border border-border/40 overflow-hidden max-h-44 overflow-y-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/20 hover:bg-muted/20">
+                              <TableHead className="font-mono text-[10px] h-6 text-muted-foreground/60 uppercase">State</TableHead>
+                              <TableHead className="font-mono text-[10px] h-6 text-muted-foreground/60 uppercase">Branch</TableHead>
+                              <TableHead className="font-mono text-[10px] h-6 text-muted-foreground/60 uppercase">Serial</TableHead>
+                              <TableHead className="font-mono text-[10px] h-6 w-8" />
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {parsedRows.map((row, i) => (
+                              <TableRow key={i} className={`border-border/30 ${row.error ? "bg-red-500/5" : ""}`}>
+                                <TableCell className="font-mono text-[11px] py-1.5">{row.stateName || <span className="text-red-400/70">—</span>}</TableCell>
+                                <TableCell className="font-mono text-[11px] py-1.5">{row.branchName || <span className="text-red-400/70">—</span>}</TableCell>
+                                <TableCell className="font-mono text-[11px] py-1.5">{row.serialNumber || <span className="text-red-400/70">—</span>}</TableCell>
+                                <TableCell className="py-1.5">
+                                  {row.error
+                                    ? <AlertCircle className="h-3 w-3 text-red-400" title={row.error} />
+                                    : <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                                  }
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" size="sm" className="font-mono text-xs h-8" onClick={handleBulkClose}>Cancel</Button>
+                <Button
+                  size="sm"
+                  className="font-mono text-xs h-8 gap-1.5"
+                  onClick={handleBulkImport}
+                  disabled={validRows.length === 0 || bulkMutation.isPending}
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  {bulkMutation.isPending
+                    ? "Importing..."
+                    : `Import ${validRows.length > 0 ? validRows.length : ""} Device${validRows.length !== 1 ? "s" : ""}`
+                  }
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Edit Device ── */}
+      <Dialog open={!!editDevice} onOpenChange={(open) => !open && setEditDevice(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-sm">
+              <span className="text-primary">~</span> Edit Device
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 py-1">
+            <div className="grid gap-1">
+              <Label className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">Branch Name</Label>
+              <Input className="text-sm h-8 bg-background/50" value={editData.branchName} onChange={e => setEditData({...editData, branchName: e.target.value})} />
             </div>
-            <div className="grid gap-2">
-              <Label>State Name</Label>
-              <Input value={editData.stateName} onChange={e => setEditData({...editData, stateName: e.target.value})} />
+            <div className="grid gap-1">
+              <Label className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">State Name</Label>
+              <Input className="text-sm h-8 bg-background/50" value={editData.stateName} onChange={e => setEditData({...editData, stateName: e.target.value})} />
             </div>
-            <div className="grid gap-2">
-              <Label>Status</Label>
+            <div className="grid gap-1">
+              <Label className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">Status</Label>
               <Select value={editData.status} onValueChange={(v: any) => setEditData({...editData, status: v})}>
-                <SelectTrigger>
+                <SelectTrigger className="font-mono text-xs h-8 bg-background/50">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -303,29 +538,38 @@ export default function Devices() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
-              <Label>Remark</Label>
-              <Input value={editData.remark} onChange={e => setEditData({...editData, remark: e.target.value})} />
+            <div className="grid gap-1">
+              <Label className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">Remark</Label>
+              <Input className="text-sm h-8 bg-background/50" value={editData.remark} onChange={e => setEditData({...editData, remark: e.target.value})} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDevice(null)}>Cancel</Button>
-            <Button onClick={handleUpdate} disabled={updateMutation.isPending}>Save Changes</Button>
+            <Button variant="outline" size="sm" className="font-mono text-xs h-8" onClick={() => setEditDevice(null)}>Cancel</Button>
+            <Button size="sm" className="font-mono text-xs h-8" onClick={handleUpdate} disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* ── Delete ── */}
       <Dialog open={!!deleteDevice} onOpenChange={(open) => !open && setDeleteDevice(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Delete Device</DialogTitle>
+            <DialogTitle className="font-mono text-sm text-destructive">
+              ⚠ Confirm Delete
+            </DialogTitle>
           </DialogHeader>
-          <div className="py-4">
-            Are you sure you want to delete the device at {deleteDevice?.branchName} ({deleteDevice?.serialNumber})? This action cannot be undone.
-          </div>
+          <p className="text-sm text-muted-foreground py-2">
+            Delete <span className="font-medium text-foreground">{deleteDevice?.branchName}</span>
+            {" "}(<span className="font-mono text-xs">{deleteDevice?.serialNumber}</span>)?
+            {" "}This cannot be undone.
+          </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDevice(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>Delete</Button>
+            <Button variant="outline" size="sm" className="font-mono text-xs h-8" onClick={() => setDeleteDevice(null)}>Cancel</Button>
+            <Button variant="destructive" size="sm" className="font-mono text-xs h-8" onClick={handleDelete} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

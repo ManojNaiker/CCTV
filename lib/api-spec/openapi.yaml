@@ -83,6 +83,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/Device"
 
+  /devices/bulk:
+    post:
+      operationId: bulkCreateDevices
+      tags: [devices]
+      summary: Bulk add multiple CCTV devices
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkCreateDevicesBody"
+      responses:
+        "201":
+          description: Devices created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkCreateResult"
+
   /devices/refresh:
     post:
       operationId: refreshDeviceStatuses
@@ -382,6 +401,32 @@ components:
         - serialNumber
         - branchName
         - stateName
+
+    BulkCreateDevicesBody:
+      type: object
+      properties:
+        devices:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreateDeviceBody"
+      required:
+        - devices
+
+    BulkCreateResult:
+      type: object
+      properties:
+        created:
+          type: integer
+        skipped:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: string
+      required:
+        - created
+        - skipped
+        - errors
 
     UpdateDeviceBody:
       type: object

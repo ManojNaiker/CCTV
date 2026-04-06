@@ -19,8 +19,26 @@ interface StatusSummary {
 }
 
 const COMPANY_NAME = "Light Finance";
-const REPORT_TITLE = "All Network Device Status";
+const REPORT_TITLE = "Branch CCTV Offline Report";
 const PORTAL_NAME = "CCTV Monitoring Portal";
+
+async function loadLogoBase64(): Promise<string | null> {
+  try {
+    const base = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
+    const url = `${base}/logo.png`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
 
 function drawDonutChart(
   doc: jsPDF,
@@ -106,84 +124,109 @@ function drawDonutChart(
   return legendY + 10;
 }
 
-function addPageElements(doc: jsPDF, pageNum: number, totalPages: number, generatedAt: string) {
+function addPageElements(
+  doc: jsPDF,
+  pageNum: number,
+  totalPages: number,
+  generatedAt: string,
+  logoBase64: string | null
+) {
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
 
-  // === WATERMARK ===
-  const wm = document.createElement("canvas");
-  wm.width = 400;
-  wm.height = 400;
-  const wmCtx = wm.getContext("2d")!;
-  wmCtx.save();
-  wmCtx.translate(200, 200);
-  wmCtx.rotate((45 * Math.PI) / 180);
-  wmCtx.globalAlpha = 0.06;
-  wmCtx.fillStyle = "#1d4ed8";
-  wmCtx.font = "bold 52px Arial";
-  wmCtx.textAlign = "center";
-  wmCtx.textBaseline = "middle";
-  wmCtx.fillText(COMPANY_NAME, 0, 0);
-  wmCtx.restore();
-  const wmData = wm.toDataURL("image/png");
-  doc.addImage(wmData, "PNG", pageW / 2 - 40, pageH / 2 - 40, 80, 80);
+  // === WATERMARK (logo rotated 45°, 6% opacity) ===
+  if (logoBase64) {
+    const wmSize = 80;
+    const wmCanvas = document.createElement("canvas");
+    wmCanvas.width = wmSize * 3;
+    wmCanvas.height = wmSize * 3;
+    const wmCtx = wmCanvas.getContext("2d")!;
+    wmCtx.save();
+    wmCtx.translate((wmSize * 3) / 2, (wmSize * 3) / 2);
+    wmCtx.rotate((45 * Math.PI) / 180);
+    wmCtx.globalAlpha = 0.06;
+    const img = new Image();
+    img.src = logoBase64;
+    wmCtx.drawImage(img, -wmSize * 1.2, -wmSize * 1.2, wmSize * 2.4, wmSize * 2.4);
+    wmCtx.restore();
+    const wmData = wmCanvas.toDataURL("image/png");
+    doc.addImage(wmData, "PNG", pageW / 2 - 40, pageH / 2 - 40, 80, 80);
+  }
 
   // === HEADER ===
-  // Logo placeholder (blue square)
-  doc.setFillColor(29, 78, 216);
-  doc.roundedRect(10, 8, 22, 10, 2, 2, "F");
-  doc.setFontSize(7);
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.text(COMPANY_NAME, 21, 14, { align: "center" });
+  const logoH = 14;
+  const logoW = 28;
 
-  // Title
-  doc.setFontSize(14);
-  doc.setTextColor(34, 34, 34);
+  if (logoBase64) {
+    doc.addImage(logoBase64, "PNG", 10, 5, logoW, logoH);
+  } else {
+    // Fallback: blue pill with text
+    doc.setFillColor(29, 78, 216);
+    doc.roundedRect(10, 6, logoW, logoH - 2, 2, 2, "F");
+    doc.setFontSize(7);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.text(COMPANY_NAME, 10 + logoW / 2, 14, { align: "center" });
+  }
+
+  // Title (centered on page)
+  doc.setFontSize(15);
+  doc.setTextColor(22, 22, 22);
   doc.setFont("helvetica", "bold");
-  doc.text(REPORT_TITLE, pageW / 2, 15, { align: "center" });
+  doc.text(REPORT_TITLE, pageW / 2, 13, { align: "center" });
 
   // Subtitle
   doc.setFontSize(8);
-  doc.setTextColor(100, 100, 100);
+  doc.setTextColor(110, 110, 110);
   doc.setFont("helvetica", "normal");
-  doc.text(PORTAL_NAME, pageW / 2, 21, { align: "center" });
+  doc.text(PORTAL_NAME, pageW / 2, 19, { align: "center" });
 
-  // Header line
-  doc.setDrawColor(180, 180, 180);
-  doc.setLineWidth(0.4);
-  doc.line(10, 26, pageW - 10, 26);
+  // Header separator line
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.5);
+  doc.line(10, 24, pageW - 10, 24);
 
   // === FOOTER ===
   const footerY = pageH - 12;
-  doc.setDrawColor(180, 180, 180);
+  doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.3);
   doc.line(10, footerY - 3, pageW - 10, footerY - 3);
 
   doc.setFontSize(7);
-  doc.setTextColor(120, 120, 120);
+  doc.setTextColor(130, 130, 130);
   doc.setFont("helvetica", "normal");
 
-  // Left footer
   doc.text(COMPANY_NAME, 10, footerY + 1);
   doc.text(`Generated: ${generatedAt}`, 10, footerY + 5);
 
-  // Right footer
   doc.text(PORTAL_NAME, pageW - 10, footerY + 1, { align: "right" });
   doc.text("Confidential — Internal Use Only", pageW - 10, footerY + 5, { align: "right" });
 
-  // Center — page number
   doc.setFontSize(8);
   doc.setTextColor(60, 60, 60);
   doc.text(`Page ${pageNum} of ${totalPages}`, pageW / 2, footerY + 3, { align: "center" });
 }
 
 export async function generateOfflinePDF(devices: DeviceRow[], summary: StatusSummary): Promise<void> {
+  // Load logo first — used for header and watermark
+  const logoBase64 = await loadLogoBase64();
+
+  // Preload logo image into browser cache so canvas drawImage works synchronously
+  if (logoBase64) {
+    await new Promise<void>((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve();
+      img.onerror = () => resolve();
+      img.src = logoBase64;
+    });
+  }
+
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const generatedAt = new Date().toLocaleString("en-IN", {
-    day: "2-digit", month: "2-digit", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
+    day: "2-digit", month: "long", year: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    timeZoneName: "short",
   });
 
   const unknown = summary.total - summary.online - summary.offline;

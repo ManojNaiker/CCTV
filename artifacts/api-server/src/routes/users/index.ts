@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, usersTable, auditLogsTable } from "@workspace/db";
+import { sendUserCreatedEmail } from "../../lib/emailService";
 import {
   ListUsersResponse,
   CreateUserBody,
@@ -68,6 +69,14 @@ router.post("/users", async (req, res): Promise<void> => {
   }).returning();
 
   await logAction("CREATE", "user", String(user.id), `User '${user.username}' (${user.fullName}) created with role '${user.role}'`);
+
+  // Send email notification (non-blocking — don't fail on email error)
+  sendUserCreatedEmail({
+    name: user.fullName,
+    email: user.email ?? "",
+    role: user.role,
+    tempPassword: parsed.data.password,
+  }).catch(() => {});
 
   res.status(201).json(GetUserResponse.parse(formatUser(user)));
 });

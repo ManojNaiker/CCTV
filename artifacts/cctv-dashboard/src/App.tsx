@@ -10,6 +10,7 @@ import Devices from "@/pages/devices";
 import Users from "@/pages/users";
 import AuditLogs from "@/pages/audit-logs";
 import Settings from "@/pages/settings";
+import OfflineReport from "@/pages/offline-report";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -30,6 +31,7 @@ function Router() {
         <Route path="/users" component={Users} />
         <Route path="/audit-logs" component={AuditLogs} />
         <Route path="/settings" component={Settings} />
+        <Route path="/offline-report" component={OfflineReport} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

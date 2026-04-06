@@ -5,7 +5,8 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Wifi, WifiOff, ShieldCheck, Save, TestTube2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Wifi, WifiOff, ShieldCheck, Save, TestTube2, Mail, Send } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -23,6 +24,20 @@ export default function Settings() {
   const [saveMessage, setSaveMessage] = useState("");
   const [isLoaded, setIsLoaded] = useState(false);
 
+  // Email settings state
+  const [emailHost, setEmailHost] = useState("");
+  const [emailPort, setEmailPort] = useState("587");
+  const [emailSecure, setEmailSecure] = useState(false);
+  const [emailUser, setEmailUser] = useState("");
+  const [emailPassword, setEmailPassword] = useState("");
+  const [showEmailPassword, setShowEmailPassword] = useState(false);
+  const [emailFrom, setEmailFrom] = useState("");
+  const [emailTo, setEmailTo] = useState("");
+  const [emailEnabled, setEmailEnabled] = useState(true);
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailTestStatus, setEmailTestStatus] = useState<TestStatus>("idle");
+  const [emailMessage, setEmailMessage] = useState("");
+
   // Load existing settings on mount
   useEffect(() => {
     fetch(`${BASE}/api/settings`)
@@ -30,10 +45,22 @@ export default function Settings() {
       .then((data: Record<string, string>) => {
         if (data.hik_account) setAccount(data.hik_account);
         if (data.hik_password_type) setPasswordType(data.hik_password_type as PasswordType);
-        // Don't show masked password
         setIsLoaded(true);
       })
       .catch(() => setIsLoaded(true));
+
+    fetch(`${BASE}/api/settings/email`)
+      .then((r) => r.json())
+      .then((data: Record<string, string | number | boolean>) => {
+        if (data.host) setEmailHost(String(data.host));
+        if (data.port) setEmailPort(String(data.port));
+        if (data.secure !== undefined) setEmailSecure(Boolean(data.secure));
+        if (data.user) setEmailUser(String(data.user));
+        if (data.from) setEmailFrom(String(data.from));
+        if (data.to) setEmailTo(String(data.to));
+        if (data.enabled !== undefined) setEmailEnabled(Boolean(data.enabled));
+      })
+      .catch(() => {});
   }, []);
 
   const handleTestConnection = async () => {
@@ -88,6 +115,56 @@ export default function Settings() {
       setSaveMessage("Network error — save nahi ho saka.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTestEmail = async () => {
+    if (!emailHost || !emailUser || !emailPassword || !emailTo) {
+      setEmailTestStatus("failed");
+      setEmailMessage("SMTP Host, User, Password, aur To email required hain.");
+      return;
+    }
+    setEmailTestStatus("testing");
+    setEmailMessage("");
+    try {
+      const res = await fetch(`${BASE}/api/settings/email/test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ host: emailHost, port: parseInt(emailPort), secure: emailSecure, user: emailUser, password: emailPassword, from: emailFrom || emailUser, to: emailTo }),
+      });
+      const data = await res.json() as { success: boolean; message: string };
+      setEmailTestStatus(data.success ? "success" : "failed");
+      setEmailMessage(data.message);
+    } catch {
+      setEmailTestStatus("failed");
+      setEmailMessage("Network error — test nahi ho saka.");
+    }
+  };
+
+  const handleSaveEmail = async () => {
+    if (!emailHost || !emailUser || !emailPassword || !emailTo) {
+      setEmailMessage("SMTP Host, User, Password, aur To email required hain.");
+      return;
+    }
+    setEmailSaving(true);
+    setEmailMessage("");
+    try {
+      const res = await fetch(`${BASE}/api/settings/email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ host: emailHost, port: parseInt(emailPort), secure: emailSecure, user: emailUser, password: emailPassword, from: emailFrom || emailUser, to: emailTo, enabled: emailEnabled }),
+      });
+      const data = await res.json() as { message?: string; error?: string };
+      if (res.ok) {
+        setEmailMessage("Email settings saved successfully!");
+        setEmailTestStatus("idle");
+      } else {
+        setEmailMessage(data.error || "Save failed.");
+      }
+    } catch {
+      setEmailMessage("Network error — save nahi ho saka.");
+    } finally {
+      setEmailSaving(false);
     }
   };
 
@@ -284,32 +361,111 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        {/* Notifications */}
+        {/* Email Settings */}
         <Card>
           <CardHeader>
-            <CardTitle>Notifications</CardTitle>
+            <div className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-primary" />
+              <CardTitle>Email / SMTP Configuration</CardTitle>
+            </div>
             <CardDescription>
-              Offline devices ke liye alert preferences configure karein.
+              User creation aur offline alerts ke liye email notifications configure karein.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-between space-x-2">
-              <div className="flex flex-col space-y-1">
-                <Label>Email Alerts</Label>
-                <span className="text-sm text-muted-foreground">
-                  Offline branches ki daily summary receive karein.
-                </span>
+          <CardContent className="space-y-5">
+            {/* Enable Toggle */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
+              <div>
+                <Label className="text-sm font-medium">Email Notifications</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">User creation aur alerts ke liye emails bhejein</p>
               </div>
-              <Switch defaultChecked />
+              <Switch checked={emailEnabled} onCheckedChange={setEmailEnabled} />
             </div>
-            <div className="flex items-center justify-between space-x-2">
-              <div className="flex flex-col space-y-1">
-                <Label>Critical Alerts</Label>
-                <span className="text-sm text-muted-foreground">
-                  3+ days offline branches ke liye immediate notification.
-                </span>
+
+            {/* SMTP Row 1: Host + Port */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-2 space-y-1.5">
+                <Label htmlFor="email-host">SMTP Host</Label>
+                <Input id="email-host" placeholder="smtp.gmail.com" value={emailHost} onChange={e => setEmailHost(e.target.value)} />
               </div>
-              <Switch defaultChecked />
+              <div className="space-y-1.5">
+                <Label htmlFor="email-port">Port</Label>
+                <Select value={emailPort} onValueChange={v => { setEmailPort(v); setEmailSecure(v === "465"); }}>
+                  <SelectTrigger id="email-port">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="587">587 (TLS)</SelectItem>
+                    <SelectItem value="465">465 (SSL)</SelectItem>
+                    <SelectItem value="25">25 (SMTP)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* SMTP User + Password */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="email-user">SMTP Username / Email</Label>
+                <Input id="email-user" type="email" placeholder="alerts@yourcompany.com" value={emailUser} onChange={e => setEmailUser(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="email-password">SMTP Password / App Password</Label>
+                <div className="relative">
+                  <Input id="email-password" type={showEmailPassword ? "text" : "password"} placeholder="••••••••" value={emailPassword} onChange={e => setEmailPassword(e.target.value)} className="pr-10" />
+                  <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setShowEmailPassword(!showEmailPassword)}>
+                    {showEmailPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* From + To */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="email-from">From Address (optional)</Label>
+                <Input id="email-from" type="email" placeholder="noreply@yourcompany.com" value={emailFrom} onChange={e => setEmailFrom(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="email-to">Notification Recipients</Label>
+                <Input id="email-to" type="email" placeholder="admin@yourcompany.com, it@company.com" value={emailTo} onChange={e => setEmailTo(e.target.value)} />
+                <p className="text-xs text-muted-foreground">Multiple emails comma se separate karein</p>
+              </div>
+            </div>
+
+            {/* Status Message */}
+            {emailMessage && (
+              <div className={`flex items-center gap-2 p-3 rounded-md text-sm ${
+                emailMessage.includes("successfully") || emailMessage.includes("sent")
+                  ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
+                  : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+              }`}>
+                {emailMessage.includes("successfully") || emailMessage.includes("sent")
+                  ? <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  : <XCircle className="h-4 w-4 shrink-0" />}
+                {emailMessage}
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3 pt-1">
+              <Button variant="outline" onClick={handleTestEmail} disabled={emailTestStatus === "testing" || emailSaving} className="gap-2">
+                {emailTestStatus === "testing" ? <Loader2 className="h-4 w-4 animate-spin" /> :
+                 emailTestStatus === "success" ? <CheckCircle2 className="h-4 w-4 text-green-600" /> :
+                 emailTestStatus === "failed" ? <XCircle className="h-4 w-4 text-red-600" /> :
+                 <Send className="h-4 w-4" />}
+                Test Email
+              </Button>
+              <Button onClick={handleSaveEmail} disabled={emailSaving || emailTestStatus === "testing"} className="gap-2">
+                {emailSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Save Email Settings
+              </Button>
+            </div>
+
+            <div className="border-t pt-3">
+              <p className="text-xs text-muted-foreground">
+                <strong>Gmail tip:</strong> 2-Step Verification enable karein aur "App Password" generate karein (Google Account → Security → App passwords). Regular password kaam nahi karega.
+              </p>
             </div>
           </CardContent>
         </Card>

@@ -11,6 +11,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  WifiOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -60,6 +61,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/devices", label: "Devices", icon: ShieldCheck },
+    { href: "/offline-report", label: "Offline Report", icon: WifiOff },
     { href: "/users", label: "Users", icon: Users },
     { href: "/audit-logs", label: "Audit Logs", icon: Activity },
     { href: "/settings", label: "Settings", icon: Settings },

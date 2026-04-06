@@ -1,0 +1,506 @@
+# === HEADER / FOOTER / WATERMARK FUNCTION ===
+def add_page_elements(canvas, doc):
+    """
+    Adds header, footer, and watermark to PDF pages.
+    This function will be called for every page.
+    
+    Args:
+        canvas: Reportlab canvas object
+        doc: Reportlab document object
+    """
+    width, height = A4
+    
+    # Save the current canvas state
+    canvas.saveState()
+    
+    # Watermark - Apply to every page
+    if os.path.exists(CONFIG["LOGO_PATH"]):
+        # Save state for watermark
+        canvas.saveState()
+        canvas.setFillAlpha(0.06)  # Make it very transparent
+        canvas.translate(width / 2, height / 2)
+        canvas.rotate(45)
+        try:
+            canvas.drawImage(CONFIG["LOGO_PATH"], -150, -150, width=300, height=300, mask='auto')
+        except:
+            logging.warning(f"Could not draw watermark image: {CONFIG['LOGO_PATH']}")
+        canvas.restoreState()
+    else:
+        logging.warning(f"Logo file {CONFIG['LOGO_PATH']} not found. Skipping watermark.")
+
+    # Header - Apply to every page
+    canvas.saveState()
+    try:
+        if os.path.exists(CONFIG["LOGO_PATH"]):
+            canvas.drawImage(CONFIG["LOGO_PATH"], x=40, y=height - 60, width=70, height=35, mask='auto')
+    except:
+        logging.warning(f"Could not draw header logo: {CONFIG['LOGO_PATH']}")
+    
+    canvas.setFont("Helvetica-Bold", 14)
+    canvas.setFillColor(colors.HexColor("#222222"))
+    canvas.drawCentredString(width / 2, height - 40, "All Network Device Status")
+    
+    # Header line
+    canvas.setLineWidth(0.5)
+    canvas.setStrokeColor(colors.grey)
+    canvas.line(40, height - 70, width - 40, height - 70)
+    canvas.restoreState()
+
+    # Footer - Apply to every page
+    canvas.saveState()
+    footer_y = 50
+    canvas.setFont("Helvetica", 6)
+    canvas.setFillColor(colors.darkgray)
+    
+    # Draw footer information
+    for i in range(len(CONFIG["FOOTER_INFO"]["left"])):
+        if i < len(CONFIG["FOOTER_INFO"]["left"]):
+            canvas.drawString(40, footer_y, CONFIG["FOOTER_INFO"]["left"][i])
+        if i < len(CONFIG["FOOTER_INFO"]["right"]):
+            canvas.drawRightString(width - 40, footer_y, CONFIG["FOOTER_INFO"]["right"][i])
+        footer_y -= 9
+    
+    # Add page number
+    canvas.setFont("Helvetica", 8)
+    canvas.setFillColor(colors.black)
+    canvas.drawCentredString(width / 2, 20, f"Page {doc.page}")
+    
+    canvas.restoreState()
+    
+    # Restore the original canvas state
+    canvas.restoreState()
+
+# === CUSTOM DOCUMENT CLASS ===
+class CustomDocTemplate(BaseDocTemplate):
+    """
+    Custom document template to ensure consistent page layout
+    """
+    def __init__(self, filename, **kwargs):
+        super().__init__(filename, **kwargs)
+        
+        # Define frame for content (leaving space for header and footer)
+        frame = Frame(
+            40,          # left margin
+            80,          # bottom margin (space for footer)
+            A4[0] - 80,  # width
+            A4[1] - 160, # height (space for header and footer)
+            id='normal',
+            leftPadding=0,
+            rightPadding=0,
+            topPadding=0,
+            bottomPadding=0
+        )
+        
+        # Create page template with header/footer function
+        template = PageTemplate(
+            id='AllPages',
+            frames=[frame],
+            onPage=add_page_elements,
+            pagesize=A4
+        )
+        
+        self.addPageTemplates([template])
+
+    param = '-n' if platform.system().lower() == 'windows' else '-c'
+    try:
+        result = subprocess.run(
+            ["ping", param, "4", ip],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        # Format the output line by line as requested
+        output_lines = result.stdout.strip().split('\n')
+        formatted_output = '\n'.join(line.strip() for line in output_lines if line.strip())
+        
+        # Check if ping was successful
+        output_lower = result.stdout.strip().lower()
+        if "destination host unreachable" in output_lower:
+            return False, formatted_output
+        
+        loss_match = re.search(r"lost = (\d+)", output_lower)
+        if loss_match and int(loss_match.group(1)) == 4:
+            return False, formatted_output
+            
+        return True, formatted_output
+        
+    except subprocess.TimeoutExpired:
+        return False, "Ping timed out"
+    except Exception as e:
+        return False, str(e)
+
+    param = '-n' if platform.system().lower() == 'windows' else '-c'
+    try:
+        result = subprocess.run(
+            ["ping", param, "4", ip],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        # Format the output line by line as requested
+        output_lines = result.stdout.strip().split('\n')
+        formatted_output = '\n'.join(line.strip() for line in output_lines if line.strip())
+        
+        # Check if ping was successful
+        output_lower = result.stdout.strip().lower()
+        if "destination host unreachable" in output_lower:
+            return False, formatted_output
+        
+        loss_match = re.search(r"lost = (\d+)", output_lower)
+        if loss_match and int(loss_match.group(1)) == 4:
+            return False, formatted_output
+            
+        return True, formatted_output
+        
+    except subprocess.TimeoutExpired:
+        return False, "Ping timed out"
+    except Exception as e:
+        return False, str(e)
+
+# === LOAD DEVICES AND PROCESS STATUS ===
+def load_and_process_devices():
+    """
+    Loads device data from Excel and processes their status by pinging.
+    
+    Returns:
+        tuple: (DataFrame with updated status, list of logs)
+    """
+    try:
+        df = pd.read_excel(CONFIG["EXCEL_FILE"])
+        required_columns = ['IP', 'Name', 'Type']
+        if not all(col in df.columns for col in required_columns):
+            raise ValueError(f"Excel file must contain columns: {required_columns}")
+    except FileNotFoundError:
+        logging.error(f"Excel file {CONFIG['EXCEL_FILE']} not found.")
+        raise
+    except Exception as e:
+        logging.error(f"Error reading Excel file: {str(e)}")
+        raise
+
+    logs = []
+    now = datetime.datetime.now().strftime('%d-%m-%Y %H:%M')
+    online_list = []
+    for _, row in df.iterrows():
+        ip = row['IP']
+        name = row['Name']
+        device_type = row.get('Type', 'Unknown')
+        success, reason = ping_device(ip)
+        status = 'Online' if success else 'Offline'
+        logs.append({
+            'Timestamp': now,
+            'Name': name,
+            'IP': ip,
+            'Status': status,
+            'Reason': reason,
+            'Type': device_type
+        })
+        online_list.append(success)
+
+    df['Online'] = online_list
+    df['Last Seen'] = np.where(df['Online'], pd.to_datetime('now'), pd.NaT)
+    df['Type'] = df['Type'].str.strip().str.lower().replace('camara', 'camera')
+    df['Status'] = df['Online'].apply(lambda x: 'Online' if x else 'Offline')
+    
+    try:
+        pd.DataFrame(logs).to_csv(LOG_FILE, index=False)
+        logging.info(f"Log file saved: {LOG_FILE}")
+    except PermissionError:
+        logging.error(f"Unable to write to {LOG_FILE}. Check permissions.")
+        raise
+    return df, logs
+
+# === CREATE ENHANCED PIE CHART WITH SUMMARY ===
+def create_status_chart_with_summary(group, styles):
+    """
+    Creates an enhanced pie chart with proper colors and summary table
+    
+    Args:
+        group: DataFrame group for a specific device type
+        styles: ReportLab styles
+        
+    Returns:
+        list: Chart and summary elements
+    """
+    elements = []
+    
+    status_counts = group['Status'].value_counts()
+    online_count = status_counts.get('Online', 0)
+    offline_count = status_counts.get('Offline', 0)
+    total_devices = len(group)
+    
+    if total_devices > 0:
+        # Create pie chart with proper colors
+        drawing = Drawing(400, 200)
+        pie = Pie()
+        
+        # Set data and labels
+        pie.data = [online_count, offline_count] if offline_count > 0 else [online_count]
+        pie.labels = [f"Online ({online_count})", f"Offline ({offline_count})"] if offline_count > 0 else [f"Online ({online_count})"]
+        
+        # Chart positioning and sizing
+        pie.width = 120
+        pie.height = 120
+        pie.x = 140
+        pie.y = 40
+        pie.sideLabels = True
+        pie.slices.strokeWidth = 0.5
+        
+        # Set colors - Green for Online, Red for Offline
+        if online_count > 0:
+            pie.slices[0].fillColor = colors.green
+        if offline_count > 0 and len(pie.data) > 1:
+            pie.slices[1].fillColor = colors.red
+        
+        drawing.add(pie)
+        
+        # Add donut hole for better appearance
+        donut_hole = Circle(pie.x + pie.width / 2, pie.y + pie.height / 2, 30)
+        donut_hole.fillColor = colors.white
+        donut_hole.strokeColor = colors.white
+        drawing.add(donut_hole)
+        
+        elements.append(drawing)
+        elements.append(Spacer(1, 12))
+        
+        # Add summary table below the chart
+        summary_data = [
+            ['Status', 'Count', 'Percentage'],
+            ['Online', str(online_count), f"{(online_count/total_devices)*100:.1f}%"],
+            ['Offline', str(offline_count), f"{(offline_count/total_devices)*100:.1f}%"],
+            ['Total', str(total_devices), '100.0%']
+        ]
+        
+        summary_table = Table(summary_data, colWidths=[80, 60, 80])
+        summary_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#DCE6F1")),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),  # Bold total row
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor("#F0F0F0")),  # Gray background for total
+        ]))
+        
+        elements.append(Paragraph("<b>Device Status Summary</b>", styles['Heading3']))
+        elements.append(Spacer(1, 6))
+        elements.append(summary_table)
+        
+    else:
+        elements.append(Paragraph("No devices found for this category.", styles['Normal']))
+    
+    return elements
+
+# === RAW LOGS SECTION ===
+def add_raw_ping_logs_to_pdf(doc, logs):
+    """
+    Adds raw ping logs to the PDF, grouped by device type with line-by-line formatting.
+    
+    Args:
+        doc: Reportlab document object
+        logs: List of log dictionaries
+        
+    Returns:
+        list: Reportlab elements for raw logs
+    """
+    styles = getSampleStyleSheet()
+    mono_style = ParagraphStyle(
+        'Mono', 
+        parent=styles['Normal'], 
+        fontName='Courier', 
+        fontSize=7,
+        leftIndent=10,
+        spaceAfter=6
+    )
+    elements = []
+    grouped = {}
+    for log in logs:
+        device_type = log.get('Type', 'Unknown')
+        grouped.setdefault(device_type, []).append(log)
+
+    for device_type, entries in grouped.items():
+        elements.append(PageBreak())
+        elements.append(Paragraph(f"<b>Raw Ping Logs for {device_type.capitalize()}</b>", styles['Title']))
+        elements.append(Spacer(1, 12))
+        
+        for entry in entries:
+            elements.append(Paragraph(
+                f"<b>{entry['Timestamp']} - {entry['Name']} ({entry['IP']}) - {entry['Status']}</b>",
+                styles['Heading3']))
+            elements.append(Spacer(1, 6))
+            
+            # Format ping response line by line
+            ping_lines = entry['Reason'].split('\n')
+            for line in ping_lines:
+                if line.strip():
+                    elements.append(Paragraph(f"<font name='Courier'>{line.strip()}</font>", mono_style))
+            
+            elements.append(Spacer(1, 12))
+            
+    return elements
+
+# === CREATE PDF REPORT ===
+def create_device_report(df, logs, output_path):
+    """
+    Generates a PDF report with device status tables and enhanced pie charts.
+    
+    Args:
+        df: DataFrame with device data
+        logs: List of log dictionaries
+        output_path: Path to save the PDF
+    """
+    styles = getSampleStyleSheet()
+    elements = []
+    now_str = datetime.datetime.now().strftime("%B %d, %Y, %H:%M:%S (IST+05:30)")
+    
+    # Use custom document template
+    doc = CustomDocTemplate(output_path, pagesize=A4)
+
+    for device_type, group in df.groupby('Type'):
+        elements.append(Spacer(1, 10))
+        elements.append(Paragraph(f"<b>{device_type.capitalize()} Device Status Report</b>", styles['Title']))
+        elements.append(Spacer(1, 12))
+        elements.append(Paragraph(f"<b>Generated at:</b> {now_str}", styles['Normal']))
+        elements.append(Spacer(1, 12))
+        elements.append(Paragraph("<b>Description</b>", styles['Heading2']))
+        elements.append(Paragraph(
+            f"This section includes details and a status breakdown of all {device_type.capitalize()} devices.",
+            styles['Normal']))
+        elements.append(Spacer(1, 12))
+
+        table_data = [['Name', 'IP', 'Type', 'Sub Type', 'Priority', 'Status']]
+        for _, row in group.iterrows():
+            table_data.append([
+                row['Name'], row['IP'], row['Type'].capitalize(),
+                row.get('Sub Type', ''), row.get('Priority', ''), row['Status']
+            ])
+        table = Table(table_data, repeatRows=1, colWidths=[100, 100, 80, 80, 80, 80])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#DCE6F1")),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(table)
+        elements.append(Spacer(1, 12))
+
+        # Add enhanced chart with summary
+        chart_elements = create_status_chart_with_summary(group, styles)
+        elements.extend(chart_elements)
+        
+        elements.append(Spacer(1, 12))
+        elements.append(PageBreak())
+
+    elements += add_raw_ping_logs_to_pdf(doc, logs)
+    try:
+        doc.build(elements)
+        logging.info(f"PDF report generated: {output_path}")
+    except Exception as e:
+        logging.error(f"Error generating PDF: {str(e)}")
+        raise
+
+# === EMAIL FUNCTIONS ===
+def send_email(subject, html_body, attachment_path=None):
+    """
+    Sends an email with optional PDF attachment.
+    
+    Args:
+        subject (str): Email subject
+        html_body (str): HTML content of the email
+        attachment_path (str, optional): Path to PDF attachment
+    """
+    msg = EmailMessage()
+    msg['Subject'] = subject
+    msg['From'] = CONFIG["EMAIL_FROM"]
+    msg['To'] = CONFIG["EMAIL_TO"]
+    msg.add_alternative(html_body, subtype='html')
+
+    if attachment_path and os.path.exists(attachment_path):
+        with open(attachment_path, 'rb') as f:
+            msg.add_attachment(
+                f.read(),
+                maintype='application',
+                subtype='pdf',
+                filename=os.path.basename(attachment_path)
+            )
+
+    context = ssl.create_default_context()
+    try:
+        with smtplib.SMTP(CONFIG["SMTP_SERVER"], CONFIG["SMTP_PORT"]) as smtp:
+            smtp.starttls(context=context)
+            smtp.login(CONFIG["EMAIL_FROM"], EMAIL_PASSWORD)
+            smtp.send_message(msg)
+        logging.info(f"Email sent: {subject}")
+    except smtplib.SMTPException as e:
+        logging.error(f"Error sending email: {str(e)}")
+        raise
+
+def send_main_report_email(pdf_path):
+    """
+    Sends the main report email with the PDF attached.
+    
+    Args:
+        pdf_path (str): Path to the PDF report
+    """
+    html = f"""
+    <html>
+        <body>
+            <h2>📋 Device Status Report</h2>
+            <p>The latest network device status report has been generated. Please find the attached PDF for details.</p>
+            <p><b>Generated on:</b> {datetime.datetime.now().strftime('%B %d, %Y, %H:%M:%S')}</p>
+        </body>
+    </html>
+    """
+    send_email("📋 Device Status Report", html, attachment_path=pdf_path)
+
+def send_high_priority_alert(df):
+    """
+    Sends an alert email for offline high-priority devices.
+    
+    Args:
+        df: DataFrame with device data
+    """
+    offline_high = df[(df['Priority'].str.lower() == 'high') & (df['Status'] == 'Offline')]
+    if not offline_high.empty:
+        table_rows = "".join([
+            f"<tr><td>{r['Name']}</td><td>{r['IP']}</td><td>{r['Type']}</td><td>{r['Sub Type']}</td></tr>"
+            for _, r in offline_high.iterrows()
+        ])
+        html = f"""
+        <html>
+            <body>
+                <h2>🚨 High Priority Devices Offline</h2>
+                <p>The following <b>High Priority</b> devices are currently <b>offline</b>:</p>
+                <table border="1" cellpadding="5" cellspacing="0">
+                    <tr><th>Name</th><th>IP</th><th>Type</th><th>Sub Type</th></tr>
+                    {table_rows}
+                </table>
+                <p>Please investigate immediately.</p>
+            </body>
+        </html>
+        """
+        send_email("🚨 High Priority Devices Offline", html)
+
+# === MAIN FUNCTION ===
+def main():
+    """
+    Main function to orchestrate device monitoring, report generation, and email notifications.
+    """
+    try:
+        df, logs = load_and_process_devices()
+        create_device_report(df, logs, OUTPUT_PDF)
+        if CONFIG["EMAIL_ENABLED"]:
+            send_main_report_email(OUTPUT_PDF)
+            send_high_priority_alert(df)
+    except Exception as e:
+        logging.error(f"Error in main execution: {str(e)}")
+        raise
+
+if __name__ == "__main__":
+    main()

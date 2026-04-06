@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, settingsTable } from "@workspace/db";
 import { loginGetSession, type HikCredentials } from "../../lib/hikconnect";
 import { logger } from "../../lib/logger";
+import { getEmailSettings, createTransporter } from "../../lib/emailService";
 
 const router: IRouter = Router();
 
@@ -99,6 +100,111 @@ router.post("/settings/hikconnect/test", async (req, res): Promise<void> => {
       success: false,
       message: `Connection failed: ${msg}`,
     });
+  }
+});
+
+// GET email settings (masks password)
+router.get("/settings/email", async (_req, res): Promise<void> => {
+  try {
+    const settings = await getEmailSettings();
+    res.json({
+      host: settings.host,
+      port: settings.port,
+      secure: settings.secure,
+      user: settings.user,
+      password: settings.password ? "masked" : "",
+      from: settings.from,
+      to: settings.to,
+      enabled: settings.enabled,
+    });
+  } catch (err) {
+    logger.error({ err }, "Failed to get email settings");
+    res.status(500).json({ error: "Failed to get email settings" });
+  }
+});
+
+// POST save email settings
+router.post("/settings/email", async (req, res): Promise<void> => {
+  const { host, port, secure, user, password, from, to, enabled } = req.body as {
+    host?: string;
+    port?: number;
+    secure?: boolean;
+    user?: string;
+    password?: string;
+    from?: string;
+    to?: string;
+    enabled?: boolean;
+  };
+
+  if (!host || !user || !password || !to) {
+    res.status(400).json({ error: "host, user, password, and to are required" });
+    return;
+  }
+
+  try {
+    const upsert = async (key: string, value: string) => {
+      await db
+        .insert(settingsTable)
+        .values({ key, value })
+        .onConflictDoUpdate({ target: settingsTable.key, set: { value } });
+    };
+
+    await upsert("email_host", host);
+    await upsert("email_port", String(port ?? 587));
+    await upsert("email_secure", String(secure ?? false));
+    await upsert("email_user", user);
+    await upsert("email_password", password);
+    await upsert("email_from", from ?? user);
+    await upsert("email_to", to);
+    await upsert("email_enabled", String(enabled !== false));
+
+    logger.info({ host, user, to }, "Email settings saved");
+    res.json({ message: "Email settings saved successfully" });
+  } catch (err) {
+    logger.error({ err }, "Failed to save email settings");
+    res.status(500).json({ error: "Failed to save email settings" });
+  }
+});
+
+// POST test email connection
+router.post("/settings/email/test", async (req, res): Promise<void> => {
+  const { host, port, secure, user, password, from, to } = req.body as {
+    host?: string;
+    port?: number;
+    secure?: boolean;
+    user?: string;
+    password?: string;
+    from?: string;
+    to?: string;
+  };
+
+  if (!host || !user || !password || !to) {
+    res.status(400).json({ success: false, message: "host, user, password, and to are required" });
+    return;
+  }
+
+  try {
+    const transporter = createTransporter({
+      host, port: port ?? 587, secure: secure ?? false,
+      user, password, from: from ?? user, to, enabled: true,
+    });
+
+    await transporter.verify();
+
+    await transporter.sendMail({
+      from: from ?? user,
+      to,
+      subject: "CCTV Portal — Email Test Successful",
+      html: `<p>Your email configuration is working correctly for <strong>Light Finance CCTV Monitoring Portal</strong>.</p>`,
+      text: "Your email configuration is working correctly.",
+    });
+
+    logger.info({ host, user, to }, "Email test successful");
+    res.json({ success: true, message: "Test email sent successfully! Check your inbox." });
+  } catch (err) {
+    const msg = (err as Error).message;
+    logger.error({ err }, "Email test failed");
+    res.status(400).json({ success: false, message: `Email test failed: ${msg}` });
   }
 });
 

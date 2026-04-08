@@ -21,20 +21,27 @@ interface StatusSummary {
 const COMPANY_NAME = "Light Finance";
 const REPORT_TITLE = "Branch CCTV Offline Report";
 const PORTAL_NAME = "CCTV Monitoring Portal";
+const HEADER_HEIGHT = 28;
 
-async function loadLogoBase64(): Promise<string | null> {
+async function loadLogoBase64(): Promise<{ base64: string; img: HTMLImageElement } | null> {
   try {
-    const base = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
-    const url = `${base}/logo.png`;
-    const res = await fetch(url);
+    const url = `${window.location.origin}/logo.png`;
+    const res = await fetch(url, { cache: "force-cache" });
     if (!res.ok) return null;
     const blob = await res.blob();
-    return new Promise((resolve) => {
+    const base64 = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(null);
+      reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = base64;
+    });
+    return { base64, img };
   } catch {
     return null;
   }
@@ -52,10 +59,6 @@ function drawDonutChart(
   const total = online + offline + unknown;
   if (total === 0) return y + radius * 2 + 20;
 
-  const cx = x + radius;
-  const cy = y + radius;
-  const innerRadius = radius * 0.5;
-
   const slices: { value: number; color: string; label: string }[] = [
     { value: online, color: "#22c55e", label: "Online" },
     { value: offline, color: "#ef4444", label: "Offline" },
@@ -70,8 +73,8 @@ function drawDonutChart(
 
   const canvasCx = canvasSize / 2;
   const canvasCy = canvasSize / 2;
-  const canvasRadius = (radius * 3) - 5;
-  const canvasInner = innerRadius * 3;
+  const canvasRadius = radius * 3 - 5;
+  const canvasInner = (radius * 0.5) * 3;
 
   let startAngle = -Math.PI / 2;
   for (const slice of slices) {
@@ -85,19 +88,17 @@ function drawDonutChart(
     startAngle += sliceAngle;
   }
 
-  // Draw donut hole
   ctx.beginPath();
   ctx.arc(canvasCx, canvasCy, canvasInner, 0, 2 * Math.PI);
   ctx.fillStyle = "#ffffff";
   ctx.fill();
 
-  // Center text
   ctx.fillStyle = "#111827";
-  ctx.font = `bold ${Math.round(canvasRadius * 0.4)}px Inter, Arial`;
+  ctx.font = `bold ${Math.round(canvasRadius * 0.4)}px Arial`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(`${((online / total) * 100).toFixed(0)}%`, canvasCx, canvasCy - canvasRadius * 0.05);
-  ctx.font = `${Math.round(canvasRadius * 0.22)}px Inter, Arial`;
+  ctx.font = `${Math.round(canvasRadius * 0.22)}px Arial`;
   ctx.fillStyle = "#6b7280";
   ctx.fillText("Online", canvasCx, canvasCy + canvasRadius * 0.2);
 
@@ -105,7 +106,6 @@ function drawDonutChart(
   const chartSize = radius * 2;
   doc.addImage(imgData, "PNG", x, y, chartSize, chartSize);
 
-  // Legend below chart
   let legendX = x;
   const legendY = y + chartSize + 6;
   const swatchSize = 4;
@@ -124,43 +124,53 @@ function drawDonutChart(
   return legendY + 10;
 }
 
+function drawWatermark(doc: jsPDF, logoImg: HTMLImageElement) {
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const wmSize = 80;
+  const canvasDim = wmSize * 3;
+
+  const wmCanvas = document.createElement("canvas");
+  wmCanvas.width = canvasDim;
+  wmCanvas.height = canvasDim;
+  const wmCtx = wmCanvas.getContext("2d")!;
+
+  wmCtx.save();
+  wmCtx.translate(canvasDim / 2, canvasDim / 2);
+  wmCtx.rotate((45 * Math.PI) / 180);
+  wmCtx.globalAlpha = 0.06;
+  wmCtx.drawImage(logoImg, -wmSize * 1.2, -wmSize * 1.2, wmSize * 2.4, wmSize * 2.4);
+  wmCtx.restore();
+
+  const wmData = wmCanvas.toDataURL("image/png");
+  doc.addImage(wmData, "PNG", pageW / 2 - 40, pageH / 2 - 40, 80, 80);
+}
+
 function addPageElements(
   doc: jsPDF,
   pageNum: number,
   totalPages: number,
   generatedAt: string,
-  logoBase64: string | null
+  logo: { base64: string; img: HTMLImageElement } | null
 ) {
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
 
-  // === WATERMARK (logo rotated 45°, 6% opacity) ===
-  if (logoBase64) {
-    const wmSize = 80;
-    const wmCanvas = document.createElement("canvas");
-    wmCanvas.width = wmSize * 3;
-    wmCanvas.height = wmSize * 3;
-    const wmCtx = wmCanvas.getContext("2d")!;
-    wmCtx.save();
-    wmCtx.translate((wmSize * 3) / 2, (wmSize * 3) / 2);
-    wmCtx.rotate((45 * Math.PI) / 180);
-    wmCtx.globalAlpha = 0.06;
-    const img = new Image();
-    img.src = logoBase64;
-    wmCtx.drawImage(img, -wmSize * 1.2, -wmSize * 1.2, wmSize * 2.4, wmSize * 2.4);
-    wmCtx.restore();
-    const wmData = wmCanvas.toDataURL("image/png");
-    doc.addImage(wmData, "PNG", pageW / 2 - 40, pageH / 2 - 40, 80, 80);
+  if (logo) {
+    drawWatermark(doc, logo.img);
   }
 
-  // === HEADER ===
+  // White header background to prevent content showing through
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageW, HEADER_HEIGHT, "F");
+
+  // Logo or fallback
   const logoH = 14;
   const logoW = 28;
 
-  if (logoBase64) {
-    doc.addImage(logoBase64, "PNG", 10, 5, logoW, logoH);
+  if (logo) {
+    doc.addImage(logo.base64, "PNG", 10, 5, logoW, logoH);
   } else {
-    // Fallback: blue pill with text
     doc.setFillColor(29, 78, 216);
     doc.roundedRect(10, 6, logoW, logoH - 2, 2, 2, "F");
     doc.setFontSize(7);
@@ -169,25 +179,28 @@ function addPageElements(
     doc.text(COMPANY_NAME, 10 + logoW / 2, 14, { align: "center" });
   }
 
-  // Title (centered on page)
-  doc.setFontSize(15);
+  // Report title — centered, sized to not clash with logo
+  doc.setFontSize(14);
   doc.setTextColor(22, 22, 22);
   doc.setFont("helvetica", "bold");
-  doc.text(REPORT_TITLE, pageW / 2, 13, { align: "center" });
+  doc.text(REPORT_TITLE, pageW / 2, 11, { align: "center" });
 
-  // Subtitle
-  doc.setFontSize(8);
+  // Subtitle — slightly below title
+  doc.setFontSize(7.5);
   doc.setTextColor(110, 110, 110);
   doc.setFont("helvetica", "normal");
-  doc.text(PORTAL_NAME, pageW / 2, 19, { align: "center" });
+  doc.text(PORTAL_NAME, pageW / 2, 17, { align: "center" });
 
-  // Header separator line
+  // Header separator
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.5);
-  doc.line(10, 24, pageW - 10, 24);
+  doc.line(10, HEADER_HEIGHT, pageW - 10, HEADER_HEIGHT);
 
-  // === FOOTER ===
+  // Footer
   const footerY = pageH - 12;
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, footerY - 5, pageW, 20, "F");
+
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.3);
   doc.line(10, footerY - 3, pageW - 10, footerY - 3);
@@ -208,18 +221,7 @@ function addPageElements(
 }
 
 export async function generateOfflinePDF(devices: DeviceRow[], summary: StatusSummary): Promise<void> {
-  // Load logo first — used for header and watermark
-  const logoBase64 = await loadLogoBase64();
-
-  // Preload logo image into browser cache so canvas drawImage works synchronously
-  if (logoBase64) {
-    await new Promise<void>((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve();
-      img.onerror = () => resolve();
-      img.src = logoBase64;
-    });
-  }
+  const logo = await loadLogoBase64();
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
@@ -230,13 +232,9 @@ export async function generateOfflinePDF(devices: DeviceRow[], summary: StatusSu
   });
 
   const unknown = summary.total - summary.online - summary.offline;
-  const CONTENT_TOP = 30;
+  const CONTENT_TOP = HEADER_HEIGHT + 4;
 
-  // =====================
   // PAGE 1 — Chart + Summary
-  // =====================
-
-  // Section title
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(30, 58, 138);
@@ -245,11 +243,9 @@ export async function generateOfflinePDF(devices: DeviceRow[], summary: StatusSu
   doc.setLineWidth(0.3);
   doc.line(10, CONTENT_TOP + 7, pageW - 10, CONTENT_TOP + 7);
 
-  // Donut chart
   const chartStartY = CONTENT_TOP + 12;
   const legendEndY = drawDonutChart(doc, pageW / 2 - 30, chartStartY, 30, summary.online, summary.offline, unknown);
 
-  // Summary table
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(30, 58, 138);
@@ -283,30 +279,25 @@ export async function generateOfflinePDF(devices: DeviceRow[], summary: StatusSu
         data.cell.styles.fontStyle = "bold";
         data.cell.styles.fillColor = [240, 240, 240];
       }
-      // Color rows
       if (data.section === "body" && data.column.index === 0) {
         if (data.row.index === 0) data.cell.styles.textColor = [21, 128, 61];
         if (data.row.index === 1) data.cell.styles.textColor = [185, 28, 28];
         if (data.row.index === 2) data.cell.styles.textColor = [194, 65, 12];
       }
     },
-    margin: { left: 10, right: 10 },
+    margin: { left: 10, right: 10, top: HEADER_HEIGHT + 2 },
   });
 
   let nextY = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 12;
-
-  // =====================
-  // Device Table (may span multiple pages)
-  // =====================
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(30, 58, 138);
 
   if (nextY > doc.internal.pageSize.getHeight() - 50) {
     doc.addPage();
     nextY = CONTENT_TOP + 5;
   }
 
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(30, 58, 138);
   doc.text(`Offline Device List (${summary.offline} devices)`, 10, nextY);
   doc.setDrawColor(200, 210, 230);
   doc.setLineWidth(0.3);
@@ -349,17 +340,14 @@ export async function generateOfflinePDF(devices: DeviceRow[], summary: StatusSu
         }
       }
     },
-    margin: { left: 10, right: 10 },
-    didDrawPage: () => {
-      // Headers and footers are added after all pages are drawn
-    },
+    margin: { left: 10, right: 10, top: HEADER_HEIGHT + 2 },
   });
 
-  // Add headers/footers to all pages
+  // Add headers/footers to ALL pages (drawn last to get total page count)
   const totalPages = doc.getNumberOfPages();
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
-    addPageElements(doc, p, totalPages, generatedAt);
+    addPageElements(doc, p, totalPages, generatedAt, logo);
   }
 
   doc.save(`offline-report-${new Date().toISOString().slice(0, 10)}.pdf`);

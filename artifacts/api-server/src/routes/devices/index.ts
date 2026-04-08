@@ -140,6 +140,18 @@ router.post("/devices/refresh", async (req, res): Promise<void> => {
     let offlineCount = 0;
     let unknownCount = 0;
 
+    // Returns true if two dates fall on the same calendar day in IST
+    function isSameDayIST(a: Date, b: Date): boolean {
+      const toIST = (d: Date) => new Date(d.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+      const ai = toIST(a);
+      const bi = toIST(b);
+      return (
+        ai.getFullYear() === bi.getFullYear() &&
+        ai.getMonth() === bi.getMonth() &&
+        ai.getDate() === bi.getDate()
+      );
+    }
+
     for (const device of allDevices) {
       const hikDevice = hikDeviceMap.get(device.serialNumber);
       const newStatus = hikDevice ? mapHikStatus(hikDevice.status) : "unknown";
@@ -149,7 +161,17 @@ router.post("/devices/refresh", async (req, res): Promise<void> => {
       let newRemark = device.remark;
 
       if (newStatus === "offline") {
-        newOfflineDays = (device.offlineDays ?? 0) + 1;
+        // Only increment offlineDays once per calendar day (IST).
+        // If device was already offline and updatedAt is today, we already counted today.
+        const alreadyCountedToday =
+          device.status === "offline" &&
+          device.updatedAt != null &&
+          isSameDayIST(device.updatedAt, now);
+
+        if (!alreadyCountedToday) {
+          newOfflineDays = (device.offlineDays ?? 0) + 1;
+        }
+
         // Auto-remark if no manual remark set
         if (!newRemark || newRemark === "-" || newRemark === "") {
           if (newOfflineDays === 1) {

@@ -35,12 +35,22 @@ Tables in `lib/db/src/schema/`:
 - `users` — System users with username, role (admin/operator/viewer), isActive
 - `audit_logs` — Complete audit trail of all user/system actions
 
+## Database Migrations
+
+Migrations are in `lib/db/drizzle/`. The API server **auto-runs migrations on every startup** before accepting requests — no manual step needed on fresh deploys or new environments.
+
+To add a new migration after schema changes:
+1. Update schema in `lib/db/src/schema/`
+2. Run `cd lib/db && pnpm drizzle-kit generate` to generate migration SQL
+3. Restart the API server (migrations run automatically)
+
 ## Key Commands
 
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only, bypasses migrations)
+- `cd lib/db && pnpm drizzle-kit generate` — generate new migration from schema changes
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
 - `pnpm --filter @workspace/cctv-dashboard run dev` — run frontend locally
 

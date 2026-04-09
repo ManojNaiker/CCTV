@@ -11,15 +11,56 @@ import {
   TrendingDown,
   Activity,
   MapPin,
+  Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { generateOfflinePDF } from "@/lib/pdfExport";
+import { useToast } from "@/hooks/use-toast";
+
+const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
 export default function OfflineReport() {
+  const { toast } = useToast();
   const [exporting, setExporting] = useState<"csv" | "pdf" | null>(null);
+  const [sendingBulk, setSendingBulk] = useState(false);
+  const [sendingAlertId, setSendingAlertId] = useState<number | null>(null);
+
+  const handleSendBulkAlert = async () => {
+    setSendingBulk(true);
+    try {
+      const res = await fetch(`${BASE}/api/devices/send-bulk-alert`, { method: "POST" });
+      const data = await res.json() as { success?: boolean; message?: string; error?: string; count?: number };
+      if (res.ok && data.success) {
+        toast({ title: data.count === 0 ? "No offline devices" : "Bulk alert sent", description: data.message });
+      } else {
+        toast({ title: "Failed to send", description: data.error || "Unknown error", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Network error", description: "Could not send bulk alert email.", variant: "destructive" });
+    } finally {
+      setSendingBulk(false);
+    }
+  };
+
+  const handleSendAlert = async (device: { id: number; branchName: string }) => {
+    setSendingAlertId(device.id);
+    try {
+      const res = await fetch(`${BASE}/api/devices/${device.id}/send-alert`, { method: "POST" });
+      const data = await res.json() as { success?: boolean; message?: string; error?: string };
+      if (res.ok && data.success) {
+        toast({ title: "Alert email sent", description: `Alert email sent for ${device.branchName}.` });
+      } else {
+        toast({ title: "Email send failed", description: data.error || "Unknown error", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Network error", description: "An error occurred while sending the email.", variant: "destructive" });
+    } finally {
+      setSendingAlertId(null);
+    }
+  };
 
   const { data: offlineDevices, isLoading } = useListDevices({ status: "offline" });
   const { data: allDevices } = useListDevices({});
@@ -102,6 +143,15 @@ export default function OfflineReport() {
               <p className="text-[10px] text-red-200 uppercase tracking-widest font-semibold">Rate</p>
             </div>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="gap-2 bg-white/10 border-white/30 text-white hover:bg-white/20 hover:text-white h-10"
+                onClick={handleSendBulkAlert}
+                disabled={isLoading || !offlineDevices?.length || sendingBulk}
+              >
+                {sendingBulk ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Send Alert Email
+              </Button>
               <Button
                 variant="outline"
                 className="gap-2 bg-white/10 border-white/30 text-white hover:bg-white/20 hover:text-white h-10"
@@ -220,6 +270,7 @@ export default function OfflineReport() {
                     <th className="text-left font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">Days Offline</th>
                     <th className="text-left font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">Last Seen</th>
                     <th className="text-left font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">Remark</th>
+                    <th className="text-left font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/30">
@@ -260,6 +311,20 @@ export default function OfflineReport() {
                       </td>
                       <td className="px-4 py-3.5 text-muted-foreground italic text-xs max-w-[200px] truncate">
                         {device.remark || <span className="opacity-30 not-italic">—</span>}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5 h-7 text-xs text-amber-600 border-amber-200 hover:bg-amber-50 hover:text-amber-700 dark:border-amber-800/50 dark:hover:bg-amber-950/30"
+                          disabled={sendingAlertId === device.id}
+                          onClick={() => handleSendAlert(device)}
+                        >
+                          {sendingAlertId === device.id
+                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                            : <Send className="h-3 w-3" />}
+                          Send Alert
+                        </Button>
                       </td>
                     </tr>
                   ))}

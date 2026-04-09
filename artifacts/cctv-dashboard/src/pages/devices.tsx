@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { format } from "date-fns";
-import { Search, Plus, MoreHorizontal, FileEdit, Trash2, Video, Upload, ChevronRight, CheckCircle2, AlertCircle, SkipForward, Download, FileSpreadsheet, X, Send, Loader2 } from "lucide-react";
+import { Search, Plus, MoreHorizontal, FileEdit, Trash2, Video, Upload, ChevronRight, CheckCircle2, AlertCircle, SkipForward, Download, FileSpreadsheet, X, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { 
@@ -156,48 +156,6 @@ export default function Devices() {
 
   const [deleteDevice, setDeleteDevice] = useState<any>(null);
 
-  const [sendingAlertId, setSendingAlertId] = useState<number | null>(null);
-  const [sendingBulk, setSendingBulk] = useState(false);
-
-  const handleSendBulkAlert = async () => {
-    setSendingBulk(true);
-    try {
-      const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
-      const res = await fetch(`${BASE}/api/devices/send-bulk-alert`, { method: "POST" });
-      const data = await res.json() as { success?: boolean; message?: string; error?: string; count?: number };
-      if (res.ok && data.success) {
-        toast({
-          title: data.count === 0 ? "No offline devices" : "Bulk alert sent",
-          description: data.message,
-        });
-      } else {
-        toast({ title: "Failed to send", description: data.error || "Unknown error", variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Network error", description: "Could not send bulk alert email.", variant: "destructive" });
-    } finally {
-      setSendingBulk(false);
-    }
-  };
-
-  const handleSendAlert = async (device: any) => {
-    setSendingAlertId(device.id);
-    try {
-      const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
-      const res = await fetch(`${BASE}/api/devices/${device.id}/send-alert`, { method: "POST" });
-      const data = await res.json() as { success?: boolean; message?: string; error?: string };
-      if (res.ok && data.success) {
-        toast({ title: "Alert email sent", description: `Alert email sent for ${device.branchName}.` });
-      } else {
-        toast({ title: "Email send failed", description: data.error || "Unknown error", variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Network error", description: "An error occurred while sending the email.", variant: "destructive" });
-    } finally {
-      setSendingAlertId(null);
-    }
-  };
-
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -347,15 +305,6 @@ export default function Devices() {
             <Button
               variant="outline"
               className="gap-2 bg-white/10 border-white/30 text-white hover:bg-white/20 hover:text-white h-10"
-              onClick={handleSendBulkAlert}
-              disabled={sendingBulk}
-            >
-              {sendingBulk ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Send Alert Email
-            </Button>
-            <Button
-              variant="outline"
-              className="gap-2 bg-white/10 border-white/30 text-white hover:bg-white/20 hover:text-white h-10"
               onClick={() => setIsBulkOpen(true)}
             >
               <Upload className="h-4 w-4" />
@@ -458,18 +407,6 @@ export default function Devices() {
                             <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => openEdit(device)}>
                               <FileEdit className="h-3.5 w-3.5" /> Edit
                             </DropdownMenuItem>
-                            {device.status === "offline" && (
-                              <DropdownMenuItem
-                                className="gap-2 cursor-pointer text-amber-600 focus:text-amber-600"
-                                disabled={sendingAlertId === device.id}
-                                onClick={() => handleSendAlert(device)}
-                              >
-                                {sendingAlertId === device.id
-                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  : <Send className="h-3.5 w-3.5" />}
-                                Send Alert Email
-                              </DropdownMenuItem>
-                            )}
                             <DropdownMenuItem className="gap-2 cursor-pointer text-destructive focus:text-destructive" onClick={() => setDeleteDevice(device)}>
                               <Trash2 className="h-3.5 w-3.5" /> Delete
                             </DropdownMenuItem>

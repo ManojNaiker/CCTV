@@ -152,15 +152,6 @@ type OfflineDevice = {
 };
 
 function buildOfflineAlertHtml(devices: OfflineDevice[]): string {
-  const now = new Date().toLocaleString("en-IN", {
-    timeZone: "Asia/Kolkata",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
   const hasLongOffline = devices.some((d) => d.offlineDays >= 3);
 
   const tableRows = devices
@@ -172,91 +163,52 @@ function buildOfflineAlertHtml(devices: OfflineDevice[]): string {
           ? `Has been offline for ${d.offlineDays} days.`
           : "";
         return `
-        <tr style="border-bottom: 1px solid #e2e8f0; ${i % 2 === 1 ? "background:#f8fafc;" : "background:#ffffff;"}">
-          <td style="padding: 10px 14px; text-align: center; color: #64748b; font-size: 13px; font-weight: 500;">${i + 1}</td>
-          <td style="padding: 10px 14px; color: #334155; font-size: 13px; font-weight: 400;">${d.stateName}</td>
-          <td style="padding: 10px 14px; color: #0f172a; font-size: 13px; font-weight: 600;">${d.branchName}</td>
-          <td style="padding: 10px 14px; text-align: center;">
-            <span style="display:inline-block; background:#fef2f2; color:#b91c1c; padding:3px 12px; border-radius:4px; font-size:12px; font-weight:600; letter-spacing:0.3px; border: 1px solid #fecaca;">Offline</span>
-          </td>
-          <td style="padding: 10px 14px; color: #64748b; font-size: 13px; font-style: ${remark ? "normal" : "italic"};">${remark || "—"}</td>
+        <tr>
+          <td style="padding: 6px 10px; text-align: center; border: 1px solid #000000; font-size: 13px;">${i + 1}</td>
+          <td style="padding: 6px 10px; border: 1px solid #000000; font-size: 13px;">${d.stateName}</td>
+          <td style="padding: 6px 10px; border: 1px solid #000000; font-size: 13px; font-weight: 600;">${d.branchName}</td>
+          <td style="padding: 6px 10px; text-align: center; border: 1px solid #000000; font-size: 13px;">Offline</td>
+          <td style="padding: 6px 10px; border: 1px solid #000000; font-size: 13px;">${remark}</td>
         </tr>`;
       }
     )
     .join("");
 
   return `
-<div style="font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; max-width: 700px; margin: 0 auto; padding: 0; border: 1px solid #cbd5e1; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+<div style="font-family: Arial, sans-serif; font-size: 14px; color: #000000; max-width: 700px;">
 
-  <!-- Header -->
-  <div style="background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%); padding: 22px 32px;">
-    <h2 style="color: #ffffff; margin: 0; font-size: 19px; font-weight: 700; letter-spacing: 0.2px; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">Light Finance &mdash; CCTV Monitoring</h2>
-    <p style="color: #bfdbfe; margin: 5px 0 0; font-size: 12px; letter-spacing: 0.3px; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">Offline Device Alert &nbsp;&bull;&nbsp; Generated: ${now} IST</p>
-  </div>
+  <p style="margin: 0 0 6px 0;"><strong>Dear Branch Team,</strong></p>
+  <p style="margin: 0 0 4px 0; line-height: 1.6;">Please find below the CCTV status of your branches; please check your internet cable if any issue persists; and please contact the IT team.</p>
+  <p style="margin: 0 0 4px 0; line-height: 1.6;">कृपया अपनी शाखाओं की सीसीटीवी स्थिति नीचे देखें; कृपया अपना इंटरनेट केबल जांचें; यदि समस्या बनी रहती है तो आईटी टीम से संपर्क करें।</p>
+  <p style="margin: 0 0 16px 0; line-height: 1.6;">કૃપા કરીને તમારી શાખાઓની સીસીટીવી સ્થિતિ નીચે શોધો; કૃપા કરીને તમારી ઇન્ટરનેટ કેબલ તપાસો; જો સમસ્યા ચાલુ રહે તો કૃપા કરીને IT ટીમનો સંપર્ક કરો.</p>
 
-  <!-- Body -->
-  <div style="padding: 28px 32px; background: #ffffff;">
+  <p style="margin: 0 0 6px 0;"><strong>Dear RM's,</strong></p>
+  <p style="margin: 0 0 4px 0; line-height: 1.6;">The CCTV cameras at the following branches are showing as offline; please coordinate with your branch BMs to resolve the issue as soon as possible.</p>
+  <p style="margin: 0 0 4px 0; line-height: 1.6;">निम्नलिखित शाखाओं के सीसीटीवी कैमरे ऑफ़लाइन दिख रहे हैं; कृपया समस्या को यथाशीघ्र हल करने के लिए अपनी शाखा के बीएम के साथ समन्वय करें।</p>
+  <p style="margin: 0 0 16px 0; line-height: 1.6;">નીચેની શાખાઓ પરના સીસીટીવી કેમેરા ઑફલાઇન તરીકે દેખાઈ રહ્યા છે; શક્ય તેટલી વહેલી તકે સમસ્યાનો ઉકેલ લાવવા માટે કૃપા કરીને તમારી શાખા BM સાથે સંકલન કરો.</p>
 
-    <!-- Branch Team message -->
-    <div style="margin-bottom: 18px; padding: 16px 20px; background: #f0f9ff; border-left: 4px solid #0284c7; border-radius: 6px;">
-      <p style="margin: 0 0 10px; font-size: 14px; font-weight: 700; color: #0c4a6e; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">Dear Branch Team,</p>
-      <p style="margin: 0 0 8px; font-size: 13.5px; color: #1e3a5f; line-height: 1.7; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">
-        Please find below the CCTV status of your branches; please check your internet cable if any issue persists; and please contact the IT team.
-      </p>
-      <p style="margin: 0 0 8px; font-size: 13.5px; color: #334155; line-height: 1.7; font-family: Arial, sans-serif;">
-        कृपया अपनी शाखाओं की सीसीटीवी स्थिति नीचे देखें; कृपया अपना इंटरनेट केबल जांचें; यदि समस्या बनी रहती है तो आईटी टीम से संपर्क करें।
-      </p>
-      <p style="margin: 0; font-size: 13.5px; color: #334155; line-height: 1.7; font-family: Arial, sans-serif;">
-        કૃપા કરીને તમારી શાખાઓની સીસીટીવી સ્થિતિ નીચે શોધો; કૃપા કરીને તમારી ઇન્ટરનેટ કેબલ તપાસો; જો સમસ્યા ચાલુ રહે તો કૃપા કરીને IT ટીમનો સંપર્ક કરો.
-      </p>
-    </div>
+  ${hasLongOffline ? `<p style="margin: 0 0 16px 0; font-weight: bold;">Since the branch has been offline for more than 3 days, CBM, DM, SH, please coordinate with your branch.</p>` : ""}
 
-    <!-- RM message -->
-    <div style="margin-bottom: 18px; padding: 16px 20px; background: #fff7ed; border-left: 4px solid #ea580c; border-radius: 6px;">
-      <p style="margin: 0 0 10px; font-size: 14px; font-weight: 700; color: #7c2d12; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">Dear RM's,</p>
-      <p style="margin: 0 0 8px; font-size: 13.5px; color: #1e3a5f; line-height: 1.7; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">
-        The CCTV cameras at the following branches are showing as offline; please coordinate with your branch BMs to resolve the issue as soon as possible.
-      </p>
-      <p style="margin: 0 0 8px; font-size: 13.5px; color: #334155; line-height: 1.7; font-family: Arial, sans-serif;">
-        निम्नलिखित शाखाओं के सीसीटीवी कैमरे ऑफ़लाइन दिख रहे हैं; कृपया समस्या को यथाशीघ्र हल करने के लिए अपनी शाखा के बीएम के साथ समन्वय करें।
-      </p>
-      <p style="margin: 0; font-size: 13.5px; color: #334155; line-height: 1.7; font-family: Arial, sans-serif;">
-        નીચેની શાખાઓ પરના સીસીટીવી કેમેરા ઑફલાઇન તરીકે દેખાઈ રહ્યા છે; શક્ય તેટલી વહેલી તકે સમસ્યાનો ઉકેલ લાવવા માટે કૃપા કરીને તમારી શાખા BM સાથે સંકલન કરો.
-      </p>
-    </div>
+  <table style="border-collapse: collapse; width: 100%; font-size: 13px;">
+    <thead>
+      <tr style="background-color: #FFC000;">
+        <th style="padding: 7px 10px; border: 1px solid #000000; text-align: center; font-weight: bold; width: 40px;">NO</th>
+        <th style="padding: 7px 10px; border: 1px solid #000000; text-align: center; font-weight: bold;">State Name</th>
+        <th style="padding: 7px 10px; border: 1px solid #000000; text-align: center; font-weight: bold;">Branch Name</th>
+        <th style="padding: 7px 10px; border: 1px solid #000000; text-align: center; font-weight: bold;">CCTV Status</th>
+        <th style="padding: 7px 10px; border: 1px solid #000000; text-align: center; font-weight: bold;">Remark</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${tableRows}
+    </tbody>
+  </table>
 
-    ${
-      hasLongOffline
-        ? `<div style="margin-bottom: 22px; padding: 13px 18px; background: #fff1f2; border-left: 4px solid #e11d48; border-radius: 6px; font-size: 13px; color: #881337; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; line-height: 1.6;">
-      ⚠️ &nbsp;<strong>Since the branch has been offline for more than 3 days, CBM, DM, SH &mdash; please coordinate with your branch urgently.</strong>
-    </div>`
-        : ""
-    }
+  <br/>
+  <p style="margin: 0 0 2px 0;">Thanks &amp; Regards,</p>
+  <p style="margin: 0 0 2px 0;"><strong>IT Team</strong></p>
+  <p style="margin: 0; color: #555555; font-size: 12px;">Light Finance &mdash; CCTV Monitoring System</p>
 
-    <!-- Table -->
-    <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">
-      <thead>
-        <tr style="background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%);">
-          <th style="padding: 11px 14px; text-align: center; color: #ffffff; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; width: 44px;">NO</th>
-          <th style="padding: 11px 14px; text-align: left; color: #ffffff; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;">State Name</th>
-          <th style="padding: 11px 14px; text-align: left; color: #ffffff; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;">Branch Name</th>
-          <th style="padding: 11px 14px; text-align: center; color: #ffffff; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;">CCTV Status</th>
-          <th style="padding: 11px 14px; text-align: left; color: #ffffff; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;">Remark</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${tableRows}
-      </tbody>
-    </table>
-
-    <!-- Signature -->
-    <div style="margin-top: 30px; padding-top: 18px; border-top: 1px solid #e2e8f0;">
-      <p style="margin: 0 0 2px; font-size: 13px; color: #475569; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">Thanks &amp; Regards,</p>
-      <p style="margin: 4px 0 0; font-size: 15px; font-weight: 700; color: #1e3a5f; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">IT Team</p>
-      <p style="margin: 3px 0 0; font-size: 11.5px; color: #94a3b8; letter-spacing: 0.2px; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">Light Finance &mdash; CCTV Monitoring System</p>
-    </div>
-
-  </div>
 </div>
   `;
 }

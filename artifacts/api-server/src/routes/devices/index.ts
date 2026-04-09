@@ -140,58 +140,61 @@ router.post("/devices/refresh", async (req, res): Promise<void> => {
     let offlineCount = 0;
     let unknownCount = 0;
 
-    // Returns true if two dates fall on the same calendar day in IST
+    // Returns the IST calendar date string (YYYY-MM-DD) for reliable same-day comparison
+    function toISTDateStr(d: Date): string {
+      return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    }
+
     function isSameDayIST(a: Date, b: Date): boolean {
-      const toIST = (d: Date) => new Date(d.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-      const ai = toIST(a);
-      const bi = toIST(b);
-      return (
-        ai.getFullYear() === bi.getFullYear() &&
-        ai.getMonth() === bi.getMonth() &&
-        ai.getDate() === bi.getDate()
-      );
+      return toISTDateStr(a) === toISTDateStr(b);
+    }
+
+    // Auto-remark patterns we generated — these can be safely overwritten
+    function isAutoRemark(remark: string | null | undefined): boolean {
+      if (!remark || remark.trim() === "" || remark === "-") return true;
+      return remark.startsWith("CCTV has been offline");
     }
 
     for (const device of allDevices) {
       const hikDevice = hikDeviceMap.get(device.serialNumber);
       const newStatus = hikDevice ? mapHikStatus(hikDevice.status) : "unknown";
 
-      // Track offline days
       let newOfflineDays = device.offlineDays ?? 0;
       let newRemark = device.remark;
 
       if (newStatus === "offline") {
         // Only increment offlineDays once per calendar day (IST).
-        // If device was already offline and updatedAt is today, we already counted today.
         const alreadyCountedToday =
           device.status === "offline" &&
           device.updatedAt != null &&
-          isSameDayIST(device.updatedAt, now);
+          isSameDayIST(new Date(device.updatedAt), now);
 
         if (!alreadyCountedToday) {
           newOfflineDays = (device.offlineDays ?? 0) + 1;
         }
 
-        // Auto-remark if no manual remark set
-        if (!newRemark || newRemark === "-" || newRemark === "") {
+        // Auto-remark: update if empty OR if it was previously auto-generated.
+        // Manual remarks (set by a user) are preserved as-is.
+        if (isAutoRemark(newRemark)) {
           if (newOfflineDays === 1) {
             newRemark = "CCTV has been offline since today.";
           } else {
-            newRemark = `CCTV has been offline from last ${newOfflineDays} days.`;
+            newRemark = `CCTV has been offline from last ${newOfflineDays} day${newOfflineDays !== 1 ? "s" : ""}.`;
           }
         }
         offlineCount++;
       } else if (newStatus === "online") {
         // Clear offline tracking when device comes back online
         newOfflineDays = 0;
-        newRemark = null; // Clear auto-remarks when online
+        if (isAutoRemark(newRemark)) newRemark = null; // Clear auto-remarks; preserve manual ones
         onlineCount++;
       } else {
         unknownCount++;
       }
 
-      // Only update if status changed or offline days changed
-      if (newStatus !== device.status || newOfflineDays !== device.offlineDays) {
+      // Update if status, offlineDays, OR remark changed
+      const remarkChanged = newRemark !== device.remark;
+      if (newStatus !== device.status || newOfflineDays !== device.offlineDays || remarkChanged) {
         await db.update(devicesTable)
           .set({
             status: newStatus,

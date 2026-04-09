@@ -17,7 +17,7 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password) {
-      setError("Username aur password dono required hain.");
+      setError("Username and password are required.");
       return;
     }
     setLoading(true);
@@ -60,7 +60,7 @@ export default function LoginPage() {
               CCTV Monitoring<br />Portal
             </h2>
             <p className="text-blue-100 text-sm leading-relaxed opacity-90">
-              Light Finance branches ka real-time CCTV network monitor karein. Sabhi devices ki live status ek jagah.
+              Real-time CCTV network monitoring for all Light Finance branches. Live device status in one place.
             </p>
           </div>
 
@@ -98,7 +98,7 @@ export default function LoginPage() {
           {/* Heading */}
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Welcome back</h1>
-            <p className="text-sm text-gray-500 mt-1">Apna account se sign in karein</p>
+            <p className="text-sm text-gray-500 mt-1">Sign in to your account</p>
           </div>
 
           {/* Login card */}

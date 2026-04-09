@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState({ status: "authenticated", user: data });
       return {};
     } catch {
-      return { error: "Network error — server se connect nahi ho saka." };
+      return { error: "Network error — could not connect to the server." };
     }
   }, []);
 

@@ -165,12 +165,12 @@ export default function Devices() {
       const res = await fetch(`${BASE}/api/devices/${device.id}/send-alert`, { method: "POST" });
       const data = await res.json() as { success?: boolean; message?: string; error?: string };
       if (res.ok && data.success) {
-        toast({ title: "Alert email sent", description: `${device.branchName} ke liye alert bheja gaya.` });
+        toast({ title: "Alert email sent", description: `Alert email sent for ${device.branchName}.` });
       } else {
         toast({ title: "Email send failed", description: data.error || "Unknown error", variant: "destructive" });
       }
     } catch {
-      toast({ title: "Network error", description: "Email bhejne mein error aaya.", variant: "destructive" });
+      toast({ title: "Network error", description: "An error occurred while sending the email.", variant: "destructive" });
     } finally {
       setSendingAlertId(null);
     }
@@ -252,7 +252,7 @@ export default function Devices() {
       const rows = await parseExcelFile(file);
       setParsedRows(rows);
     } catch {
-      setFileError("File read nahi ho saka. Valid .xlsx ya .xls file upload karein.");
+      setFileError("Could not read the file. Please upload a valid .xlsx or .xls file.");
       setSelectedFile(null);
       setParsedRows([]);
     }
@@ -494,8 +494,8 @@ export default function Devices() {
               <span className="text-primary">↑</span> Bulk Import Devices
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground pt-1">
-              Excel file upload karein jisme State Name, Branch Name, Serial Number aur Email ID columns hon.
-              Neeche se template download karein.
+              Upload an Excel file with State Name, Branch Name, Serial Number and Email ID columns.
+              Download the template below.
             </DialogDescription>
           </DialogHeader>
 
@@ -540,7 +540,7 @@ export default function Devices() {
                     <FileSpreadsheet className="h-4 w-4 text-green-600" />
                     <div>
                       <p className="text-sm font-medium">Excel Template</p>
-                      <p className="text-xs text-muted-foreground">State, Branch, Serial, Email columns ke saath ready template</p>
+                      <p className="text-xs text-muted-foreground">Ready-to-use template with State, Branch, Serial, and Email columns</p>
                     </div>
                   </div>
                   <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8" onClick={downloadTemplate}>
@@ -583,8 +583,8 @@ export default function Devices() {
                     >
                       <Upload className="h-6 w-6 text-muted-foreground/50" />
                       <div className="text-center">
-                        <p className="text-sm font-medium text-muted-foreground">Excel file yahan upload karein</p>
-                        <p className="text-xs text-muted-foreground/60 mt-0.5">.xlsx ya .xls format support hai</p>
+                        <p className="text-sm font-medium text-muted-foreground">Upload an Excel file here</p>
+                        <p className="text-xs text-muted-foreground/60 mt-0.5">Supports .xlsx and .xls formats</p>
                       </div>
                     </button>
                   )}

@@ -79,7 +79,7 @@ export default function Settings() {
   const handleTestConnection = async () => {
     if (!account || !password) {
       setTestStatus("failed");
-      setTestMessage("User ID aur Password dono required hain.");
+      setTestMessage("User ID and Password are required.");
       return;
     }
 
@@ -97,13 +97,13 @@ export default function Settings() {
       setTestMessage(data.message);
     } catch {
       setTestStatus("failed");
-      setTestMessage("Network error — API server se connect nahi ho saka.");
+      setTestMessage("Network error — could not connect to the API server.");
     }
   };
 
   const handleSaveSettings = async () => {
     if (!account || !password) {
-      setSaveMessage("User ID aur Password required hain.");
+      setSaveMessage("User ID and Password are required.");
       return;
     }
 
@@ -124,7 +124,7 @@ export default function Settings() {
         setSaveMessage(data.error || "Save failed.");
       }
     } catch {
-      setSaveMessage("Network error — save nahi ho saka.");
+      setSaveMessage("Network error — could not save changes.");
     } finally {
       setSaving(false);
     }
@@ -133,7 +133,7 @@ export default function Settings() {
   const handleTestEmail = async () => {
     if (!emailHost || !emailUser || !emailPassword || !emailTo) {
       setEmailTestStatus("failed");
-      setEmailMessage("SMTP Host, User, Password, aur To email required hain.");
+      setEmailMessage("SMTP Host, User, Password, and recipient email are required.");
       return;
     }
     setEmailTestStatus("testing");
@@ -149,13 +149,13 @@ export default function Settings() {
       setEmailMessage(data.message);
     } catch {
       setEmailTestStatus("failed");
-      setEmailMessage("Network error — test nahi ho saka.");
+      setEmailMessage("Network error — test could not be completed.");
     }
   };
 
   const handleSaveEmail = async () => {
     if (!emailHost || !emailUser || !emailPassword || !emailTo) {
-      setEmailMessage("SMTP Host, User, Password, aur To email required hain.");
+      setEmailMessage("SMTP Host, User, Password, and recipient email are required.");
       return;
     }
     setEmailSaving(true);
@@ -174,7 +174,7 @@ export default function Settings() {
         setEmailMessage(data.error || "Save failed.");
       }
     } catch {
-      setEmailMessage("Network error — save nahi ho saka.");
+      setEmailMessage("Network error — could not save changes.");
     } finally {
       setEmailSaving(false);
     }
@@ -213,7 +213,7 @@ export default function Settings() {
         setCcMessage(data.error || "Save failed.");
       }
     } catch {
-      setCcMessage("Network error — save nahi ho saka.");
+      setCcMessage("Network error — could not save changes.");
     } finally {
       setCcSaving(false);
     }
@@ -224,7 +224,7 @@ export default function Settings() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
         <p className="text-muted-foreground mt-1">
-          Application preferences aur Hik-Connect integration configure karein.
+          Configure application preferences and Hik-Connect integration.
         </p>
       </div>
 
@@ -237,8 +237,7 @@ export default function Settings() {
               <CardTitle>Hik-Connect Configuration</CardTitle>
             </div>
             <CardDescription>
-              Apna Hik-Connect account credentials yahan configure karein. Yeh credentials use hote hain
-              real-time device status fetch karne ke liye.
+              Enter your Hik-Connect account credentials. These are used to fetch real-time device status.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -252,7 +251,7 @@ export default function Settings() {
                 onChange={(e) => setAccount(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Hik-Connect portal ka account username daalein.
+                Enter the account username from the Hik-Connect portal.
               </p>
             </div>
 
@@ -271,7 +270,7 @@ export default function Settings() {
                 >
                   <div className="font-medium text-sm">Encrypted Password</div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    RSA/Base64 encoded password (Python code wali encrypted string)
+                    RSA/Base64 encoded password (encrypted string from your Python code)
                   </div>
                 </button>
                 <button
@@ -285,7 +284,7 @@ export default function Settings() {
                 >
                   <div className="font-medium text-sm">Normal Password</div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    Hik-Connect portal ka plain text password (RSA encrypt auto hoga)
+                    Plain text password from Hik-Connect portal (auto RSA-encrypted before sending)
                   </div>
                 </button>
               </div>
@@ -305,8 +304,8 @@ export default function Settings() {
                   type={showPassword ? "text" : "password"}
                   placeholder={
                     passwordType === "encrypted"
-                      ? "RSA encrypted base64 string paste karein..."
-                      : "Hik-Connect portal ka password daalein..."
+                      ? "Paste RSA encrypted base64 string..."
+                      : "Enter your Hik-Connect portal password..."
                   }
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -322,13 +321,12 @@ export default function Settings() {
               </div>
               {passwordType === "encrypted" && (
                 <p className="text-xs text-muted-foreground">
-                  Yeh woh encrypted string hai jo aapke Python code mein thi (tz7jHgGW... wali).
-                  Isko seedha paste karein.
+                  This is the encrypted string from your Python code (the tz7jHgGW... value). Paste it directly.
                 </p>
               )}
               {passwordType === "normal" && (
                 <p className="text-xs text-amber-600 dark:text-amber-400">
-                  ⚠️ Normal password automatically RSA encrypt hoga Hik-Connect ke saath bhejne se pehle.
+                  ⚠️ Normal password will be automatically RSA-encrypted before being sent to Hik-Connect.
                 </p>
               )}
             </div>
@@ -347,7 +345,7 @@ export default function Settings() {
                 {testStatus === "testing" && <Loader2 className="h-4 w-4 mt-0.5 animate-spin shrink-0" />}
                 {testStatus === "success" && <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />}
                 {testStatus === "failed" && <XCircle className="h-4 w-4 mt-0.5 shrink-0" />}
-                <span>{testStatus === "testing" ? "Hik-Connect se connect ho raha hai..." : testMessage}</span>
+                <span>{testStatus === "testing" ? "Connecting to Hik-Connect..." : testMessage}</span>
               </div>
             )}
 
@@ -405,8 +403,7 @@ export default function Settings() {
 
             <div className="border-t pt-4">
               <p className="text-xs text-muted-foreground">
-                <strong>Tip:</strong> "Test Connection" pehle try karein. Agar successful ho toh
-                "Save Settings" karein. Save hone ke baad Dashboard se "Refresh Now" karein.
+                <strong>Tip:</strong> Try "Test Connection" first. If successful, click "Save Settings". After saving, use "Refresh Now" on the Dashboard.
               </p>
             </div>
           </CardContent>
@@ -420,7 +417,7 @@ export default function Settings() {
               <CardTitle>Email / SMTP Configuration</CardTitle>
             </div>
             <CardDescription>
-              User creation aur offline alerts ke liye email notifications configure karein.
+              Configure email notifications for user creation and offline alerts.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -428,7 +425,7 @@ export default function Settings() {
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
               <div>
                 <Label className="text-sm font-medium">Email Notifications</Label>
-                <p className="text-xs text-muted-foreground mt-0.5">User creation aur alerts ke liye emails bhejein</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Send email notifications for user creation and offline alerts</p>
               </div>
               <Switch checked={emailEnabled} onCheckedChange={setEmailEnabled} />
             </div>
@@ -480,7 +477,7 @@ export default function Settings() {
               <div className="space-y-1.5">
                 <Label htmlFor="email-to">Notification Recipients</Label>
                 <Input id="email-to" type="email" placeholder="admin@yourcompany.com, it@company.com" value={emailTo} onChange={e => setEmailTo(e.target.value)} />
-                <p className="text-xs text-muted-foreground">Multiple emails comma se separate karein</p>
+                <p className="text-xs text-muted-foreground">Separate multiple emails with commas</p>
               </div>
             </div>
 
@@ -515,7 +512,7 @@ export default function Settings() {
 
             <div className="border-t pt-3">
               <p className="text-xs text-muted-foreground">
-                <strong>Gmail tip:</strong> 2-Step Verification enable karein aur "App Password" generate karein (Google Account → Security → App passwords). Regular password kaam nahi karega.
+                <strong>Gmail tip:</strong> Enable 2-Step Verification and generate an "App Password" (Google Account → Security → App passwords). Your regular password will not work.
               </p>
             </div>
           </CardContent>
@@ -529,13 +526,13 @@ export default function Settings() {
               <CardTitle>CC Email List</CardTitle>
             </div>
             <CardDescription>
-              Yeh log sabhi offline alert emails mein CC honge. Branch-specific emails ke alawa yeh global CC list hoti hai.
+              These recipients will be CC'd on all offline alert emails. This is a global CC list, separate from branch-specific CC emails.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Add Email Input */}
             <div className="space-y-1.5">
-              <Label htmlFor="cc-email">Email Address Add Karein</Label>
+              <Label htmlFor="cc-email">Add Email Address</Label>
               <div className="flex gap-2">
                 <Input
                   id="cc-email"
@@ -557,7 +554,7 @@ export default function Settings() {
                   Add
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">Enter ya Add button dabao.</p>
+              <p className="text-xs text-muted-foreground">Press Enter or click Add.</p>
             </div>
 
             {/* CC Email List */}
@@ -590,8 +587,8 @@ export default function Settings() {
             ) : (
               <div className="rounded-lg border border-dashed border-border/50 p-6 text-center">
                 <Users className="h-6 w-6 text-muted-foreground/30 mx-auto mb-2" />
-                <p className="text-xs text-muted-foreground">Abhi koi CC recipient nahi hai.</p>
-                <p className="text-xs text-muted-foreground/60 mt-0.5">Upar email add karein.</p>
+                <p className="text-xs text-muted-foreground">No CC recipients added yet.</p>
+                <p className="text-xs text-muted-foreground/60 mt-0.5">Add an email address above.</p>
               </div>
             )}
 
@@ -616,7 +613,7 @@ export default function Settings() {
 
             <div className="border-t pt-3">
               <p className="text-xs text-muted-foreground">
-                <strong>Note:</strong> CC list sirf offline alert emails mein use hoti hai. To recipients settings upar configure karein.
+                <strong>Note:</strong> The CC list is only used in offline alert emails. Configure primary recipients in the Email settings above.
               </p>
             </div>
           </CardContent>

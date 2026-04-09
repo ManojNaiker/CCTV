@@ -65,7 +65,7 @@ function BranchRow({ device }: { device: any }) {
       });
       if (res.ok) {
         setSaveStatus("success");
-        toast({ title: "CC list updated", description: `${device.branchName} ke liye save ho gaya.` });
+        toast({ title: "CC list updated", description: `CC list saved for ${device.branchName}.` });
         setTimeout(() => { setEditing(false); setSaveStatus("idle"); }, 1000);
       } else {
         setSaveStatus("error");
@@ -153,7 +153,7 @@ function BranchRow({ device }: { device: any }) {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground/50 italic">Koi CC email nahi hai — neeche add karein.</p>
+              <p className="text-xs text-muted-foreground/50 italic">No CC emails — add one below.</p>
             )}
           </div>
 
@@ -246,7 +246,7 @@ export default function CcList() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Branch CC List</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Har branch ke liye alag CC email addresses manage karein. Yeh emails offline alert mein CC honge.
+            Manage per-branch CC email addresses. These will be CC'd on offline alert emails.
           </p>
         </div>
         <div className="flex items-center gap-2.5 shrink-0">
@@ -268,7 +268,7 @@ export default function CcList() {
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Branch, state ya email se search karein..."
+                placeholder="Search by branch, state or email..."
                 className="pl-8 h-8 text-xs bg-background/50"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
@@ -299,7 +299,7 @@ export default function CcList() {
       ) : grouped.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground/40">
           <Mail className="h-8 w-8 mb-2" />
-          <p className="text-sm">Koi branch nahi mili.</p>
+          <p className="text-sm">No branches found.</p>
         </div>
       ) : (
         <div className="space-y-6">

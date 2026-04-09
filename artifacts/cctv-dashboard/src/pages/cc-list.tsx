@@ -1,11 +1,13 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useListDevices } from "@workspace/api-client-react";
-import { Search, Mail, Plus, X, Save, Pencil, ChevronDown, ChevronUp, Loader2, CheckCircle2, XCircle, MapPin, Users } from "lucide-react";
+import { Search, Mail, Plus, X, Save, Pencil, ChevronDown, ChevronUp, Loader2, CheckCircle2, XCircle, MapPin, Users, Upload, Download, FileSpreadsheet, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -21,6 +23,248 @@ function EmailTag({ email, onRemove }: { email: string; onRemove: () => void }) 
         <X className="h-3 w-3" />
       </button>
     </span>
+  );
+}
+
+type ParsedRow = { branchName: string; stateName: string; ccEmails: string };
+type ApplyResult = { updated: number; notFound: string[] };
+
+function parseCsv(text: string): ParsedRow[] {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const header = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, "").toLowerCase());
+  const branchIdx = header.findIndex(h => h.includes("branch"));
+  const stateIdx = header.findIndex(h => h.includes("state"));
+  const ccIdx = header.findIndex(h => h.includes("cc") || h.includes("email"));
+  if (branchIdx === -1) return [];
+
+  return lines.slice(1).map(line => {
+    const cols = line.match(/(".*?"|[^,]*)/g)?.map(c => c.trim().replace(/^"|"$/g, "")) ?? [];
+    return {
+      branchName: cols[branchIdx] ?? "",
+      stateName: stateIdx >= 0 ? (cols[stateIdx] ?? "") : "",
+      ccEmails: ccIdx >= 0 ? (cols[ccIdx] ?? "") : "",
+    };
+  }).filter(r => r.branchName);
+}
+
+function BulkUpdateDialog({ open, onClose, allDevices, onSuccess }: {
+  open: boolean;
+  onClose: () => void;
+  allDevices: any[];
+  onSuccess: () => void;
+}) {
+  const { toast } = useToast();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [step, setStep] = useState<"upload" | "preview" | "result">("upload");
+  const [rows, setRows] = useState<ParsedRow[]>([]);
+  const [applying, setApplying] = useState(false);
+  const [result, setResult] = useState<ApplyResult | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleClose = () => {
+    onClose();
+    setTimeout(() => { setStep("upload"); setRows([]); setResult(null); }, 300);
+  };
+
+  const downloadTemplate = () => {
+    const header = "Branch Name,State Name,CC Emails";
+    const csvRows = allDevices.map(d => {
+      const cc = d.ccEmails ?? "";
+      return `"${d.branchName}","${d.stateName ?? ""}","${cc}"`;
+    });
+    const csv = [header, ...csvRows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "cc_list_template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const processFile = (file: File) => {
+    if (!file.name.endsWith(".csv")) {
+      toast({ title: "Invalid file", description: "Please upload a CSV file.", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      const text = e.target?.result as string;
+      const parsed = parseCsv(text);
+      if (parsed.length === 0) {
+        toast({ title: "No data found", description: "The CSV appears empty or has an invalid format.", variant: "destructive" });
+        return;
+      }
+      setRows(parsed);
+      setStep("preview");
+    };
+    reader.readAsText(file);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
+    e.target.value = "";
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file);
+  };
+
+  const handleApply = async () => {
+    setApplying(true);
+    try {
+      const body = rows.map(r => ({ branchName: r.branchName, ccEmails: r.ccEmails || null }));
+      const res = await fetch(`${BASE}/api/devices/cc/bulk`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json() as ApplyResult & { error?: string };
+      if (res.ok) {
+        setResult(data);
+        setStep("result");
+        onSuccess();
+        toast({ title: `${data.updated} branches updated`, description: data.notFound.length > 0 ? `${data.notFound.length} branch(es) not found.` : "All rows applied successfully." });
+      } else {
+        toast({ title: "Update failed", description: data.error || "Unknown error", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Network error", variant: "destructive" });
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && handleClose()}>
+      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+            Bulk Update CC List
+          </DialogTitle>
+          <DialogDescription>
+            Download the template, fill in CC emails for each branch, then upload to apply all changes at once.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Step: Upload */}
+        {step === "upload" && (
+          <div className="space-y-5 py-2">
+            {/* Download template */}
+            <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-blue-900">Step 1 — Download Template</p>
+                <p className="text-xs text-blue-700 mt-0.5">Pre-filled with all branches and their current CC emails. Edit the <strong>CC Emails</strong> column (comma-separate multiple emails).</p>
+              </div>
+              <Button variant="outline" className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-100 shrink-0" onClick={downloadTemplate}>
+                <Download className="h-4 w-4" /> Download Template
+              </Button>
+            </div>
+
+            {/* Upload area */}
+            <div>
+              <p className="text-sm font-semibold text-foreground mb-2">Step 2 — Upload Filled CSV</p>
+              <div
+                className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${dragOver ? "border-blue-400 bg-blue-50" : "border-border hover:border-blue-300 hover:bg-muted/30"}`}
+                onClick={() => fileRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+              >
+                <Upload className={`h-8 w-8 mx-auto mb-3 ${dragOver ? "text-blue-500" : "text-muted-foreground/40"}`} />
+                <p className="text-sm font-medium text-foreground">Click or drag &amp; drop your CSV file here</p>
+                <p className="text-xs text-muted-foreground mt-1">Only .csv files are accepted</p>
+                <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleFileChange} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step: Preview */}
+        {step === "preview" && (
+          <div className="flex flex-col gap-4 min-h-0">
+            <div className="flex items-center justify-between shrink-0">
+              <p className="text-sm font-semibold text-foreground">{rows.length} row{rows.length !== 1 ? "s" : ""} ready to apply</p>
+              <Button variant="ghost" size="sm" className="gap-1.5 text-xs" onClick={() => setStep("upload")}>
+                <Upload className="h-3.5 w-3.5" /> Upload different file
+              </Button>
+            </div>
+            <div className="overflow-auto rounded-xl border border-border/60 min-h-0 flex-1">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm">
+                  <tr>
+                    <th className="text-left px-3 py-2.5 font-semibold text-muted-foreground uppercase tracking-wider">#</th>
+                    <th className="text-left px-3 py-2.5 font-semibold text-muted-foreground uppercase tracking-wider">Branch Name</th>
+                    <th className="text-left px-3 py-2.5 font-semibold text-muted-foreground uppercase tracking-wider">State</th>
+                    <th className="text-left px-3 py-2.5 font-semibold text-muted-foreground uppercase tracking-wider">CC Emails</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/30">
+                  {rows.map((row, i) => (
+                    <tr key={i} className="hover:bg-muted/20">
+                      <td className="px-3 py-2 text-muted-foreground">{i + 1}</td>
+                      <td className="px-3 py-2 font-medium">{row.branchName}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{row.stateName || "—"}</td>
+                      <td className="px-3 py-2">
+                        {row.ccEmails
+                          ? <div className="flex flex-wrap gap-1">{row.ccEmails.split(",").map(e => e.trim()).filter(Boolean).map(e => (
+                              <span key={e} className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[11px] font-medium">{e}</span>
+                            ))}</div>
+                          : <span className="text-muted-foreground/40 italic">Clear</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-2 pt-1 shrink-0">
+              <Button className="gap-2" onClick={handleApply} disabled={applying}>
+                {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {applying ? "Applying..." : `Apply ${rows.length} Rows`}
+              </Button>
+              <Button variant="ghost" onClick={handleClose} disabled={applying}>Cancel</Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step: Result */}
+        {step === "result" && result && (
+          <div className="space-y-4 py-2">
+            <div className="rounded-xl border border-green-200 bg-green-50 p-4 flex items-start gap-3">
+              <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-green-900">{result.updated} branch{result.updated !== 1 ? "es" : ""} updated successfully</p>
+                {result.notFound.length === 0 && <p className="text-xs text-green-700 mt-0.5">All rows from the CSV were applied.</p>}
+              </div>
+            </div>
+            {result.notFound.length > 0 && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600" />
+                  <p className="text-sm font-semibold text-amber-900">{result.notFound.length} branch name{result.notFound.length !== 1 ? "s" : ""} not matched</p>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {result.notFound.map(name => (
+                    <Badge key={name} variant="outline" className="text-xs border-amber-300 text-amber-800 bg-amber-100">{name}</Badge>
+                  ))}
+                </div>
+                <p className="text-xs text-amber-700 mt-2">These names did not exactly match any branch in the system. Check spelling or use the template.</p>
+              </div>
+            )}
+            <div className="flex gap-2 pt-1">
+              <Button onClick={handleClose}>Done</Button>
+              <Button variant="outline" onClick={() => { setStep("upload"); setRows([]); setResult(null); }}>Upload Another File</Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -248,8 +492,9 @@ function BranchRow({ device }: { device: any }) {
 export default function CcList() {
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState("all");
+  const [bulkOpen, setBulkOpen] = useState(false);
 
-  const { data: devices, isLoading } = useListDevices({});
+  const { data: devices, isLoading, refetch } = useListDevices({});
 
   const states = useMemo(() => {
     if (!devices) return [];

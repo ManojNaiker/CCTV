@@ -399,6 +399,36 @@ router.patch("/devices/:id", async (req, res): Promise<void> => {
   res.json(device);
 });
 
+router.patch("/devices/cc/bulk", async (req, res): Promise<void> => {
+  const rows = req.body as Array<{ branchName: string; ccEmails: string | null }>;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    res.status(400).json({ error: "Expected a non-empty array of { branchName, ccEmails }" });
+    return;
+  }
+
+  const allDevices = await db.select({ id: devicesTable.id, branchName: devicesTable.branchName }).from(devicesTable);
+  const nameToId = new Map(allDevices.map(d => [d.branchName.trim().toLowerCase(), d.id]));
+
+  let updated = 0;
+  const notFound: string[] = [];
+
+  for (const row of rows) {
+    if (!row.branchName) continue;
+    const id = nameToId.get(row.branchName.trim().toLowerCase());
+    if (!id) {
+      notFound.push(row.branchName);
+      continue;
+    }
+    await db.update(devicesTable)
+      .set({ ccEmails: row.ccEmails || null })
+      .where(eq(devicesTable.id, id));
+    updated++;
+  }
+
+  await logAction("UPDATE", "device", "bulk", `Bulk CC list update — ${updated} branches updated`);
+  res.json({ success: true, updated, notFound });
+});
+
 router.patch("/devices/:id/cc", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);

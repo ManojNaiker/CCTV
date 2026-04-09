@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, settingsTable, devicesTable } from "@workspace/db";
 import { loginGetSession, type HikCredentials } from "../../lib/hikconnect";
 import { logger } from "../../lib/logger";
-import { getEmailSettings, createTransporter, sendOfflineAlert } from "../../lib/emailService";
+import { getEmailSettings, createTransporter, sendOfflineAlert, sendBulkOfflineAlert } from "../../lib/emailService";
 import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -272,6 +272,7 @@ router.post("/devices/:id/send-alert", async (req, res): Promise<void> => {
       serialNumber: device.serialNumber,
       stateName: device.stateName,
       offlineDays: device.offlineDays ?? 1,
+      remark: device.remark,
       email: device.email,
       ccEmails: device.ccEmails,
     });
@@ -282,6 +283,38 @@ router.post("/devices/:id/send-alert", async (req, res): Promise<void> => {
     const msg = (err as Error).message;
     logger.error({ err, id }, "Failed to send manual offline alert");
     res.status(500).json({ success: false, error: `Failed to send alert: ${msg}` });
+  }
+});
+
+// POST send bulk offline alert email for all currently offline devices
+router.post("/devices/send-bulk-alert", async (req, res): Promise<void> => {
+  try {
+    const rows = await db.select().from(devicesTable);
+    const offlineDevices = rows.filter((d) => d.status === "offline");
+
+    if (offlineDevices.length === 0) {
+      res.json({ success: true, message: "No offline devices found — nothing to send.", count: 0 });
+      return;
+    }
+
+    await sendBulkOfflineAlert(
+      offlineDevices.map((d) => ({
+        branchName: d.branchName,
+        serialNumber: d.serialNumber,
+        stateName: d.stateName,
+        offlineDays: d.offlineDays ?? 1,
+        remark: d.remark,
+        email: d.email,
+        ccEmails: d.ccEmails,
+      }))
+    );
+
+    logger.info({ count: offlineDevices.length }, "Bulk offline alert sent");
+    res.json({ success: true, message: `Bulk alert sent for ${offlineDevices.length} offline device(s).`, count: offlineDevices.length });
+  } catch (err) {
+    const msg = (err as Error).message;
+    logger.error({ err }, "Failed to send bulk offline alert");
+    res.status(500).json({ success: false, error: `Failed to send bulk alert: ${msg}` });
   }
 });
 

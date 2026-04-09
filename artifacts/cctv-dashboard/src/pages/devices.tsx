@@ -157,6 +157,28 @@ export default function Devices() {
   const [deleteDevice, setDeleteDevice] = useState<any>(null);
 
   const [sendingAlertId, setSendingAlertId] = useState<number | null>(null);
+  const [sendingBulk, setSendingBulk] = useState(false);
+
+  const handleSendBulkAlert = async () => {
+    setSendingBulk(true);
+    try {
+      const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
+      const res = await fetch(`${BASE}/api/devices/send-bulk-alert`, { method: "POST" });
+      const data = await res.json() as { success?: boolean; message?: string; error?: string; count?: number };
+      if (res.ok && data.success) {
+        toast({
+          title: data.count === 0 ? "No offline devices" : "Bulk alert sent",
+          description: data.message,
+        });
+      } else {
+        toast({ title: "Failed to send", description: data.error || "Unknown error", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Network error", description: "Could not send bulk alert email.", variant: "destructive" });
+    } finally {
+      setSendingBulk(false);
+    }
+  };
 
   const handleSendAlert = async (device: any) => {
     setSendingAlertId(device.id);
@@ -311,6 +333,16 @@ export default function Devices() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-amber-600 border-amber-200 hover:bg-amber-50 hover:text-amber-700"
+            onClick={handleSendBulkAlert}
+            disabled={sendingBulk}
+          >
+            {sendingBulk ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            Send Offline Alert Email
+          </Button>
           <Button
             variant="outline"
             size="sm"

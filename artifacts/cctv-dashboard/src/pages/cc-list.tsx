@@ -1,11 +1,9 @@
 import { useState, useMemo } from "react";
 import { useListDevices } from "@workspace/api-client-react";
-import { Search, Mail, Plus, X, Save, Pencil, ChevronDown, ChevronUp, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Search, Mail, Plus, X, Save, Pencil, ChevronDown, ChevronUp, Loader2, CheckCircle2, XCircle, MapPin, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
@@ -13,12 +11,12 @@ const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
 function EmailTag({ email, onRemove }: { email: string; onRemove: () => void }) {
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-mono">
+    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-medium">
       {email}
       <button
         type="button"
         onClick={onRemove}
-        className="ml-0.5 text-blue-400 hover:text-blue-700 transition-colors rounded-full"
+        className="ml-0.5 text-blue-400 hover:text-red-500 transition-colors rounded-full"
       >
         <X className="h-3 w-3" />
       </button>
@@ -91,63 +89,88 @@ function BranchRow({ device }: { device: any }) {
   };
 
   return (
-    <div className={`border border-border/50 rounded-xl overflow-hidden transition-shadow ${editing ? "shadow-md ring-1 ring-primary/20" : ""}`}>
+    <div className={`rounded-xl border transition-all duration-200 overflow-hidden ${
+      editing
+        ? "border-primary/40 shadow-md ring-1 ring-primary/10 bg-white dark:bg-card"
+        : "border-border/60 bg-white dark:bg-card hover:border-border hover:shadow-sm"
+    }`}>
       {/* Header row */}
       <div
-        className={`flex items-center gap-4 px-4 py-3 cursor-pointer select-none transition-colors ${editing ? "bg-primary/5" : "bg-card hover:bg-muted/30"}`}
+        className={`flex items-center gap-4 px-5 py-4 cursor-pointer select-none transition-colors ${
+          editing ? "bg-primary/5 border-b border-border/40" : ""
+        }`}
         onClick={() => !editing && setEditing(true)}
       >
-        {/* Branch info */}
-        <div className="flex-1 min-w-0 flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
-            <Mail className="h-4 w-4 text-blue-500" />
-          </div>
-          <div className="min-w-0">
-            <p className="font-semibold text-sm text-foreground truncate">{device.branchName}</p>
-            <p className="text-xs text-muted-foreground">{device.stateName}</p>
+        {/* Mail icon */}
+        <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
+          emails.length > 0
+            ? "bg-blue-100 border border-blue-200"
+            : "bg-muted border border-border/50"
+        }`}>
+          <Mail className={`h-5 w-5 ${emails.length > 0 ? "text-blue-600" : "text-muted-foreground/50"}`} />
+        </div>
+
+        {/* Branch name + state */}
+        <div className="min-w-0 w-44 shrink-0">
+          <p className="font-bold text-sm text-foreground truncate">{device.branchName}</p>
+          <div className="flex items-center gap-1 mt-0.5">
+            <MapPin className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+            <p className="text-xs text-muted-foreground truncate">{device.stateName}</p>
           </div>
         </div>
 
         {/* CC emails preview (collapsed) */}
         {!editing && (
-          <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
+          <div className="flex-1 min-w-0">
             {emails.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5 overflow-hidden max-h-6">
+              <div className="flex flex-wrap gap-1.5">
                 {emails.slice(0, 3).map(e => (
-                  <span key={e} className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-blue-600 text-[11px] font-mono truncate max-w-[160px]">
+                  <span
+                    key={e}
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-medium truncate max-w-[220px]"
+                  >
+                    <Mail className="h-2.5 w-2.5 shrink-0" />
                     {e}
                   </span>
                 ))}
                 {emails.length > 3 && (
-                  <span className="text-xs text-muted-foreground font-medium">+{emails.length - 3} more</span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-muted border border-border text-xs text-muted-foreground font-medium">
+                    +{emails.length - 3} more
+                  </span>
                 )}
               </div>
             ) : (
-              <span className="text-xs text-muted-foreground/50 italic">No CC emails</span>
+              <span className="text-xs text-muted-foreground/40 italic">No CC emails configured</span>
             )}
           </div>
         )}
 
         {/* Actions */}
-        <div className="shrink-0 flex items-center gap-2">
+        <div className="shrink-0 flex items-center gap-2 ml-auto">
           {!editing && (
-            <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-              onClick={e => { e.stopPropagation(); setEditing(true); }}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 text-xs font-medium"
+              onClick={e => { e.stopPropagation(); setEditing(true); }}
+            >
               <Pencil className="h-3 w-3" /> Edit
             </Button>
           )}
-          {editing ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          {editing
+            ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            : <ChevronDown className="h-4 w-4 text-muted-foreground/40" />}
         </div>
       </div>
 
       {/* Edit panel */}
       {editing && (
-        <div className="px-4 pb-4 pt-2 bg-muted/20 border-t border-border/40 space-y-3">
+        <div className="px-5 pb-5 pt-4 bg-muted/20 space-y-4">
           {/* Current email chips */}
           <div>
-            <p className="text-xs text-muted-foreground mb-2 font-medium">CC Recipients</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">CC Recipients</p>
             {emails.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-2">
                 {emails.map(email => (
                   <EmailTag key={email} email={email} onRemove={() => removeEmail(email)} />
                 ))}
@@ -165,13 +188,13 @@ function BranchRow({ device }: { device: any }) {
               value={newEmail}
               onChange={e => setNewEmail(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addEmail(); } }}
-              className="h-8 text-xs flex-1 bg-background"
+              className="h-9 text-sm flex-1 bg-background"
             />
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="h-8 gap-1 text-xs shrink-0"
+              className="h-9 gap-1.5 text-sm px-4 shrink-0"
               onClick={addEmail}
               disabled={!newEmail.trim() || !newEmail.includes("@")}
             >
@@ -183,7 +206,7 @@ function BranchRow({ device }: { device: any }) {
           <div className="flex items-center gap-2 pt-1">
             <Button
               size="sm"
-              className="h-8 gap-1.5 text-xs"
+              className="h-9 gap-1.5 px-5"
               onClick={handleSave}
               disabled={saving}
             >
@@ -191,9 +214,9 @@ function BranchRow({ device }: { device: any }) {
                saveStatus === "success" ? <CheckCircle2 className="h-3.5 w-3.5" /> :
                saveStatus === "error" ? <XCircle className="h-3.5 w-3.5" /> :
                <Save className="h-3.5 w-3.5" />}
-              {saving ? "Saving..." : saveStatus === "success" ? "Saved!" : "Save"}
+              {saving ? "Saving..." : saveStatus === "success" ? "Saved!" : "Save Changes"}
             </Button>
-            <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground" onClick={handleCancel} disabled={saving}>
+            <Button variant="ghost" size="sm" className="h-9 px-4 text-muted-foreground" onClick={handleCancel} disabled={saving}>
               Cancel
             </Button>
           </div>
@@ -238,77 +261,108 @@ export default function CcList() {
   }, [filtered]);
 
   const totalWithCc = useMemo(() => (devices ?? []).filter((d: any) => d.ccEmails).length, [devices]);
+  const totalBranches = devices?.length ?? 0;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Branch CC List</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Manage per-branch CC email addresses. These will be CC'd on offline alert emails.
-          </p>
-        </div>
-        <div className="flex items-center gap-2.5 shrink-0">
-          <div className="text-center px-4 py-2 rounded-lg border bg-card">
-            <p className="text-lg font-bold">{devices?.length ?? "—"}</p>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Branches</p>
+      {/* ── Header Card ── */}
+      <div className="rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 text-white p-6 shadow-lg relative overflow-hidden">
+        {/* Decorative circles */}
+        <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/5" />
+        <div className="absolute -right-4 top-12 h-24 w-24 rounded-full bg-white/5" />
+
+        <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="h-12 w-12 rounded-xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
+              <Mail className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Branch CC List</h1>
+              <p className="text-blue-100 text-sm mt-0.5 max-w-md">
+                Manage per-branch CC email addresses. These will be CC'd on all offline alert emails.
+              </p>
+            </div>
           </div>
-          <div className="text-center px-4 py-2 rounded-lg border bg-blue-50 border-blue-200">
-            <p className="text-lg font-bold text-blue-700">{totalWithCc}</p>
-            <p className="text-[10px] text-blue-500 uppercase tracking-wider">With CC</p>
+
+          {/* Stats */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="text-center px-5 py-3 rounded-xl bg-white/15 border border-white/20 backdrop-blur-sm min-w-[80px]">
+              {isLoading
+                ? <div className="h-7 w-8 bg-white/20 rounded animate-pulse mx-auto mb-1" />
+                : <p className="text-2xl font-extrabold">{totalBranches}</p>
+              }
+              <p className="text-[10px] text-blue-100 uppercase tracking-widest font-semibold mt-0.5 flex items-center gap-1 justify-center">
+                <Users className="h-2.5 w-2.5" /> Branches
+              </p>
+            </div>
+            <div className="text-center px-5 py-3 rounded-xl bg-white/25 border border-white/30 backdrop-blur-sm min-w-[80px]">
+              {isLoading
+                ? <div className="h-7 w-8 bg-white/20 rounded animate-pulse mx-auto mb-1" />
+                : <p className="text-2xl font-extrabold">{totalWithCc}</p>
+              }
+              <p className="text-[10px] text-blue-100 uppercase tracking-widest font-semibold mt-0.5 flex items-center gap-1 justify-center">
+                <Mail className="h-2.5 w-2.5" /> With CC
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Filters */}
-      <Card className="border-border/50">
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Search by branch, state or email..."
-                className="pl-8 h-8 text-xs bg-background/50"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
-            </div>
-            <Select value={stateFilter} onValueChange={setStateFilter}>
-              <SelectTrigger className="w-full sm:w-[180px] h-8 text-xs bg-background/50">
-                <SelectValue placeholder="All States" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All States</SelectItem>
-                {states.map(s => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      {/* ── Filters ── */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by branch, state or email..."
+            className="pl-9 bg-background"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <Select value={stateFilter} onValueChange={setStateFilter}>
+          <SelectTrigger className="w-full sm:w-[200px] bg-background">
+            <SelectValue placeholder="All States" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All States</SelectItem>
+            {states.map(s => (
+              <SelectItem key={s} value={s}>{s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-      {/* Branch List */}
+      {/* ── Branch List ── */}
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 w-full rounded-xl" />
+        <div className="space-y-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full rounded-xl" />
           ))}
         </div>
       ) : grouped.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground/40">
-          <Mail className="h-8 w-8 mb-2" />
-          <p className="text-sm">No branches found.</p>
+        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground/40">
+          <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
+            <Mail className="h-8 w-8 text-muted-foreground/30" />
+          </div>
+          <p className="text-sm font-medium">No branches found</p>
+          <p className="text-xs mt-1">Try adjusting your search or filter.</p>
         </div>
       ) : (
         <div className="space-y-6">
           {grouped.map(([state, branches]) => (
             <div key={state}>
-              <div className="flex items-center gap-2 mb-2 px-1">
-                <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{state}</h2>
-                <div className="flex-1 h-px bg-border/50" />
-                <span className="text-[10px] text-muted-foreground/50">{branches.length} branch{branches.length !== 1 ? "es" : ""}</span>
+              {/* State group header */}
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="h-5 w-5 rounded-md bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <MapPin className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <h2 className="text-sm font-bold text-foreground">{state}</h2>
+                </div>
+                <div className="flex-1 h-px bg-border/60" />
+                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full font-medium shrink-0">
+                  {branches.length} branch{branches.length !== 1 ? "es" : ""}
+                </span>
               </div>
               <div className="space-y-2">
                 {branches.map(device => (

@@ -57,16 +57,14 @@ function StatCard({
   return (
     <Card className={`${borderClass} ${bgClass} shadow-sm hover:shadow-md transition-shadow`}>
       <CardHeader className="flex flex-row items-center justify-between pb-3 pt-5 px-5">
-        <CardTitle className={`text-xs font-semibold uppercase tracking-widest ${colorClass} opacity-80`}>{title}</CardTitle>
-        <div className={`p-2 rounded-lg ${bgClass || "bg-muted"}`}>
-          <Icon className={`h-4 w-4 ${colorClass}`} />
-        </div>
+        <CardTitle className={`text-sm font-medium text-muted-foreground`}>{title}</CardTitle>
+        <Icon className={`h-5 w-5 ${colorClass} opacity-70`} />
       </CardHeader>
       <CardContent className="px-5 pb-5">
         {loading ? (
-          <Skeleton className="h-10 w-20" />
+          <Skeleton className="h-9 w-20" />
         ) : (
-          <div className={`text-4xl font-bold tracking-tight ${colorClass}`}>{value.toLocaleString()}</div>
+          <div className={`text-3xl font-semibold ${colorClass}`}>{value.toLocaleString()}</div>
         )}
       </CardContent>
     </Card>

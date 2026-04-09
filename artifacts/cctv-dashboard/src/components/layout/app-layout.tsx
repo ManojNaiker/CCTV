@@ -107,8 +107,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen w-full flex-col bg-background md:flex-row">
       {/* Desktop Sidebar */}
       <aside
-        className="hidden w-64 flex-col border-r border-sidebar-border px-4 py-6 md:flex"
-        style={{ background: "linear-gradient(180deg, hsl(224 50% 7%) 0%, hsl(224 43% 10%) 100%)" }}
+        className="hidden w-64 flex-col border-r border-sidebar-border px-4 py-6 md:flex bg-sidebar"
       >
         <LogoBlock />
         <nav className="flex flex-1 flex-col gap-1.5">

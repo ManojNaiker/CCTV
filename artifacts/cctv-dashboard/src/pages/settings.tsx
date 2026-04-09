@@ -441,24 +441,22 @@ export default function Settings() {
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="email-password">SMTP Password / App Password</Label>
-                    <div className="relative">
+                    <div className="relative flex items-center">
                       <Input
                         id="email-password"
                         type={showEmailPassword ? "text" : "password"}
                         placeholder="••••••••"
                         value={emailPassword}
                         onChange={(e) => setEmailPassword(e.target.value)}
-                        className="pr-10"
+                        className="pr-9"
                       />
-                      <Button
+                      <button
                         type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
                         onClick={() => setShowEmailPassword(!showEmailPassword)}
+                        className="absolute right-2.5 text-muted-foreground hover:text-foreground"
                       >
-                        {showEmailPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                      </Button>
+                        {showEmailPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
                     </div>
                   </div>
                 </div>

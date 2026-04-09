@@ -36,16 +36,30 @@ function BranchRow({ device }: { device: any }) {
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">("idle");
 
-  const addEmail = () => {
-    const trimmed = newEmail.trim().toLowerCase();
-    if (!trimmed || !trimmed.includes("@") || emails.includes(trimmed)) {
+  const addEmails = (raw: string) => {
+    // Split by comma, semicolon, space, or newline — handles paste of multiple emails
+    const parts = raw
+      .split(/[\s,;]+/)
+      .map(s => s.trim().toLowerCase())
+      .filter(s => s.includes("@") && s.includes("."));
+
+    if (parts.length === 0) {
       setNewEmail("");
       return;
     }
-    setEmails(prev => [...prev, trimmed]);
+
+    setEmails(prev => {
+      const next = [...prev];
+      for (const email of parts) {
+        if (!next.includes(email)) next.push(email);
+      }
+      return next;
+    });
     setNewEmail("");
     setSaveStatus("idle");
   };
+
+  const addEmail = () => addEmails(newEmail);
 
   const removeEmail = (email: string) => {
     setEmails(prev => prev.filter(e => e !== email));
@@ -183,11 +197,16 @@ function BranchRow({ device }: { device: any }) {
           {/* Add input */}
           <div className="flex gap-2">
             <Input
-              type="email"
-              placeholder="newemail@company.com"
+              type="text"
+              placeholder="email@company.com or paste multiple"
               value={newEmail}
               onChange={e => setNewEmail(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addEmail(); } }}
+              onKeyDown={e => { if (e.key === "Enter" || e.key === "," || e.key === " ") { e.preventDefault(); addEmail(); } }}
+              onPaste={e => {
+                e.preventDefault();
+                const pasted = e.clipboardData.getData("text");
+                addEmails(pasted);
+              }}
               className="h-9 text-sm flex-1 bg-background"
             />
             <Button

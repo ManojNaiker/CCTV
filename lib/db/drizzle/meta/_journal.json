@@ -8,6 +8,13 @@
       "when": 1775643196513,
       "tag": "0000_clear_dust",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775700000000,
+      "tag": "0001_add_email_to_devices",
+      "breakpoints": true
     }
   ]
 }

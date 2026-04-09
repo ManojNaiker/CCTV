@@ -4,6 +4,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { runMigrations, db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { startScheduler } from "./lib/scheduler";
 
 const rawPort = process.env["PORT"];
 
@@ -52,6 +53,7 @@ runMigrations(migrationsFolder)
         process.exit(1);
       }
       logger.info({ port }, "Server listening");
+      startScheduler();
     });
   })
   .catch((err) => {

@@ -58,7 +58,13 @@ export function createTransporter(settings: EmailSettings) {
   });
 }
 
-export async function sendEmail(subject: string, html: string, text?: string, extraTo?: string[]): Promise<void> {
+export async function sendEmail(
+  subject: string,
+  html: string,
+  text?: string,
+  extraTo?: string[],
+  extraCc?: string[]
+): Promise<void> {
   const settings = await getEmailSettings();
 
   if (!settings.enabled) {
@@ -73,6 +79,7 @@ export async function sendEmail(subject: string, html: string, text?: string, ex
 
   const transporter = createTransporter(settings);
   const toList = [...(extraTo ?? [])].filter((v, i, arr) => arr.indexOf(v) === i);
+  const ccList = [...(extraCc ?? [])].filter((v, i, arr) => arr.indexOf(v) === i && !toList.includes(v));
 
   if (toList.length === 0) {
     logger.warn("No recipients defined — skipping send");
@@ -82,12 +89,13 @@ export async function sendEmail(subject: string, html: string, text?: string, ex
   await transporter.sendMail({
     from: settings.from || settings.user,
     to: toList.join(", "),
+    cc: ccList.length > 0 ? ccList.join(", ") : undefined,
     subject,
     html,
     text,
   });
 
-  logger.info({ to: toList, subject }, "Email sent successfully");
+  logger.info({ to: toList, cc: ccList, subject }, "Email sent successfully");
 }
 
 export async function sendUserCreatedEmail(userData: {
@@ -233,21 +241,23 @@ export async function sendOfflineAlert(device: {
   const dateStr = new Date().toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" });
   const subject = `CCTV Offline Status | ${dateStr}`;
 
-  const extraRecipients: string[] = [];
+  const toPrimary: string[] = [];
   if (device.email) {
-    extraRecipients.push(...device.email.split(",").map((e) => e.trim()).filter(Boolean));
+    toPrimary.push(...device.email.split(",").map((e) => e.trim()).filter(Boolean));
   }
+
+  const ccRecipients: string[] = [];
   if (device.ccEmails) {
-    extraRecipients.push(...device.ccEmails.split(",").map((e) => e.trim()).filter(Boolean));
+    ccRecipients.push(...device.ccEmails.split(",").map((e) => e.trim()).filter(Boolean));
   }
 
   const globalCcList = await getSetting("email_cc_list");
   if (globalCcList) {
-    extraRecipients.push(...globalCcList.split(",").map((e) => e.trim()).filter(Boolean));
+    ccRecipients.push(...globalCcList.split(",").map((e) => e.trim()).filter(Boolean));
   }
 
   const html = buildOfflineAlertHtml([device]);
-  await sendEmail(subject, html, undefined, extraRecipients);
+  await sendEmail(subject, html, undefined, toPrimary, ccRecipients);
 }
 
 export async function sendBulkOfflineAlert(devices: OfflineDevice[]): Promise<void> {
@@ -262,19 +272,22 @@ export async function sendBulkOfflineAlert(devices: OfflineDevice[]): Promise<vo
   const dateStr = new Date().toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" });
   const subject = `CCTV Offline Status | ${dateStr}`;
 
-  const extraRecipients: string[] = [];
+  const toPrimary: string[] = [];
+  const ccRecipients: string[] = [];
+
   for (const d of devices) {
-    if (d.email) extraRecipients.push(...d.email.split(",").map((e) => e.trim()).filter(Boolean));
-    if (d.ccEmails) extraRecipients.push(...d.ccEmails.split(",").map((e) => e.trim()).filter(Boolean));
+    if (d.email) toPrimary.push(...d.email.split(",").map((e) => e.trim()).filter(Boolean));
+    if (d.ccEmails) ccRecipients.push(...d.ccEmails.split(",").map((e) => e.trim()).filter(Boolean));
   }
 
   const globalCcList = await getSetting("email_cc_list");
   if (globalCcList) {
-    extraRecipients.push(...globalCcList.split(",").map((e) => e.trim()).filter(Boolean));
+    ccRecipients.push(...globalCcList.split(",").map((e) => e.trim()).filter(Boolean));
   }
 
-  const uniqueRecipients = extraRecipients.filter((v, i, arr) => arr.indexOf(v) === i);
+  const uniqueTo = toPrimary.filter((v, i, arr) => arr.indexOf(v) === i);
+  const uniqueCc = ccRecipients.filter((v, i, arr) => arr.indexOf(v) === i);
 
   const html = buildOfflineAlertHtml(devices);
-  await sendEmail(subject, html, undefined, uniqueRecipients);
+  await sendEmail(subject, html, undefined, uniqueTo, uniqueCc);
 }

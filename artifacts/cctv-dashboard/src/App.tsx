@@ -1,9 +1,10 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
+import { AuthProvider, useAuth } from "@/context/auth-context";
 import { AppLayout } from "@/components/layout/app-layout";
 import Dashboard from "@/pages/dashboard";
 import Devices from "@/pages/devices";
@@ -12,6 +13,7 @@ import AuditLogs from "@/pages/audit-logs";
 import Settings from "@/pages/settings";
 import OfflineReport from "@/pages/offline-report";
 import NotFound from "@/pages/not-found";
+import LoginPage from "@/pages/login";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,7 +24,25 @@ const queryClient = new QueryClient({
   },
 });
 
-function Router() {
+function AppRoutes() {
+  const { state } = useAuth();
+  const [, setLocation] = useLocation();
+
+  if (state.status === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (state.status === "unauthenticated") {
+    return <LoginPage />;
+  }
+
   return (
     <AppLayout>
       <Switch>
@@ -44,7 +64,9 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
+            <AuthProvider>
+              <AppRoutes />
+            </AuthProvider>
           </WouterRouter>
           <Toaster />
         </TooltipProvider>

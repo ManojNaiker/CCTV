@@ -12,6 +12,7 @@ import {
   Moon,
   Monitor,
   WifiOff,
+  UserCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -22,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useState } from "react";
+import { useAuth } from "@/context/auth-context";
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme();
@@ -57,6 +59,9 @@ function ThemeToggle() {
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { state, logout } = useAuth();
+
+  const user = state.status === "authenticated" ? state.user : null;
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -103,6 +108,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     </div>
   );
 
+  const UserBlock = () => (
+    <div className="flex items-center gap-2 px-2 mb-4 pb-4 border-b border-sidebar-border/40">
+      <div className="flex items-center justify-center h-8 w-8 rounded-full bg-sidebar-accent border border-sidebar-border/50 shrink-0">
+        <UserCircle className="h-4 w-4 text-sidebar-foreground/60" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-semibold text-sidebar-foreground truncate">{user?.fullName ?? user?.username}</p>
+        <p className="text-[10px] text-sidebar-foreground/40 capitalize">{user?.role}</p>
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex min-h-screen w-full flex-col bg-background md:flex-row">
       {/* Desktop Sidebar */}
@@ -110,11 +127,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         className="hidden w-64 flex-col border-r border-sidebar-border px-4 py-6 md:flex bg-sidebar"
       >
         <LogoBlock />
+        {user && <UserBlock />}
         <nav className="flex flex-1 flex-col gap-1.5">
           <NavLinks />
         </nav>
         <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-sidebar-border/60">
-          <Button variant="ghost" className="flex-1 justify-start gap-3 text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-accent text-sm h-9 font-medium">
+          <Button
+            variant="ghost"
+            className="flex-1 justify-start gap-3 text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-accent text-sm h-9 font-medium"
+            onClick={logout}
+          >
             <LogOut className="h-4 w-4" />
             Sign Out
           </Button>
@@ -133,16 +155,32 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-64 sm:max-w-none">
-              <div className="px-2 mb-8 pt-2">
+              <div className="px-2 mb-6 pt-2">
                 <img
                   src="/logo.png"
                   alt="Light Finance"
                   className="h-10 w-auto object-contain"
                 />
               </div>
+              {user && (
+                <div className="flex items-center gap-2 px-2 mb-4 pb-4 border-b border-border/40">
+                  <div className="flex items-center justify-center h-8 w-8 rounded-full bg-muted shrink-0">
+                    <UserCircle className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold truncate">{user.fullName ?? user.username}</p>
+                    <p className="text-[10px] text-muted-foreground capitalize">{user.role}</p>
+                  </div>
+                </div>
+              )}
               <nav className="flex flex-col gap-2">
                 <NavLinks />
               </nav>
+              <div className="mt-6 pt-4 border-t border-border/40">
+                <Button variant="ghost" className="w-full justify-start gap-2 text-sm text-muted-foreground" onClick={logout}>
+                  <LogOut className="h-4 w-4" /> Sign Out
+                </Button>
+              </div>
             </SheetContent>
           </Sheet>
           <div className="flex items-center flex-1">

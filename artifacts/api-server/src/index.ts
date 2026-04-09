@@ -2,7 +2,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import app from "./app";
 import { logger } from "./lib/logger";
-import { runMigrations } from "@workspace/db";
+import { runMigrations, db, usersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const rawPort = process.env["PORT"];
 
@@ -21,10 +22,30 @@ if (Number.isNaN(port) || port <= 0) {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const migrationsFolder = path.resolve(__dirname, "./migrations");
 
+async function seedDefaultAdmin() {
+  try {
+    const [existing] = await db.select().from(usersTable).where(eq(usersTable.username, "admin"));
+    if (!existing) {
+      await db.insert(usersTable).values({
+        username: "admin",
+        fullName: "Administrator",
+        email: "admin@lightfinance.com",
+        role: "admin",
+        passwordHash: Buffer.from("admin@123").toString("base64"),
+        isActive: true,
+      });
+      logger.info("Default admin user created (admin / admin@123)");
+    }
+  } catch (err) {
+    logger.error({ err }, "Failed to seed default admin user");
+  }
+}
+
 logger.info("Running database migrations...");
 runMigrations(migrationsFolder)
-  .then(() => {
+  .then(async () => {
     logger.info("Database migrations complete");
+    await seedDefaultAdmin();
     app.listen(port, (err) => {
       if (err) {
         logger.error({ err }, "Error listening on port");

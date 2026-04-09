@@ -55,16 +55,18 @@ function StatCard({
   loading: boolean;
 }) {
   return (
-    <Card className={`${borderClass} ${bgClass}`}>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className={`text-sm font-medium ${colorClass}`}>{title}</CardTitle>
-        <Icon className={`h-4 w-4 ${colorClass}`} />
+    <Card className={`${borderClass} ${bgClass} shadow-sm hover:shadow-md transition-shadow`}>
+      <CardHeader className="flex flex-row items-center justify-between pb-3 pt-5 px-5">
+        <CardTitle className={`text-xs font-semibold uppercase tracking-widest ${colorClass} opacity-80`}>{title}</CardTitle>
+        <div className={`p-2 rounded-lg ${bgClass || "bg-muted"}`}>
+          <Icon className={`h-4 w-4 ${colorClass}`} />
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-5 pb-5">
         {loading ? (
-          <Skeleton className="h-8 w-16" />
+          <Skeleton className="h-10 w-20" />
         ) : (
-          <div className={`text-3xl font-bold ${colorClass}`}>{value}</div>
+          <div className={`text-4xl font-bold tracking-tight ${colorClass}`}>{value.toLocaleString()}</div>
         )}
       </CardContent>
     </Card>
@@ -145,8 +147,8 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">CCTV Operations Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">CCTV Operations Dashboard</h1>
+          <p className="text-muted-foreground mt-1.5 text-sm">
             Real-time monitoring of nationwide branch cameras.
           </p>
         </div>

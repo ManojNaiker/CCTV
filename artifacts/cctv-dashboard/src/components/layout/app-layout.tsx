@@ -75,10 +75,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         return (
           <Link key={item.href} href={item.href} onClick={() => setMobileMenuOpen(false)}>
             <span
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors cursor-pointer text-sm font-medium ${
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all cursor-pointer text-sm font-semibold ${
                 isActive
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-md"
+                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
               }`}
             >
               <Icon className="h-4 w-4 shrink-0" />
@@ -106,13 +106,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen w-full flex-col bg-background md:flex-row">
       {/* Desktop Sidebar */}
-      <aside className="hidden w-64 flex-col border-r border-sidebar-border bg-sidebar px-4 py-6 md:flex">
+      <aside
+        className="hidden w-64 flex-col border-r border-sidebar-border px-4 py-6 md:flex"
+        style={{ background: "linear-gradient(180deg, hsl(224 50% 7%) 0%, hsl(224 43% 10%) 100%)" }}
+      >
         <LogoBlock />
-        <nav className="flex flex-1 flex-col gap-1">
+        <nav className="flex flex-1 flex-col gap-1.5">
           <NavLinks />
         </nav>
-        <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-sidebar-border">
-          <Button variant="ghost" className="flex-1 justify-start gap-3 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent text-sm h-9">
+        <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-sidebar-border/60">
+          <Button variant="ghost" className="flex-1 justify-start gap-3 text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-accent text-sm h-9 font-medium">
             <LogOut className="h-4 w-4" />
             Sign Out
           </Button>

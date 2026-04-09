@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Wifi, WifiOff, ShieldCheck, Save, TestTube2, Mail, Send } from "lucide-react";
+import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Wifi, WifiOff, ShieldCheck, Save, TestTube2, Mail, Send, Clock, Plus, Trash2 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -38,6 +38,13 @@ export default function Settings() {
   const [emailTestStatus, setEmailTestStatus] = useState<TestStatus>("idle");
   const [emailMessage, setEmailMessage] = useState("");
 
+  // Scheduler state
+  const [schedulerEnabled, setSchedulerEnabled] = useState(true);
+  const [schedulerTimes, setSchedulerTimes] = useState<string[]>(["09:30", "17:30"]);
+  const [newScheduleTime, setNewScheduleTime] = useState("09:00");
+  const [schedulerSaving, setSchedulerSaving] = useState(false);
+  const [schedulerMessage, setSchedulerMessage] = useState("");
+
   useEffect(() => {
     fetch(`${BASE}/api/settings`)
       .then((r) => r.json())
@@ -57,6 +64,14 @@ export default function Settings() {
         if (data.user) setEmailUser(String(data.user));
         if (data.from) setEmailFrom(String(data.from));
         if (data.enabled !== undefined) setEmailEnabled(Boolean(data.enabled));
+      })
+      .catch(() => {});
+
+    fetch(`${BASE}/api/settings/scheduler`)
+      .then((r) => r.json())
+      .then((data: { enabled: boolean; times: string[] }) => {
+        if (data.enabled !== undefined) setSchedulerEnabled(data.enabled);
+        if (Array.isArray(data.times)) setSchedulerTimes(data.times);
       })
       .catch(() => {});
   }, []);
@@ -178,6 +193,40 @@ export default function Settings() {
     }
   };
 
+  const handleAddScheduleTime = () => {
+    if (!newScheduleTime) return;
+    if (schedulerTimes.includes(newScheduleTime)) return;
+    setSchedulerTimes((prev) => [...prev, newScheduleTime].sort());
+    setSchedulerMessage("");
+  };
+
+  const handleRemoveScheduleTime = (t: string) => {
+    setSchedulerTimes((prev) => prev.filter((x) => x !== t));
+    setSchedulerMessage("");
+  };
+
+  const handleSaveScheduler = async () => {
+    setSchedulerSaving(true);
+    setSchedulerMessage("");
+    try {
+      const res = await fetch(`${BASE}/api/settings/scheduler`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: schedulerEnabled, times: schedulerTimes }),
+      });
+      const data = await res.json() as { message?: string; error?: string };
+      if (res.ok) {
+        setSchedulerMessage("Scheduler settings saved successfully!");
+      } else {
+        setSchedulerMessage(data.error || "Save failed.");
+      }
+    } catch {
+      setSchedulerMessage("Network error — could not save changes.");
+    } finally {
+      setSchedulerSaving(false);
+    }
+  };
+
   void isLoaded;
 
   return (
@@ -198,6 +247,10 @@ export default function Settings() {
           <TabsTrigger value="email" className="gap-2">
             <Mail className="h-4 w-4" />
             Email Settings
+          </TabsTrigger>
+          <TabsTrigger value="scheduler" className="gap-2">
+            <Clock className="h-4 w-4" />
+            Email Scheduler
           </TabsTrigger>
         </TabsList>
 
@@ -518,6 +571,133 @@ export default function Settings() {
                 <div className="border-t pt-3">
                   <p className="text-xs text-muted-foreground">
                     <strong>Gmail tip:</strong> Enable 2-Step Verification and generate an App Password (Google Account → Security → App passwords). Your regular password will not work.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* ── Email Scheduler Tab ── */}
+        <TabsContent value="scheduler" className="flex-1 overflow-y-auto mt-4">
+          <div className="max-w-2xl">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-primary" />
+                  <CardTitle>Email Scheduler</CardTitle>
+                </div>
+                <CardDescription>
+                  Set the times when offline alert emails are automatically sent each day (IST).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {/* Enable toggle */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
+                  <div>
+                    <Label className="text-sm font-medium">Scheduled Emails</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Automatically send offline alerts at the configured times every day
+                    </p>
+                  </div>
+                  <Switch checked={schedulerEnabled} onCheckedChange={setSchedulerEnabled} />
+                </div>
+
+                {/* Add new time */}
+                <div className="space-y-1.5">
+                  <Label>Add Schedule Time <span className="text-muted-foreground font-normal text-xs">(IST, 24-hour)</span></Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="time"
+                      value={newScheduleTime}
+                      onChange={(e) => setNewScheduleTime(e.target.value)}
+                      className="w-36"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleAddScheduleTime}
+                      disabled={!newScheduleTime || schedulerTimes.includes(newScheduleTime)}
+                      className="gap-1.5"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Time
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Select a time and click Add. You can add multiple daily schedule times.
+                  </p>
+                </div>
+
+                {/* Current scheduled times */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+                    Scheduled Times ({schedulerTimes.length})
+                  </Label>
+                  {schedulerTimes.length > 0 ? (
+                    <div className="rounded-lg border border-border/60 divide-y divide-border/40 overflow-hidden">
+                      {schedulerTimes.map((t) => {
+                        const [hh, mm] = t.split(":");
+                        const h = parseInt(hh, 10);
+                        const ampm = h >= 12 ? "PM" : "AM";
+                        const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                        const label = `${String(h12).padStart(2, "0")}:${mm} ${ampm}`;
+                        return (
+                          <div key={t} className="flex items-center justify-between px-4 py-3 bg-muted/20 hover:bg-muted/40 transition-colors">
+                            <div className="flex items-center gap-3">
+                              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                <Clock className="h-4 w-4 text-primary" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold">{label} IST</p>
+                                <p className="text-xs text-muted-foreground">{t} (24hr)</p>
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                              onClick={() => handleRemoveScheduleTime(t)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-border/50 p-6 text-center">
+                      <Clock className="h-6 w-6 text-muted-foreground/30 mx-auto mb-2" />
+                      <p className="text-xs text-muted-foreground">No schedule times added yet.</p>
+                      <p className="text-xs text-muted-foreground/60 mt-0.5">Add a time above to start scheduling.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Status message */}
+                {schedulerMessage && (
+                  <div className={`flex items-center gap-2 p-3 rounded-md text-sm ${
+                    schedulerMessage.includes("successfully")
+                      ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
+                      : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+                  }`}>
+                    {schedulerMessage.includes("successfully")
+                      ? <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      : <XCircle className="h-4 w-4 shrink-0" />}
+                    {schedulerMessage}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 pt-1">
+                  <Button onClick={handleSaveScheduler} disabled={schedulerSaving} className="gap-2">
+                    {schedulerSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    Save Schedule
+                  </Button>
+                </div>
+
+                <div className="border-t pt-3">
+                  <p className="text-xs text-muted-foreground">
+                    <strong>Note:</strong> Times are in IST (Indian Standard Time). The system checks every minute and sends the email automatically when the time matches.
                   </p>
                 </div>
               </CardContent>

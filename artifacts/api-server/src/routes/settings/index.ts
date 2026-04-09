@@ -137,8 +137,8 @@ router.post("/settings/email", async (req, res): Promise<void> => {
     enabled?: boolean;
   };
 
-  if (!host || !user || !password || !to) {
-    res.status(400).json({ error: "host, user, password, and to are required" });
+  if (!host || !user || !password) {
+    res.status(400).json({ error: "host, user, and password are required" });
     return;
   }
 
@@ -248,6 +248,57 @@ router.post("/settings/cc-list", async (req, res): Promise<void> => {
   } catch (err) {
     logger.error({ err }, "Failed to save CC list");
     res.status(500).json({ error: "Failed to save CC list" });
+  }
+});
+
+// GET scheduler settings
+router.get("/settings/scheduler", async (_req, res): Promise<void> => {
+  try {
+    const rows = await db.select().from(settingsTable);
+    const map: Record<string, string> = {};
+    for (const r of rows) map[r.key] = r.value ?? "";
+
+    const enabled = map["scheduler_enabled"] !== "false";
+    const rawTimes = map["scheduler_times"] ?? '["09:30","17:30"]';
+    let times: string[] = [];
+    try { times = JSON.parse(rawTimes) as string[]; } catch { times = ["09:30", "17:30"]; }
+
+    res.json({ enabled, times });
+  } catch (err) {
+    logger.error({ err }, "Failed to get scheduler settings");
+    res.status(500).json({ error: "Failed to get scheduler settings" });
+  }
+});
+
+// POST save scheduler settings
+router.post("/settings/scheduler", async (req, res): Promise<void> => {
+  const { enabled, times } = req.body as { enabled?: boolean; times?: string[] };
+
+  if (!Array.isArray(times)) {
+    res.status(400).json({ error: "times array is required" });
+    return;
+  }
+
+  const validTimes = times
+    .map((t) => String(t).trim())
+    .filter((t) => /^\d{2}:\d{2}$/.test(t));
+
+  try {
+    const upsert = async (key: string, value: string) => {
+      await db
+        .insert(settingsTable)
+        .values({ key, value })
+        .onConflictDoUpdate({ target: settingsTable.key, set: { value } });
+    };
+
+    await upsert("scheduler_enabled", String(enabled !== false));
+    await upsert("scheduler_times", JSON.stringify(validTimes));
+
+    logger.info({ enabled, times: validTimes }, "Scheduler settings saved");
+    res.json({ message: "Scheduler settings saved successfully", times: validTimes });
+  } catch (err) {
+    logger.error({ err }, "Failed to save scheduler settings");
+    res.status(500).json({ error: "Failed to save scheduler settings" });
   }
 });
 

@@ -5,8 +5,9 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Wifi, WifiOff, ShieldCheck, Save, TestTube2, Mail, Send, Users, Plus, Trash2 } from "lucide-react";
+import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Wifi, WifiOff, ShieldCheck, Save, TestTube2, Mail, Send } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -32,19 +33,11 @@ export default function Settings() {
   const [emailPassword, setEmailPassword] = useState("");
   const [showEmailPassword, setShowEmailPassword] = useState(false);
   const [emailFrom, setEmailFrom] = useState("");
-  const [emailTo, setEmailTo] = useState("");
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [emailSaving, setEmailSaving] = useState(false);
   const [emailTestStatus, setEmailTestStatus] = useState<TestStatus>("idle");
   const [emailMessage, setEmailMessage] = useState("");
 
-  // CC List state
-  const [ccEmails, setCcEmails] = useState<string[]>([]);
-  const [newCcEmail, setNewCcEmail] = useState("");
-  const [ccSaving, setCcSaving] = useState(false);
-  const [ccMessage, setCcMessage] = useState("");
-
-  // Load existing settings on mount
   useEffect(() => {
     fetch(`${BASE}/api/settings`)
       .then((r) => r.json())
@@ -63,15 +56,7 @@ export default function Settings() {
         if (data.secure !== undefined) setEmailSecure(Boolean(data.secure));
         if (data.user) setEmailUser(String(data.user));
         if (data.from) setEmailFrom(String(data.from));
-        if (data.to) setEmailTo(String(data.to));
         if (data.enabled !== undefined) setEmailEnabled(Boolean(data.enabled));
-      })
-      .catch(() => {});
-
-    fetch(`${BASE}/api/settings/cc-list`)
-      .then((r) => r.json())
-      .then((data: { emails: string[] }) => {
-        if (Array.isArray(data.emails)) setCcEmails(data.emails);
       })
       .catch(() => {});
   }, []);
@@ -82,10 +67,8 @@ export default function Settings() {
       setTestMessage("User ID and Password are required.");
       return;
     }
-
     setTestStatus("testing");
     setTestMessage("");
-
     try {
       const res = await fetch(`${BASE}/api/settings/hikconnect/test`, {
         method: "POST",
@@ -106,10 +89,8 @@ export default function Settings() {
       setSaveMessage("User ID and Password are required.");
       return;
     }
-
     setSaving(true);
     setSaveMessage("");
-
     try {
       const res = await fetch(`${BASE}/api/settings/hikconnect`, {
         method: "POST",
@@ -131,9 +112,9 @@ export default function Settings() {
   };
 
   const handleTestEmail = async () => {
-    if (!emailHost || !emailUser || !emailPassword || !emailTo) {
+    if (!emailHost || !emailUser || !emailPassword) {
       setEmailTestStatus("failed");
-      setEmailMessage("SMTP Host, User, Password, and recipient email are required.");
+      setEmailMessage("SMTP Host, Username, and Password are required.");
       return;
     }
     setEmailTestStatus("testing");
@@ -142,7 +123,15 @@ export default function Settings() {
       const res = await fetch(`${BASE}/api/settings/email/test`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ host: emailHost, port: parseInt(emailPort), secure: emailSecure, user: emailUser, password: emailPassword, from: emailFrom || emailUser, to: emailTo }),
+        body: JSON.stringify({
+          host: emailHost,
+          port: parseInt(emailPort),
+          secure: emailSecure,
+          user: emailUser,
+          password: emailPassword,
+          from: emailFrom || emailUser,
+          to: emailUser,
+        }),
       });
       const data = await res.json() as { success: boolean; message: string };
       setEmailTestStatus(data.success ? "success" : "failed");
@@ -154,8 +143,8 @@ export default function Settings() {
   };
 
   const handleSaveEmail = async () => {
-    if (!emailHost || !emailUser || !emailPassword || !emailTo) {
-      setEmailMessage("SMTP Host, User, Password, and recipient email are required.");
+    if (!emailHost || !emailUser || !emailPassword) {
+      setEmailMessage("SMTP Host, Username, and Password are required.");
       return;
     }
     setEmailSaving(true);
@@ -164,7 +153,16 @@ export default function Settings() {
       const res = await fetch(`${BASE}/api/settings/email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ host: emailHost, port: parseInt(emailPort), secure: emailSecure, user: emailUser, password: emailPassword, from: emailFrom || emailUser, to: emailTo, enabled: emailEnabled }),
+        body: JSON.stringify({
+          host: emailHost,
+          port: parseInt(emailPort),
+          secure: emailSecure,
+          user: emailUser,
+          password: emailPassword,
+          from: emailFrom || emailUser,
+          to: emailUser,
+          enabled: emailEnabled,
+        }),
       });
       const data = await res.json() as { message?: string; error?: string };
       if (res.ok) {
@@ -180,467 +178,355 @@ export default function Settings() {
     }
   };
 
-  const handleAddCcEmail = () => {
-    const trimmed = newCcEmail.trim().toLowerCase();
-    if (!trimmed || !trimmed.includes("@")) return;
-    if (ccEmails.includes(trimmed)) {
-      setNewCcEmail("");
-      return;
-    }
-    setCcEmails(prev => [...prev, trimmed]);
-    setNewCcEmail("");
-    setCcMessage("");
-  };
-
-  const handleRemoveCcEmail = (email: string) => {
-    setCcEmails(prev => prev.filter(e => e !== email));
-    setCcMessage("");
-  };
-
-  const handleSaveCcList = async () => {
-    setCcSaving(true);
-    setCcMessage("");
-    try {
-      const res = await fetch(`${BASE}/api/settings/cc-list`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emails: ccEmails }),
-      });
-      const data = await res.json() as { message?: string; error?: string };
-      if (res.ok) {
-        setCcMessage("CC list saved successfully!");
-      } else {
-        setCcMessage(data.error || "Save failed.");
-      }
-    } catch {
-      setCcMessage("Network error — could not save changes.");
-    } finally {
-      setCcSaving(false);
-    }
-  };
+  void isLoaded;
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground mt-1">
-          Configure application preferences and Hik-Connect integration.
+    <div className="flex flex-col h-full gap-4 min-h-0">
+      <div className="shrink-0">
+        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+        <p className="text-muted-foreground text-sm mt-0.5">
+          Configure Hik-Connect integration and email notification preferences.
         </p>
       </div>
 
-      <div className="grid gap-6">
-        {/* Hik-Connect Configuration */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-primary" />
-              <CardTitle>Hik-Connect Configuration</CardTitle>
-            </div>
-            <CardDescription>
-              Enter your Hik-Connect account credentials. These are used to fetch real-time device status.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* User ID */}
-            <div className="space-y-2">
-              <Label htmlFor="hik-account">User ID / Account</Label>
-              <Input
-                id="hik-account"
-                placeholder="e.g. light_rajasthan"
-                value={account}
-                onChange={(e) => setAccount(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Enter the account username from the Hik-Connect portal.
-              </p>
-            </div>
+      <Tabs defaultValue="hikconnect" className="flex flex-col min-h-0 flex-1">
+        <TabsList className="shrink-0 w-fit">
+          <TabsTrigger value="hikconnect" className="gap-2">
+            <ShieldCheck className="h-4 w-4" />
+            Hik-Connect
+          </TabsTrigger>
+          <TabsTrigger value="email" className="gap-2">
+            <Mail className="h-4 w-4" />
+            Email Settings
+          </TabsTrigger>
+        </TabsList>
 
-            {/* Password Type Toggle */}
-            <div className="space-y-3">
-              <Label>Password Type</Label>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setPasswordType("encrypted")}
-                  className={`flex-1 rounded-lg border-2 p-3 text-left transition-all ${
-                    passwordType === "encrypted"
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-muted-foreground/40"
-                  }`}
-                >
-                  <div className="font-medium text-sm">Encrypted Password</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    RSA/Base64 encoded password (encrypted string from your Python code)
+        {/* ── Hik-Connect Tab ── */}
+        <TabsContent value="hikconnect" className="flex-1 overflow-y-auto mt-4">
+          <div className="max-w-2xl">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-primary" />
+                  <CardTitle>Hik-Connect Configuration</CardTitle>
+                </div>
+                <CardDescription>
+                  Enter your Hik-Connect account credentials to fetch real-time device status.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {/* User ID */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="hik-account">User ID / Account</Label>
+                  <Input
+                    id="hik-account"
+                    placeholder="e.g. light_rajasthan"
+                    value={account}
+                    onChange={(e) => setAccount(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Account username from the Hik-Connect portal.
+                  </p>
+                </div>
+
+                {/* Password Type */}
+                <div className="space-y-2">
+                  <Label>Password Type</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPasswordType("encrypted")}
+                      className={`rounded-lg border-2 p-3 text-left transition-all ${
+                        passwordType === "encrypted"
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-muted-foreground/40"
+                      }`}
+                    >
+                      <div className="font-medium text-sm">Encrypted Password</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        RSA/Base64 encoded string from Python code
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPasswordType("normal")}
+                      className={`rounded-lg border-2 p-3 text-left transition-all ${
+                        passwordType === "normal"
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-muted-foreground/40"
+                      }`}
+                    >
+                      <div className="font-medium text-sm">Normal Password</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Plain text — auto RSA-encrypted before sending
+                      </div>
+                    </button>
                   </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPasswordType("normal")}
-                  className={`flex-1 rounded-lg border-2 p-3 text-left transition-all ${
-                    passwordType === "normal"
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-muted-foreground/40"
-                  }`}
-                >
-                  <div className="font-medium text-sm">Normal Password</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    Plain text password from Hik-Connect portal (auto RSA-encrypted before sending)
+                </div>
+
+                {/* Password Field */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="hik-password">
+                    Password{" "}
+                    <Badge variant="outline" className="ml-1 text-xs">
+                      {passwordType === "encrypted" ? "Encrypted" : "Normal"}
+                    </Badge>
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="hik-password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder={
+                        passwordType === "encrypted"
+                          ? "Paste RSA encrypted base64 string..."
+                          : "Enter your Hik-Connect portal password..."
+                      }
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pr-10 font-mono text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
                   </div>
-                </button>
-              </div>
-            </div>
+                  {passwordType === "normal" && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      ⚠️ Will be automatically RSA-encrypted before sending to Hik-Connect.
+                    </p>
+                  )}
+                </div>
 
-            {/* Password Field */}
-            <div className="space-y-2">
-              <Label htmlFor="hik-password">
-                Password{" "}
-                <Badge variant="outline" className="ml-1 text-xs">
-                  {passwordType === "encrypted" ? "Encrypted" : "Normal"}
-                </Badge>
-              </Label>
-              <div className="relative">
-                <Input
-                  id="hik-password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder={
-                    passwordType === "encrypted"
-                      ? "Paste RSA encrypted base64 string..."
-                      : "Enter your Hik-Connect portal password..."
-                  }
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pr-10 font-mono text-xs"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              {passwordType === "encrypted" && (
-                <p className="text-xs text-muted-foreground">
-                  This is the encrypted string from your Python code (the tz7jHgGW... value). Paste it directly.
-                </p>
-              )}
-              {passwordType === "normal" && (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
-                  ⚠️ Normal password will be automatically RSA-encrypted before being sent to Hik-Connect.
-                </p>
-              )}
-            </div>
-
-            {/* Test Status */}
-            {testStatus !== "idle" && (
-              <div
-                className={`flex items-start gap-3 rounded-lg p-3 text-sm ${
-                  testStatus === "testing"
-                    ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                    : testStatus === "success"
-                    ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
-                    : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
-                }`}
-              >
-                {testStatus === "testing" && <Loader2 className="h-4 w-4 mt-0.5 animate-spin shrink-0" />}
-                {testStatus === "success" && <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />}
-                {testStatus === "failed" && <XCircle className="h-4 w-4 mt-0.5 shrink-0" />}
-                <span>{testStatus === "testing" ? "Connecting to Hik-Connect..." : testMessage}</span>
-              </div>
-            )}
-
-            {/* Save message */}
-            {saveMessage && (
-              <div
-                className={`flex items-center gap-2 rounded-lg p-3 text-sm ${
-                  saveMessage.includes("successfully")
-                    ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
-                    : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
-                }`}
-              >
-                {saveMessage.includes("successfully") ? (
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                ) : (
-                  <XCircle className="h-4 w-4 shrink-0" />
+                {/* Test Status */}
+                {testStatus !== "idle" && (
+                  <div
+                    className={`flex items-start gap-3 rounded-lg p-3 text-sm ${
+                      testStatus === "testing"
+                        ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                        : testStatus === "success"
+                        ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
+                        : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+                    }`}
+                  >
+                    {testStatus === "testing" && <Loader2 className="h-4 w-4 mt-0.5 animate-spin shrink-0" />}
+                    {testStatus === "success" && <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />}
+                    {testStatus === "failed" && <XCircle className="h-4 w-4 mt-0.5 shrink-0" />}
+                    <span>{testStatus === "testing" ? "Connecting to Hik-Connect..." : testMessage}</span>
+                  </div>
                 )}
-                {saveMessage}
-              </div>
-            )}
 
-            {/* Action Buttons */}
-            <div className="flex items-center gap-3 pt-2">
-              <Button
-                variant="outline"
-                onClick={handleTestConnection}
-                disabled={testStatus === "testing" || saving}
-                className="gap-2"
-              >
-                {testStatus === "testing" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : testStatus === "success" ? (
-                  <Wifi className="h-4 w-4 text-green-600" />
-                ) : testStatus === "failed" ? (
-                  <WifiOff className="h-4 w-4 text-red-600" />
-                ) : (
-                  <TestTube2 className="h-4 w-4" />
+                {saveMessage && (
+                  <div
+                    className={`flex items-center gap-2 rounded-lg p-3 text-sm ${
+                      saveMessage.includes("successfully")
+                        ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
+                        : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+                    }`}
+                  >
+                    {saveMessage.includes("successfully") ? (
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    ) : (
+                      <XCircle className="h-4 w-4 shrink-0" />
+                    )}
+                    {saveMessage}
+                  </div>
                 )}
-                Test Connection
-              </Button>
 
-              <Button
-                onClick={handleSaveSettings}
-                disabled={saving || testStatus === "testing"}
-                className="gap-2"
-              >
-                {saving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4" />
-                )}
-                Save Settings
-              </Button>
-            </div>
-
-            <div className="border-t pt-4">
-              <p className="text-xs text-muted-foreground">
-                <strong>Tip:</strong> Try "Test Connection" first. If successful, click "Save Settings". After saving, use "Refresh Now" on the Dashboard.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Email Settings */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Mail className="h-5 w-5 text-primary" />
-              <CardTitle>Email / SMTP Configuration</CardTitle>
-            </div>
-            <CardDescription>
-              Configure email notifications for user creation and offline alerts.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            {/* Enable Toggle */}
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
-              <div>
-                <Label className="text-sm font-medium">Email Notifications</Label>
-                <p className="text-xs text-muted-foreground mt-0.5">Send email notifications for user creation and offline alerts</p>
-              </div>
-              <Switch checked={emailEnabled} onCheckedChange={setEmailEnabled} />
-            </div>
-
-            {/* SMTP Row 1: Host + Port */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="col-span-2 space-y-1.5">
-                <Label htmlFor="email-host">SMTP Host</Label>
-                <Input id="email-host" placeholder="smtp.gmail.com" value={emailHost} onChange={e => setEmailHost(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="email-port">Port</Label>
-                <Select value={emailPort} onValueChange={v => { setEmailPort(v); setEmailSecure(v === "465"); }}>
-                  <SelectTrigger id="email-port">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="587">587 (TLS)</SelectItem>
-                    <SelectItem value="465">465 (SSL)</SelectItem>
-                    <SelectItem value="25">25 (SMTP)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* SMTP User + Password */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="email-user">SMTP Username / Email</Label>
-                <Input id="email-user" type="email" placeholder="alerts@yourcompany.com" value={emailUser} onChange={e => setEmailUser(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="email-password">SMTP Password / App Password</Label>
-                <div className="relative">
-                  <Input id="email-password" type={showEmailPassword ? "text" : "password"} placeholder="••••••••" value={emailPassword} onChange={e => setEmailPassword(e.target.value)} className="pr-10" />
-                  <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setShowEmailPassword(!showEmailPassword)}>
-                    {showEmailPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                <div className="flex items-center gap-3 pt-1">
+                  <Button
+                    variant="outline"
+                    onClick={handleTestConnection}
+                    disabled={testStatus === "testing" || saving}
+                    className="gap-2"
+                  >
+                    {testStatus === "testing" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : testStatus === "success" ? (
+                      <Wifi className="h-4 w-4 text-green-600" />
+                    ) : testStatus === "failed" ? (
+                      <WifiOff className="h-4 w-4 text-red-600" />
+                    ) : (
+                      <TestTube2 className="h-4 w-4" />
+                    )}
+                    Test Connection
+                  </Button>
+                  <Button
+                    onClick={handleSaveSettings}
+                    disabled={saving || testStatus === "testing"}
+                    className="gap-2"
+                  >
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    Save Settings
                   </Button>
                 </div>
-              </div>
-            </div>
 
-            {/* From + To */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="email-from">From Address (optional)</Label>
-                <Input id="email-from" type="email" placeholder="noreply@yourcompany.com" value={emailFrom} onChange={e => setEmailFrom(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="email-to">Notification Recipients</Label>
-                <Input id="email-to" type="email" placeholder="admin@yourcompany.com, it@company.com" value={emailTo} onChange={e => setEmailTo(e.target.value)} />
-                <p className="text-xs text-muted-foreground">Separate multiple emails with commas</p>
-              </div>
-            </div>
+                <div className="border-t pt-3">
+                  <p className="text-xs text-muted-foreground">
+                    <strong>Tip:</strong> Test the connection first, then save. After saving, use "Refresh Now" on the Dashboard.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
-            {/* Status Message */}
-            {emailMessage && (
-              <div className={`flex items-center gap-2 p-3 rounded-md text-sm ${
-                emailMessage.includes("successfully") || emailMessage.includes("sent")
-                  ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
-                  : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
-              }`}>
-                {emailMessage.includes("successfully") || emailMessage.includes("sent")
-                  ? <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  : <XCircle className="h-4 w-4 shrink-0" />}
-                {emailMessage}
-              </div>
-            )}
+        {/* ── Email Settings Tab ── */}
+        <TabsContent value="email" className="flex-1 overflow-y-auto mt-4">
+          <div className="max-w-2xl">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Mail className="h-5 w-5 text-primary" />
+                  <CardTitle>Email / SMTP Configuration</CardTitle>
+                </div>
+                <CardDescription>
+                  Configure SMTP settings for sending offline alert and user notification emails.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {/* Enable Toggle */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
+                  <div>
+                    <Label className="text-sm font-medium">Email Notifications</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Enable sending emails for user creation and offline alerts
+                    </p>
+                  </div>
+                  <Switch checked={emailEnabled} onCheckedChange={setEmailEnabled} />
+                </div>
 
-            {/* Action Buttons */}
-            <div className="flex items-center gap-3 pt-1">
-              <Button variant="outline" onClick={handleTestEmail} disabled={emailTestStatus === "testing" || emailSaving} className="gap-2">
-                {emailTestStatus === "testing" ? <Loader2 className="h-4 w-4 animate-spin" /> :
-                 emailTestStatus === "success" ? <CheckCircle2 className="h-4 w-4 text-green-600" /> :
-                 emailTestStatus === "failed" ? <XCircle className="h-4 w-4 text-red-600" /> :
-                 <Send className="h-4 w-4" />}
-                Test Email
-              </Button>
-              <Button onClick={handleSaveEmail} disabled={emailSaving || emailTestStatus === "testing"} className="gap-2">
-                {emailSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Save Email Settings
-              </Button>
-            </div>
+                {/* Host + Port */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="col-span-2 space-y-1.5">
+                    <Label htmlFor="email-host">SMTP Host</Label>
+                    <Input
+                      id="email-host"
+                      placeholder="smtp.gmail.com"
+                      value={emailHost}
+                      onChange={(e) => setEmailHost(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email-port">Port</Label>
+                    <Select
+                      value={emailPort}
+                      onValueChange={(v) => { setEmailPort(v); setEmailSecure(v === "465"); }}
+                    >
+                      <SelectTrigger id="email-port">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="587">587 (TLS)</SelectItem>
+                        <SelectItem value="465">465 (SSL)</SelectItem>
+                        <SelectItem value="25">25 (SMTP)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-            <div className="border-t pt-3">
-              <p className="text-xs text-muted-foreground">
-                <strong>Gmail tip:</strong> Enable 2-Step Verification and generate an "App Password" (Google Account → Security → App passwords). Your regular password will not work.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* CC List */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" />
-              <CardTitle>CC Email List</CardTitle>
-            </div>
-            <CardDescription>
-              These recipients will be CC'd on all offline alert emails. This is a global CC list, separate from branch-specific CC emails.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Add Email Input */}
-            <div className="space-y-1.5">
-              <Label htmlFor="cc-email">Add Email Address</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="cc-email"
-                  type="email"
-                  placeholder="manager@company.com"
-                  value={newCcEmail}
-                  onChange={e => setNewCcEmail(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAddCcEmail(); } }}
-                  className="flex-1"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleAddCcEmail}
-                  disabled={!newCcEmail.trim() || !newCcEmail.includes("@")}
-                  className="gap-1.5 shrink-0"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">Press Enter or click Add.</p>
-            </div>
-
-            {/* CC Email List */}
-            {ccEmails.length > 0 ? (
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-                  CC Recipients ({ccEmails.length})
-                </Label>
-                <div className="rounded-lg border border-border/50 divide-y divide-border/30 overflow-hidden">
-                  {ccEmails.map((email) => (
-                    <div key={email} className="flex items-center justify-between px-3 py-2.5 bg-muted/20 hover:bg-muted/40 transition-colors">
-                      <div className="flex items-center gap-2.5">
-                        <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                          <Mail className="h-3.5 w-3.5 text-primary" />
-                        </div>
-                        <span className="text-sm font-mono">{email}</span>
-                      </div>
+                {/* Username + Password */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email-user">SMTP Username / Email</Label>
+                    <Input
+                      id="email-user"
+                      type="email"
+                      placeholder="alerts@yourcompany.com"
+                      value={emailUser}
+                      onChange={(e) => setEmailUser(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email-password">SMTP Password / App Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="email-password"
+                        type={showEmailPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={emailPassword}
+                        onChange={(e) => setEmailPassword(e.target.value)}
+                        className="pr-10"
+                      />
                       <Button
+                        type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
-                        onClick={() => handleRemoveCcEmail(email)}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                        onClick={() => setShowEmailPassword(!showEmailPassword)}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        {showEmailPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                       </Button>
                     </div>
-                  ))}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-border/50 p-6 text-center">
-                <Users className="h-6 w-6 text-muted-foreground/30 mx-auto mb-2" />
-                <p className="text-xs text-muted-foreground">No CC recipients added yet.</p>
-                <p className="text-xs text-muted-foreground/60 mt-0.5">Add an email address above.</p>
-              </div>
-            )}
 
-            {/* Status Message */}
-            {ccMessage && (
-              <div className={`flex items-center gap-2 p-3 rounded-md text-sm ${
-                ccMessage.includes("successfully")
-                  ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
-                  : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
-              }`}>
-                {ccMessage.includes("successfully") ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
-                {ccMessage}
-              </div>
-            )}
+                {/* From Address */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="email-from">From Address <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                  <Input
+                    id="email-from"
+                    type="email"
+                    placeholder="noreply@yourcompany.com"
+                    value={emailFrom}
+                    onChange={(e) => setEmailFrom(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    If left blank, the SMTP username will be used as the sender address.
+                  </p>
+                </div>
 
-            <div className="flex items-center gap-3 pt-1">
-              <Button onClick={handleSaveCcList} disabled={ccSaving} className="gap-2">
-                {ccSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Save CC List
-              </Button>
-            </div>
+                {/* Status Message */}
+                {emailMessage && (
+                  <div
+                    className={`flex items-center gap-2 p-3 rounded-md text-sm ${
+                      emailMessage.includes("successfully") || emailMessage.includes("sent")
+                        ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
+                        : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+                    }`}
+                  >
+                    {emailMessage.includes("successfully") || emailMessage.includes("sent")
+                      ? <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      : <XCircle className="h-4 w-4 shrink-0" />}
+                    {emailMessage}
+                  </div>
+                )}
 
-            <div className="border-t pt-3">
-              <p className="text-xs text-muted-foreground">
-                <strong>Note:</strong> The CC list is only used in offline alert emails. Configure primary recipients in the Email settings above.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+                <div className="flex items-center gap-3 pt-1">
+                  <Button
+                    variant="outline"
+                    onClick={handleTestEmail}
+                    disabled={emailTestStatus === "testing" || emailSaving}
+                    className="gap-2"
+                  >
+                    {emailTestStatus === "testing" ? <Loader2 className="h-4 w-4 animate-spin" /> :
+                     emailTestStatus === "success" ? <CheckCircle2 className="h-4 w-4 text-green-600" /> :
+                     emailTestStatus === "failed" ? <XCircle className="h-4 w-4 text-red-600" /> :
+                     <Send className="h-4 w-4" />}
+                    Test Email
+                  </Button>
+                  <Button
+                    onClick={handleSaveEmail}
+                    disabled={emailSaving || emailTestStatus === "testing"}
+                    className="gap-2"
+                  >
+                    {emailSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    Save Email Settings
+                  </Button>
+                </div>
 
-        {/* System Info */}
-        <Card>
-          <CardHeader>
-            <CardTitle>System Information</CardTitle>
-            <CardDescription>
-              Current installation ki technical details.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="text-muted-foreground">Version</div>
-              <div className="font-mono">v1.2.0</div>
-              <div className="text-muted-foreground">Hik-Connect Region</div>
-              <div className="font-mono">India (iindia.hik-connect.com)</div>
-              <div className="text-muted-foreground">Auto-Refresh Interval</div>
-              <div className="font-mono">2 minutes</div>
-              <div className="text-muted-foreground">Total Devices Tracked</div>
-              <div className="font-mono">255 branches</div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                <div className="border-t pt-3">
+                  <p className="text-xs text-muted-foreground">
+                    <strong>Gmail tip:</strong> Enable 2-Step Verification and generate an App Password (Google Account → Security → App passwords). Your regular password will not work.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

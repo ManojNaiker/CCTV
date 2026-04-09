@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { format } from "date-fns";
-import { Search, Plus, MoreHorizontal, FileEdit, Trash2, Video, Upload, ChevronRight, CheckCircle2, AlertCircle, SkipForward, Download, FileSpreadsheet, X } from "lucide-react";
+import { Search, Plus, MoreHorizontal, FileEdit, Trash2, Video, Upload, ChevronRight, CheckCircle2, AlertCircle, SkipForward, Download, FileSpreadsheet, X, Send, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { 
@@ -155,6 +155,26 @@ export default function Devices() {
   const [editData, setEditData] = useState({ branchName: "", stateName: "", status: "online" as any, remark: "" });
 
   const [deleteDevice, setDeleteDevice] = useState<any>(null);
+
+  const [sendingAlertId, setSendingAlertId] = useState<number | null>(null);
+
+  const handleSendAlert = async (device: any) => {
+    setSendingAlertId(device.id);
+    try {
+      const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
+      const res = await fetch(`${BASE}/api/devices/${device.id}/send-alert`, { method: "POST" });
+      const data = await res.json() as { success?: boolean; message?: string; error?: string };
+      if (res.ok && data.success) {
+        toast({ title: "Alert email sent", description: `${device.branchName} ke liye alert bheja gaya.` });
+      } else {
+        toast({ title: "Email send failed", description: data.error || "Unknown error", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Network error", description: "Email bhejne mein error aaya.", variant: "destructive" });
+    } finally {
+      setSendingAlertId(null);
+    }
+  };
 
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
@@ -389,10 +409,22 @@ export default function Devices() {
                               <MoreHorizontal className="h-3.5 w-3.5" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="text-xs min-w-[120px]">
+                          <DropdownMenuContent align="end" className="text-xs min-w-[150px]">
                             <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => openEdit(device)}>
                               <FileEdit className="h-3.5 w-3.5" /> Edit
                             </DropdownMenuItem>
+                            {device.status === "offline" && (
+                              <DropdownMenuItem
+                                className="gap-2 cursor-pointer text-amber-600 focus:text-amber-600"
+                                disabled={sendingAlertId === device.id}
+                                onClick={() => handleSendAlert(device)}
+                              >
+                                {sendingAlertId === device.id
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  : <Send className="h-3.5 w-3.5" />}
+                                Send Alert Email
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem className="gap-2 cursor-pointer text-destructive focus:text-destructive" onClick={() => setDeleteDevice(device)}>
                               <Trash2 className="h-3.5 w-3.5" /> Delete
                             </DropdownMenuItem>

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Wifi, WifiOff, ShieldCheck, Save, TestTube2, Mail, Send } from "lucide-react";
+import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Wifi, WifiOff, ShieldCheck, Save, TestTube2, Mail, Send, Users, Plus, Trash2 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -38,6 +38,12 @@ export default function Settings() {
   const [emailTestStatus, setEmailTestStatus] = useState<TestStatus>("idle");
   const [emailMessage, setEmailMessage] = useState("");
 
+  // CC List state
+  const [ccEmails, setCcEmails] = useState<string[]>([]);
+  const [newCcEmail, setNewCcEmail] = useState("");
+  const [ccSaving, setCcSaving] = useState(false);
+  const [ccMessage, setCcMessage] = useState("");
+
   // Load existing settings on mount
   useEffect(() => {
     fetch(`${BASE}/api/settings`)
@@ -59,6 +65,13 @@ export default function Settings() {
         if (data.from) setEmailFrom(String(data.from));
         if (data.to) setEmailTo(String(data.to));
         if (data.enabled !== undefined) setEmailEnabled(Boolean(data.enabled));
+      })
+      .catch(() => {});
+
+    fetch(`${BASE}/api/settings/cc-list`)
+      .then((r) => r.json())
+      .then((data: { emails: string[] }) => {
+        if (Array.isArray(data.emails)) setCcEmails(data.emails);
       })
       .catch(() => {});
   }, []);
@@ -106,7 +119,6 @@ export default function Settings() {
       const data = await res.json() as { message?: string; error?: string };
       if (res.ok) {
         setSaveMessage("Settings saved successfully!");
-        // Clear test state on save
         setTestStatus("idle");
       } else {
         setSaveMessage(data.error || "Save failed.");
@@ -165,6 +177,45 @@ export default function Settings() {
       setEmailMessage("Network error — save nahi ho saka.");
     } finally {
       setEmailSaving(false);
+    }
+  };
+
+  const handleAddCcEmail = () => {
+    const trimmed = newCcEmail.trim().toLowerCase();
+    if (!trimmed || !trimmed.includes("@")) return;
+    if (ccEmails.includes(trimmed)) {
+      setNewCcEmail("");
+      return;
+    }
+    setCcEmails(prev => [...prev, trimmed]);
+    setNewCcEmail("");
+    setCcMessage("");
+  };
+
+  const handleRemoveCcEmail = (email: string) => {
+    setCcEmails(prev => prev.filter(e => e !== email));
+    setCcMessage("");
+  };
+
+  const handleSaveCcList = async () => {
+    setCcSaving(true);
+    setCcMessage("");
+    try {
+      const res = await fetch(`${BASE}/api/settings/cc-list`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emails: ccEmails }),
+      });
+      const data = await res.json() as { message?: string; error?: string };
+      if (res.ok) {
+        setCcMessage("CC list saved successfully!");
+      } else {
+        setCcMessage(data.error || "Save failed.");
+      }
+    } catch {
+      setCcMessage("Network error — save nahi ho saka.");
+    } finally {
+      setCcSaving(false);
     }
   };
 
@@ -465,6 +516,107 @@ export default function Settings() {
             <div className="border-t pt-3">
               <p className="text-xs text-muted-foreground">
                 <strong>Gmail tip:</strong> 2-Step Verification enable karein aur "App Password" generate karein (Google Account → Security → App passwords). Regular password kaam nahi karega.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* CC List */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              <CardTitle>CC Email List</CardTitle>
+            </div>
+            <CardDescription>
+              Yeh log sabhi offline alert emails mein CC honge. Branch-specific emails ke alawa yeh global CC list hoti hai.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Add Email Input */}
+            <div className="space-y-1.5">
+              <Label htmlFor="cc-email">Email Address Add Karein</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="cc-email"
+                  type="email"
+                  placeholder="manager@company.com"
+                  value={newCcEmail}
+                  onChange={e => setNewCcEmail(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAddCcEmail(); } }}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAddCcEmail}
+                  disabled={!newCcEmail.trim() || !newCcEmail.includes("@")}
+                  className="gap-1.5 shrink-0"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Enter ya Add button dabao.</p>
+            </div>
+
+            {/* CC Email List */}
+            {ccEmails.length > 0 ? (
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+                  CC Recipients ({ccEmails.length})
+                </Label>
+                <div className="rounded-lg border border-border/50 divide-y divide-border/30 overflow-hidden">
+                  {ccEmails.map((email) => (
+                    <div key={email} className="flex items-center justify-between px-3 py-2.5 bg-muted/20 hover:bg-muted/40 transition-colors">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <Mail className="h-3.5 w-3.5 text-primary" />
+                        </div>
+                        <span className="text-sm font-mono">{email}</span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                        onClick={() => handleRemoveCcEmail(email)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-border/50 p-6 text-center">
+                <Users className="h-6 w-6 text-muted-foreground/30 mx-auto mb-2" />
+                <p className="text-xs text-muted-foreground">Abhi koi CC recipient nahi hai.</p>
+                <p className="text-xs text-muted-foreground/60 mt-0.5">Upar email add karein.</p>
+              </div>
+            )}
+
+            {/* Status Message */}
+            {ccMessage && (
+              <div className={`flex items-center gap-2 p-3 rounded-md text-sm ${
+                ccMessage.includes("successfully")
+                  ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
+                  : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+              }`}>
+                {ccMessage.includes("successfully") ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
+                {ccMessage}
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 pt-1">
+              <Button onClick={handleSaveCcList} disabled={ccSaving} className="gap-2">
+                {ccSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Save CC List
+              </Button>
+            </div>
+
+            <div className="border-t pt-3">
+              <p className="text-xs text-muted-foreground">
+                <strong>Note:</strong> CC list sirf offline alert emails mein use hoti hai. To recipients settings upar configure karein.
               </p>
             </div>
           </CardContent>

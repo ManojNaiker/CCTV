@@ -166,6 +166,12 @@ export async function sendOfflineAlert(device: {
     extraRecipients.push(...device.ccEmails.split(",").map((e) => e.trim()).filter(Boolean));
   }
 
+  // Read global CC list from settings
+  const globalCcList = await getSetting("email_cc_list");
+  if (globalCcList) {
+    extraRecipients.push(...globalCcList.split(",").map((e) => e.trim()).filter(Boolean));
+  }
+
   const html = `
     <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 8px;">
       <div style="border-bottom: 2px solid #dc2626; padding-bottom: 16px; margin-bottom: 24px;">

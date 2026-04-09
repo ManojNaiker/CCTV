@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
-import { db, settingsTable } from "@workspace/db";
+import { db, settingsTable, devicesTable } from "@workspace/db";
 import { loginGetSession, type HikCredentials } from "../../lib/hikconnect";
 import { logger } from "../../lib/logger";
-import { getEmailSettings, createTransporter } from "../../lib/emailService";
+import { getEmailSettings, createTransporter, sendOfflineAlert } from "../../lib/emailService";
+import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -205,6 +206,82 @@ router.post("/settings/email/test", async (req, res): Promise<void> => {
     const msg = (err as Error).message;
     logger.error({ err }, "Email test failed");
     res.status(400).json({ success: false, message: `Email test failed: ${msg}` });
+  }
+});
+
+// GET CC list
+router.get("/settings/cc-list", async (_req, res): Promise<void> => {
+  try {
+    const rows = await db.select().from(settingsTable).where(eq(settingsTable.key, "email_cc_list"));
+    const ccList = rows[0]?.value ?? "";
+    const emails = ccList
+      .split(",")
+      .map((e) => e.trim())
+      .filter(Boolean);
+    res.json({ emails, raw: ccList });
+  } catch (err) {
+    logger.error({ err }, "Failed to get CC list");
+    res.status(500).json({ error: "Failed to get CC list" });
+  }
+});
+
+// POST save CC list
+router.post("/settings/cc-list", async (req, res): Promise<void> => {
+  const { emails } = req.body as { emails?: string[] };
+
+  if (!Array.isArray(emails)) {
+    res.status(400).json({ error: "emails array is required" });
+    return;
+  }
+
+  const cleaned = emails.map((e) => e.trim()).filter(Boolean);
+  const raw = cleaned.join(", ");
+
+  try {
+    await db
+      .insert(settingsTable)
+      .values({ key: "email_cc_list", value: raw })
+      .onConflictDoUpdate({ target: settingsTable.key, set: { value: raw } });
+
+    logger.info({ count: cleaned.length }, "CC list saved");
+    res.json({ message: "CC list saved successfully", emails: cleaned });
+  } catch (err) {
+    logger.error({ err }, "Failed to save CC list");
+    res.status(500).json({ error: "Failed to save CC list" });
+  }
+});
+
+// POST send offline alert email for a specific device
+router.post("/devices/:id/send-alert", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid device id" });
+    return;
+  }
+
+  try {
+    const rows = await db.select().from(devicesTable).where(eq(devicesTable.id, id));
+    const device = rows[0];
+    if (!device) {
+      res.status(404).json({ error: "Device not found" });
+      return;
+    }
+
+    await sendOfflineAlert({
+      branchName: device.branchName,
+      serialNumber: device.serialNumber,
+      stateName: device.stateName,
+      offlineDays: device.offlineDays ?? 1,
+      email: device.email,
+      ccEmails: device.ccEmails,
+    });
+
+    logger.info({ id, branchName: device.branchName }, "Manual offline alert sent");
+    res.json({ success: true, message: `Alert email sent for ${device.branchName}` });
+  } catch (err) {
+    const msg = (err as Error).message;
+    logger.error({ err, id }, "Failed to send manual offline alert");
+    res.status(500).json({ success: false, error: `Failed to send alert: ${msg}` });
   }
 });
 

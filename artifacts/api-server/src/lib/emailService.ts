@@ -191,7 +191,7 @@ function buildOfflineAlertHtml(devices: OfflineDevice[]): string {
 
   ${hasLongOffline ? `<p style="margin: 0 0 16px 0; font-weight: bold;">Since the branch has been offline for more than 3 days, CBM, DM, SH, please coordinate with your branch.</p>` : ""}
 
-  <table style="border-collapse: collapse; width: 100%; font-size: 13px;">
+  <table style="border-collapse: collapse; width: auto; min-width: 500px; font-size: 13px;">
     <thead>
       <tr style="background-color: #FFC000;">
         <th style="padding: 7px 10px; border: 1px solid #000000; text-align: center; font-weight: bold; width: 40px;">NO</th>
@@ -230,7 +230,8 @@ export async function sendOfflineAlert(device: {
     return;
   }
 
-  const subject = `CCTV Offline Alert — ${device.branchName} (${device.stateName})`;
+  const dateStr = new Date().toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" });
+  const subject = `CCTV Offline Status | ${dateStr}`;
 
   const extraRecipients: string[] = [];
   if (device.email) {
@@ -258,8 +259,8 @@ export async function sendBulkOfflineAlert(devices: OfflineDevice[]): Promise<vo
     return;
   }
 
-  const count = devices.length;
-  const subject = `CCTV Offline Alert — ${count} Branch${count !== 1 ? "es" : ""} Offline`;
+  const dateStr = new Date().toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" });
+  const subject = `CCTV Offline Status | ${dateStr}`;
 
   const extraRecipients: string[] = [];
   for (const d of devices) {

@@ -10,6 +10,7 @@ export const devicesTable = pgTable("devices", {
   status: text("status").notNull().default("unknown"),
   remark: text("remark"),
   email: text("email"),
+  ccEmails: text("cc_emails"),
   offlineDays: integer("offline_days").default(0),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

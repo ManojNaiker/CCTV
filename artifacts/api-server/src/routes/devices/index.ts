@@ -12,6 +12,7 @@ import {
 } from "@workspace/api-zod";
 import { fetchAllDevicesWithRetry, mapHikStatus } from "../../lib/hikconnect";
 import { logger } from "../../lib/logger";
+import { sendOfflineAlert } from "../../lib/emailService";
 
 const router: IRouter = Router();
 
@@ -183,6 +184,20 @@ router.post("/devices/refresh", async (req, res): Promise<void> => {
             newRemark = `CCTV has been offline from last ${newOfflineDays} day${newOfflineDays !== 1 ? "s" : ""}.`;
           }
         }
+
+        // Send offline alert email when device JUST went offline (status transition)
+        const justWentOffline = device.status !== "offline";
+        if (justWentOffline) {
+          sendOfflineAlert({
+            branchName: device.branchName,
+            serialNumber: device.serialNumber,
+            stateName: device.stateName,
+            offlineDays: newOfflineDays,
+            email: device.email,
+            ccEmails: device.ccEmails,
+          }).catch((err) => logger.warn({ err, serial: device.serialNumber }, "Failed to send offline alert email"));
+        }
+
         offlineCount++;
       } else if (newStatus === "online") {
         // Clear offline tracking when device comes back online
@@ -317,6 +332,30 @@ router.patch("/devices/:id", async (req, res): Promise<void> => {
   const changes = Object.entries(parsed.data).map(([k, v]) => `${k}: '${v}'`).join(", ");
   await logAction("UPDATE", "device", String(device.id), `Device '${device.branchName}' updated — ${changes}`);
 
+  res.json(device);
+});
+
+router.patch("/devices/:id/cc", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid device id" });
+    return;
+  }
+
+  const { ccEmails } = req.body as { ccEmails?: string };
+
+  const [device] = await db.update(devicesTable)
+    .set({ ccEmails: ccEmails ?? null })
+    .where(eq(devicesTable.id, id))
+    .returning();
+
+  if (!device) {
+    res.status(404).json({ error: "Device not found" });
+    return;
+  }
+
+  await logAction("UPDATE", "device", String(device.id), `Device '${device.branchName}' CC email list updated`);
   res.json(device);
 });
 

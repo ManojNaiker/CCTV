@@ -15,6 +15,13 @@
       "when": 1775700000000,
       "tag": "0001_add_email_to_devices",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775760000000,
+      "tag": "0002_add_cc_emails_to_devices",
+      "breakpoints": true
     }
   ]
 }

@@ -58,7 +58,7 @@ export function createTransporter(settings: EmailSettings) {
   });
 }
 
-export async function sendEmail(subject: string, html: string, text?: string): Promise<void> {
+export async function sendEmail(subject: string, html: string, text?: string, extraTo?: string[]): Promise<void> {
   const settings = await getEmailSettings();
 
   if (!settings.enabled) {
@@ -72,7 +72,10 @@ export async function sendEmail(subject: string, html: string, text?: string): P
   }
 
   const transporter = createTransporter(settings);
-  const toList = settings.to.split(",").map((e) => e.trim()).filter(Boolean);
+  const toList = [
+    ...settings.to.split(",").map((e) => e.trim()).filter(Boolean),
+    ...(extraTo ?? []),
+  ].filter((v, i, arr) => arr.indexOf(v) === i);
 
   await transporter.sendMail({
     from: settings.from || settings.user,
@@ -136,4 +139,86 @@ export async function sendUserCreatedEmail(userData: {
   `;
 
   await sendEmail(subject, html);
+}
+
+export async function sendOfflineAlert(device: {
+  branchName: string;
+  serialNumber: string;
+  stateName: string;
+  offlineDays: number;
+  email?: string | null;
+  ccEmails?: string | null;
+}): Promise<void> {
+  const offlineAlertsEnabled = await getSetting("email_offline_alerts");
+  if (offlineAlertsEnabled === "false") {
+    logger.info("Offline alert emails disabled — skipping");
+    return;
+  }
+
+  const now = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
+  const subject = `CCTV Offline Alert — ${device.branchName} (${device.stateName})`;
+
+  const extraRecipients: string[] = [];
+  if (device.email) {
+    extraRecipients.push(...device.email.split(",").map((e) => e.trim()).filter(Boolean));
+  }
+  if (device.ccEmails) {
+    extraRecipients.push(...device.ccEmails.split(",").map((e) => e.trim()).filter(Boolean));
+  }
+
+  const html = `
+    <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 8px;">
+      <div style="border-bottom: 2px solid #dc2626; padding-bottom: 16px; margin-bottom: 24px;">
+        <h2 style="color: #1e3a5f; margin: 0; font-size: 20px;">Light Finance — CCTV Portal</h2>
+        <p style="color: #6b7280; margin: 4px 0 0; font-size: 13px;">Offline Device Alert</p>
+      </div>
+
+      <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin-bottom: 24px; display: flex; align-items: flex-start; gap: 12px;">
+        <div style="flex-shrink: 0; width: 32px; height: 32px; background: #dc2626; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+          <span style="color: white; font-size: 18px; line-height: 1;">!</span>
+        </div>
+        <div>
+          <p style="margin: 0 0 4px; color: #dc2626; font-weight: 700; font-size: 15px;">CCTV Device Offline</p>
+          <p style="margin: 0; color: #7f1d1d; font-size: 13px;">
+            ${device.offlineDays === 1
+              ? "This device has gone offline today."
+              : `This device has been offline for <strong>${device.offlineDays} days</strong>.`}
+          </p>
+        </div>
+      </div>
+
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <tr style="border-bottom: 1px solid #f3f4f6;">
+          <td style="padding: 10px 0; color: #6b7280; width: 160px;">Branch</td>
+          <td style="padding: 10px 0; color: #111827; font-weight: 600;">${device.branchName}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #f3f4f6;">
+          <td style="padding: 10px 0; color: #6b7280;">State</td>
+          <td style="padding: 10px 0; color: #111827;">${device.stateName}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #f3f4f6;">
+          <td style="padding: 10px 0; color: #6b7280;">Serial Number</td>
+          <td style="padding: 10px 0; color: #111827; font-family: monospace; font-size: 13px;">${device.serialNumber}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #f3f4f6;">
+          <td style="padding: 10px 0; color: #6b7280;">Offline Since</td>
+          <td style="padding: 10px 0; color: #dc2626; font-weight: 600;">${device.offlineDays} day${device.offlineDays !== 1 ? "s" : ""}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 0; color: #6b7280;">Detected At</td>
+          <td style="padding: 10px 0; color: #111827;">${now} IST</td>
+        </tr>
+      </table>
+
+      <div style="margin-top: 24px; padding: 12px 16px; background: #fffbeb; border-left: 3px solid #f59e0b; border-radius: 4px; font-size: 13px; color: #78350f;">
+        Please check the device at the branch and ensure connectivity is restored. Log in to the CCTV Portal for more details.
+      </div>
+
+      <div style="margin-top: 32px; font-size: 11px; color: #9ca3af; border-top: 1px solid #f3f4f6; padding-top: 16px;">
+        This is an automated offline alert from the Light Finance CCTV Monitoring System.
+      </div>
+    </div>
+  `;
+
+  await sendEmail(subject, html, undefined, extraRecipients);
 }

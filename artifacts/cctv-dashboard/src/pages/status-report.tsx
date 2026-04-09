@@ -1,8 +1,20 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, Download, ChevronLeft, ChevronRight, Loader2, Info } from "lucide-react";
+import {
+  CalendarDays,
+  FileText,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  BarChart2,
+  TrendingUp,
+  TrendingDown,
+  Activity,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { generateStatusReportPDF } from "@/lib/pdfExport";
 
 type HistoryRecord = {
@@ -42,9 +54,9 @@ function generateDateRange(from: string, to: string): string[] {
 
 const PRESETS = [
   { label: "Today", days: 0 },
-  { label: "Last 7 days", days: 6 },
-  { label: "Last 14 days", days: 13 },
-  { label: "Last 30 days", days: 29 },
+  { label: "Last 7 Days", days: 6 },
+  { label: "Last 14 Days", days: 13 },
+  { label: "Last 30 Days", days: 29 },
 ];
 
 function getPresetRange(days: number): { from: string; to: string } {
@@ -58,43 +70,42 @@ function StatusCell({ status }: { status: string | undefined }) {
   if (!status) {
     return (
       <div className="w-full h-full flex items-center justify-center">
-        <div className="w-3 h-3 rounded-full bg-muted-foreground/20" title="No data" />
+        <div className="w-2.5 h-2.5 rounded-full bg-muted-foreground/20" title="No data" />
       </div>
     );
   }
-  const colorMap: Record<string, string> = {
-    online: "bg-green-500",
-    offline: "bg-red-500",
-    unknown: "bg-orange-400",
+  const cfg: Record<string, { bg: string; label: string }> = {
+    online:  { bg: "bg-green-500", label: "Online"  },
+    offline: { bg: "bg-red-500",   label: "Offline" },
+    unknown: { bg: "bg-orange-400", label: "Unknown" },
   };
-  const labelMap: Record<string, string> = {
-    online: "Online",
-    offline: "Offline",
-    unknown: "Unknown",
-  };
+  const { bg, label } = cfg[status] ?? { bg: "bg-gray-400", label: status };
   return (
-    <div className="w-full h-full flex items-center justify-center" title={labelMap[status] ?? status}>
-      <div className={`w-3 h-3 rounded-full ${colorMap[status] ?? "bg-gray-400"}`} />
+    <div className="w-full h-full flex items-center justify-center" title={label}>
+      <div className={`w-2.5 h-2.5 rounded-full ${bg}`} />
     </div>
   );
 }
 
+const MAX_DATES = 14;
+
 export default function StatusReport() {
   const today = getISTDateStr(new Date());
-  const [activePreset, setActivePreset] = useState<number>(1);
+
+  // Default: Today (preset index 0)
+  const [activePreset, setActivePreset] = useState<number>(0);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [isCustom, setIsCustom] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
+  const [pageOffset, setPageOffset] = useState(0);
 
   const { from, to } = useMemo(() => {
-    if (isCustom && customFrom && customTo) {
-      return { from: customFrom, to: customTo };
-    }
+    if (isCustom && customFrom && customTo) return { from: customFrom, to: customTo };
     return getPresetRange(PRESETS[activePreset].days);
   }, [activePreset, isCustom, customFrom, customTo]);
 
-  const { data: records = [], isLoading, error } = useQuery<HistoryRecord[]>({
+  const { data: records = [], isLoading } = useQuery<HistoryRecord[]>({
     queryKey: ["status-history", from, to],
     queryFn: async () => {
       const res = await fetch(`${BASE}/api/devices/status-history?from=${from}&to=${to}`);
@@ -109,23 +120,20 @@ export default function StatusReport() {
   const devices = useMemo(() => {
     const map = new Map<string, { deviceId: number; serialNumber: string; branchName: string; stateName: string }>();
     for (const r of records) {
-      if (!map.has(r.serialNumber)) {
+      if (!map.has(r.serialNumber))
         map.set(r.serialNumber, { deviceId: r.deviceId, serialNumber: r.serialNumber, branchName: r.branchName, stateName: r.stateName });
-      }
     }
     return Array.from(map.values()).sort((a, b) => a.branchName.localeCompare(b.branchName));
   }, [records]);
 
   const statusMap = useMemo(() => {
     const m = new Map<string, string>();
-    for (const r of records) {
-      m.set(`${r.serialNumber}::${r.date}`, r.status);
-    }
+    for (const r of records) m.set(`${r.serialNumber}::${r.date}`, r.status);
     return m;
   }, [records]);
 
-  const daySummaries = useMemo(() => {
-    return dateRange.map((date) => {
+  const daySummaries = useMemo(() =>
+    dateRange.map((date) => {
       let online = 0, offline = 0, unknown = 0, noData = 0;
       for (const d of devices) {
         const s = statusMap.get(`${d.serialNumber}::${date}`);
@@ -135,8 +143,7 @@ export default function StatusReport() {
         else unknown++;
       }
       return { date, online, offline, unknown, noData };
-    });
-  }, [dateRange, devices, statusMap]);
+    }), [dateRange, devices, statusMap]);
 
   const overallStats = useMemo(() => {
     let online = 0, offline = 0, unknown = 0, noData = 0;
@@ -149,17 +156,24 @@ export default function StatusReport() {
         else unknown++;
       }
     }
-    return { online, offline, unknown, noData, total: online + offline + unknown + noData };
+    const tracked = online + offline + unknown;
+    return { online, offline, unknown, noData, tracked };
   }, [devices, dateRange, statusMap]);
+
+  const uptimePct = overallStats.tracked > 0
+    ? ((overallStats.online / overallStats.tracked) * 100).toFixed(1)
+    : null;
 
   const handlePreset = (idx: number) => {
     setActivePreset(idx);
     setIsCustom(false);
+    setPageOffset(0);
   };
 
   const handleCustomApply = () => {
     if (customFrom && customTo && customFrom <= customTo) {
       setIsCustom(true);
+      setPageOffset(0);
     }
   };
 
@@ -172,274 +186,372 @@ export default function StatusReport() {
     }
   };
 
-  const maxDatesPerPage = 14;
-  const [pageOffset, setPageOffset] = useState(0);
-
-  const visibleDates = dateRange.slice(pageOffset, pageOffset + maxDatesPerPage);
+  const visibleDates = dateRange.slice(pageOffset, pageOffset + MAX_DATES);
   const canPrev = pageOffset > 0;
-  const canNext = pageOffset + maxDatesPerPage < dateRange.length;
+  const canNext = pageOffset + MAX_DATES < dateRange.length;
+
+  const rangeLabel = from === to ? from : `${from} → ${to}`;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <CalendarDays className="h-6 w-6 text-primary" />
-            Status Report
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Day-wise device online/offline history</p>
-        </div>
-        <Button
-          onClick={handleExportPDF}
-          disabled={exportingPDF || records.length === 0}
-          className="gap-2"
-        >
-          {exportingPDF ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          Export PDF
-        </Button>
-      </div>
 
-      {/* Date Range Controls */}
-      <div className="flex flex-wrap items-center gap-2 p-4 rounded-xl border bg-card">
-        <div className="flex gap-1 flex-wrap">
-          {PRESETS.map((p, i) => (
+      {/* ── Header Banner ── */}
+      <div
+        className="rounded-2xl overflow-hidden shadow-lg relative"
+        style={{ background: "linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 55%, #2563eb 100%)" }}
+      >
+        <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/5" />
+        <div className="absolute right-24 -bottom-8 h-32 w-32 rounded-full bg-white/5" />
+        <div className="absolute -left-6 -bottom-6 h-24 w-24 rounded-full bg-white/5" />
+
+        <div className="relative p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
+              <CalendarDays className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white tracking-tight">Status Report</h1>
+              <p className="text-blue-100 text-sm mt-0.5">
+                Day-wise device online / offline history — {rangeLabel}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0 flex-wrap">
+            <div className="text-center px-4 py-2.5 rounded-xl bg-white/15 border border-white/20 min-w-[72px]">
+              {isLoading
+                ? <div className="h-7 w-10 bg-white/20 animate-pulse rounded mx-auto mb-1" />
+                : <p className="text-2xl font-extrabold text-white">{devices.length}</p>}
+              <p className="text-[10px] text-blue-200 uppercase tracking-widest font-semibold">Devices</p>
+            </div>
+            <div className="text-center px-4 py-2.5 rounded-xl bg-white/10 border border-white/15 min-w-[72px]">
+              {isLoading
+                ? <div className="h-7 w-10 bg-white/20 animate-pulse rounded mx-auto mb-1" />
+                : <p className="text-2xl font-extrabold text-white">{uptimePct !== null ? `${uptimePct}%` : "—"}</p>}
+              <p className="text-[10px] text-blue-200 uppercase tracking-widest font-semibold">Uptime</p>
+            </div>
             <Button
-              key={p.label}
-              variant={!isCustom && activePreset === i ? "default" : "outline"}
-              size="sm"
-              onClick={() => handlePreset(i)}
+              className="gap-2 bg-white text-blue-700 hover:bg-blue-50 border-0 font-semibold h-10"
+              onClick={handleExportPDF}
+              disabled={exportingPDF || records.length === 0 || isLoading}
             >
-              {p.label}
+              {exportingPDF ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+              PDF
             </Button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2 ml-2 flex-wrap">
-          <span className="text-sm text-muted-foreground">Custom:</span>
-          <input
-            type="date"
-            value={customFrom}
-            max={today}
-            onChange={(e) => setCustomFrom(e.target.value)}
-            className="px-2 py-1 text-sm border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-          <span className="text-sm text-muted-foreground">to</span>
-          <input
-            type="date"
-            value={customTo}
-            min={customFrom}
-            max={today}
-            onChange={(e) => setCustomTo(e.target.value)}
-            className="px-2 py-1 text-sm border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-          <Button size="sm" variant="secondary" onClick={handleCustomApply} disabled={!customFrom || !customTo || customFrom > customTo}>
-            Apply
-          </Button>
-        </div>
-
-        <div className="ml-auto text-xs text-muted-foreground">
-          {from === to ? from : `${from} → ${to}`}
+          </div>
         </div>
       </div>
 
-      {/* Stats Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="rounded-xl border bg-card p-4">
-          <div className="text-xs text-muted-foreground font-medium mb-1">Devices Tracked</div>
-          <div className="text-2xl font-bold">{devices.length}</div>
-          <div className="text-xs text-muted-foreground">{dateRange.length} day(s)</div>
-        </div>
-        <div className="rounded-xl border bg-card p-4">
-          <div className="text-xs text-green-600 dark:text-green-400 font-medium mb-1">Online Readings</div>
-          <div className="text-2xl font-bold text-green-600 dark:text-green-400">{overallStats.online}</div>
-          <div className="text-xs text-muted-foreground">
-            {overallStats.total > 0 ? ((overallStats.online / (overallStats.total - overallStats.noData)) * 100).toFixed(1) : 0}% uptime
+      {/* ── Date Range Controls ── */}
+      <Card className="shadow-sm">
+        <CardContent className="pt-4 pb-4 px-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mr-1">Range:</span>
+            {PRESETS.map((p, i) => (
+              <Button
+                key={p.label}
+                variant={!isCustom && activePreset === i ? "default" : "outline"}
+                size="sm"
+                className="h-8"
+                onClick={() => handlePreset(i)}
+              >
+                {p.label}
+              </Button>
+            ))}
+
+            <div className="flex items-center gap-2 ml-3 flex-wrap">
+              <span className="text-xs text-muted-foreground">Custom:</span>
+              <input
+                type="date"
+                value={customFrom}
+                max={today}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="px-2 py-1 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary h-8"
+              />
+              <span className="text-xs text-muted-foreground">to</span>
+              <input
+                type="date"
+                value={customTo}
+                min={customFrom}
+                max={today}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="px-2 py-1 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary h-8"
+              />
+              <Button
+                size="sm"
+                variant={isCustom ? "default" : "secondary"}
+                className="h-8"
+                onClick={handleCustomApply}
+                disabled={!customFrom || !customTo || customFrom > customTo}
+              >
+                Apply
+              </Button>
+            </div>
           </div>
-        </div>
-        <div className="rounded-xl border bg-card p-4">
-          <div className="text-xs text-red-600 dark:text-red-400 font-medium mb-1">Offline Readings</div>
-          <div className="text-2xl font-bold text-red-600 dark:text-red-400">{overallStats.offline}</div>
-          <div className="text-xs text-muted-foreground">
-            {overallStats.total > 0 ? ((overallStats.offline / (overallStats.total - overallStats.noData)) * 100).toFixed(1) : 0}% downtime
-          </div>
-        </div>
-        <div className="rounded-xl border bg-card p-4">
-          <div className="text-xs text-orange-500 font-medium mb-1">Unknown</div>
-          <div className="text-2xl font-bold text-orange-500">{overallStats.unknown}</div>
-          <div className="text-xs text-muted-foreground">No Hik data</div>
-        </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Summary Cards ── */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card className="overflow-hidden shadow-sm">
+          <div className="h-1 bg-gradient-to-r from-green-400 to-emerald-500" />
+          <CardContent className="pt-4 pb-5 px-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-green-600 dark:text-green-400 uppercase tracking-wider">Online</p>
+              <div className="h-9 w-9 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
+                <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
+              </div>
+            </div>
+            {isLoading
+              ? <Skeleton className="h-9 w-16 mb-1" />
+              : <p className="text-3xl font-extrabold text-green-700 dark:text-green-400">{overallStats.online}</p>}
+            <p className="text-xs text-muted-foreground mt-1">device-day readings online</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-red-200 dark:border-red-800/50 overflow-hidden shadow-sm">
+          <div className="h-1 bg-gradient-to-r from-red-500 to-rose-600" />
+          <CardContent className="pt-4 pb-5 px-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">Offline</p>
+              <div className="h-9 w-9 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
+                <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
+              </div>
+            </div>
+            {isLoading
+              ? <Skeleton className="h-9 w-16 mb-1" />
+              : <p className="text-3xl font-extrabold text-red-700 dark:text-red-400">{overallStats.offline}</p>}
+            <p className="text-xs text-muted-foreground mt-1">device-day readings offline</p>
+          </CardContent>
+        </Card>
+
+        <Card className="overflow-hidden shadow-sm">
+          <div className="h-1 bg-gradient-to-r from-blue-400 to-indigo-500" />
+          <CardContent className="pt-4 pb-5 px-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Overall Uptime</p>
+              <div className="h-9 w-9 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
+                <Activity className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              </div>
+            </div>
+            {isLoading
+              ? <Skeleton className="h-9 w-16 mb-1" />
+              : <p className="text-3xl font-extrabold text-blue-700 dark:text-blue-400">
+                  {uptimePct !== null ? `${uptimePct}%` : "—"}
+                </p>}
+            <p className="text-xs text-muted-foreground mt-1">across {dateRange.length} day{dateRange.length !== 1 ? "s" : ""}, {devices.length} device{devices.length !== 1 ? "s" : ""}</p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-green-500" />Online</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-red-500" />Offline</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-orange-400" />Unknown</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-muted-foreground/20" />No Data</div>
+      {/* ── Legend ── */}
+      <div className="flex items-center gap-5 text-xs text-muted-foreground px-1">
+        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-green-500" />Online</div>
+        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-500" />Offline</div>
+        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-orange-400" />Unknown</div>
+        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-muted-foreground/20" />No Data</div>
       </div>
 
-      {/* Calendar Grid */}
-      <div className="rounded-xl border bg-card overflow-hidden">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-48 gap-2 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            Loading status history...
-          </div>
-        ) : error ? (
-          <div className="flex items-center justify-center h-48 text-red-500 gap-2">
-            <Info className="h-4 w-4" />
-            Failed to load status history
-          </div>
-        ) : records.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
-            <CalendarDays className="h-10 w-10 opacity-20" />
-            <p className="text-sm">No status history for this date range.</p>
-            <p className="text-xs">History is recorded when a device refresh is run.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            {/* Pagination header */}
-            {dateRange.length > maxDatesPerPage && (
-              <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
+      {/* ── Calendar Grid ── */}
+      <Card className="shadow-sm overflow-hidden">
+        <CardHeader className="border-b border-border/40">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                <CalendarDays className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <CardTitle className="text-base text-blue-700 dark:text-blue-400">Calendar View</CardTitle>
+                <CardDescription className="mt-0.5">
+                  {isLoading ? "Loading..." : records.length === 0 ? "No data for this range" : `${devices.length} device${devices.length !== 1 ? "s" : ""} · ${dateRange.length} day${dateRange.length !== 1 ? "s" : ""}`}
+                </CardDescription>
+              </div>
+            </div>
+            {dateRange.length > MAX_DATES && (
+              <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">
-                  Showing days {pageOffset + 1}–{Math.min(pageOffset + maxDatesPerPage, dateRange.length)} of {dateRange.length}
+                  {pageOffset + 1}–{Math.min(pageOffset + MAX_DATES, dateRange.length)} / {dateRange.length} days
                 </span>
-                <div className="flex gap-1">
-                  <Button size="icon" variant="ghost" className="h-6 w-6" disabled={!canPrev} onClick={() => setPageOffset(Math.max(0, pageOffset - maxDatesPerPage))}>
-                    <ChevronLeft className="h-3 w-3" />
-                  </Button>
-                  <Button size="icon" variant="ghost" className="h-6 w-6" disabled={!canNext} onClick={() => setPageOffset(Math.min(dateRange.length - 1, pageOffset + maxDatesPerPage))}>
-                    <ChevronRight className="h-3 w-3" />
-                  </Button>
-                </div>
+                <Button size="icon" variant="outline" className="h-7 w-7" disabled={!canPrev}
+                  onClick={() => setPageOffset(Math.max(0, pageOffset - MAX_DATES))}>
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <Button size="icon" variant="outline" className="h-7 w-7" disabled={!canNext}
+                  onClick={() => setPageOffset(Math.min(dateRange.length - 1, pageOffset + MAX_DATES))}>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
               </div>
             )}
+          </div>
+        </CardHeader>
 
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                {/* Month row */}
-                <tr className="border-b bg-muted/40">
-                  <th className="sticky left-0 bg-muted/60 z-10 px-4 py-2 text-left font-semibold text-muted-foreground min-w-[180px]">
-                    Device / Branch
-                  </th>
-                  {visibleDates.map((date) => {
-                    const { weekday, day, month } = formatDisplayDate(date);
-                    const isToday = date === today;
-                    return (
-                      <th key={date} className={`px-1 py-1 text-center min-w-[44px] ${isToday ? "bg-primary/10" : ""}`}>
-                        <div className={`font-semibold ${isToday ? "text-primary" : "text-muted-foreground"}`}>{day}</div>
-                        <div className={`text-[10px] ${isToday ? "text-primary/70" : "text-muted-foreground/60"}`}>{weekday}</div>
-                        <div className={`text-[10px] ${isToday ? "text-primary/70" : "text-muted-foreground/40"}`}>{month}</div>
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {/* Day summary row */}
-                <tr className="border-b bg-muted/20">
-                  <td className="sticky left-0 bg-muted/30 z-10 px-4 py-1.5 font-medium text-muted-foreground text-[11px]">
-                    Day Summary
-                  </td>
-                  {visibleDates.map((date) => {
-                    const s = daySummaries.find((d) => d.date === date);
-                    const total = devices.length;
-                    const onlinePct = total > 0 && s ? Math.round((s.online / total) * 100) : 0;
-                    return (
-                      <td key={date} className="px-1 py-1.5 text-center">
-                        <div className="flex flex-col items-center gap-0.5">
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-6 space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}
+            </div>
+          ) : records.length === 0 ? (
+            <div className="py-20 text-center text-muted-foreground flex flex-col items-center gap-3">
+              <div className="h-16 w-16 rounded-full bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/50 flex items-center justify-center">
+                <CalendarDays className="h-7 w-7 text-blue-400/50" />
+              </div>
+              <p className="text-base font-semibold text-blue-700 dark:text-blue-400">No history for this period</p>
+              <p className="text-sm text-muted-foreground">Status history is recorded on each device refresh.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="border-b bg-muted/40">
+                    <th className="sticky left-0 bg-muted/60 z-10 px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[200px]">
+                      Device / Branch
+                    </th>
+                    {visibleDates.map((date) => {
+                      const { day, weekday, month } = formatDisplayDate(date);
+                      const isToday = date === today;
+                      return (
+                        <th key={date} className={`px-1 py-2 text-center min-w-[46px] ${isToday ? "bg-blue-50 dark:bg-blue-950/30" : ""}`}>
+                          <div className={`font-bold text-sm ${isToday ? "text-blue-600 dark:text-blue-400" : "text-foreground"}`}>{day}</div>
+                          <div className={`text-[10px] ${isToday ? "text-blue-500/70" : "text-muted-foreground/60"}`}>{weekday}</div>
+                          <div className={`text-[10px] ${isToday ? "text-blue-400/60" : "text-muted-foreground/40"}`}>{month}</div>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                  {/* Day uptime % row */}
+                  <tr className="border-b bg-muted/20">
+                    <td className="sticky left-0 bg-muted/30 z-10 px-4 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      Day Summary
+                    </td>
+                    {visibleDates.map((date) => {
+                      const s = daySummaries.find((d) => d.date === date);
+                      const total = devices.length;
+                      const onlinePct = total > 0 && s ? Math.round((s.online / total) * 100) : 0;
+                      return (
+                        <td key={date} className="px-1 py-1.5 text-center">
                           <span className={`text-[10px] font-bold ${onlinePct >= 80 ? "text-green-600" : onlinePct >= 50 ? "text-orange-500" : "text-red-500"}`}>
                             {onlinePct}%
                           </span>
-                          <div className="w-full h-1 rounded-full bg-muted overflow-hidden">
+                          <div className="w-full h-1 rounded-full bg-muted mt-0.5 overflow-hidden">
                             <div
                               className={`h-full rounded-full ${onlinePct >= 80 ? "bg-green-500" : onlinePct >= 50 ? "bg-orange-400" : "bg-red-500"}`}
                               style={{ width: `${onlinePct}%` }}
                             />
                           </div>
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-
-                {/* Device rows */}
-                {devices.map((device, idx) => (
-                  <tr key={device.serialNumber} className={`border-b hover:bg-muted/20 transition-colors ${idx % 2 === 0 ? "" : "bg-muted/5"}`}>
-                    <td className="sticky left-0 bg-card z-10 px-4 py-2 border-r">
-                      <div className="font-medium text-foreground truncate max-w-[160px]" title={device.branchName}>
-                        {device.branchName}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground">{device.stateName}</div>
-                      <div className="text-[10px] text-muted-foreground/50 font-mono">{device.serialNumber}</div>
-                    </td>
-                    {visibleDates.map((date) => {
-                      const status = statusMap.get(`${device.serialNumber}::${date}`);
-                      const isToday = date === today;
-                      return (
-                        <td key={date} className={`px-1 py-2 text-center h-12 ${isToday ? "bg-primary/5" : ""}`}>
-                          <StatusCell status={status} />
                         </td>
                       );
                     })}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Per-device offline summary for the range */}
-      {devices.length > 0 && records.length > 0 && (
-        <div className="rounded-xl border bg-card p-4 space-y-3">
-          <h3 className="text-sm font-semibold">Device Uptime Summary ({from === to ? from : `${from} to ${to}`})</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b text-muted-foreground">
-                  <th className="text-left pb-2 font-medium">#</th>
-                  <th className="text-left pb-2 font-medium">Branch</th>
-                  <th className="text-left pb-2 font-medium">State</th>
-                  <th className="text-left pb-2 font-medium">Serial</th>
-                  <th className="text-center pb-2 font-medium">Online Days</th>
-                  <th className="text-center pb-2 font-medium">Offline Days</th>
-                  <th className="text-center pb-2 font-medium">No Data</th>
-                  <th className="text-center pb-2 font-medium">Uptime %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {devices.map((device, idx) => {
-                  let onlineD = 0, offlineD = 0, noDataD = 0;
-                  for (const date of dateRange) {
-                    const s = statusMap.get(`${device.serialNumber}::${date}`);
-                    if (!s) noDataD++;
-                    else if (s === "online") onlineD++;
-                    else if (s === "offline") offlineD++;
-                  }
-                  const tracked = onlineD + offlineD;
-                  const uptime = tracked > 0 ? ((onlineD / tracked) * 100).toFixed(1) : "—";
-                  return (
-                    <tr key={device.serialNumber} className="border-b last:border-0 hover:bg-muted/20">
-                      <td className="py-2 pr-2 text-muted-foreground">{idx + 1}</td>
-                      <td className="py-2 pr-3 font-medium">{device.branchName}</td>
-                      <td className="py-2 pr-3 text-muted-foreground">{device.stateName}</td>
-                      <td className="py-2 pr-3 font-mono text-muted-foreground">{device.serialNumber}</td>
-                      <td className="py-2 text-center text-green-600 dark:text-green-400 font-semibold">{onlineD}</td>
-                      <td className="py-2 text-center text-red-600 dark:text-red-400 font-semibold">{offlineD}</td>
-                      <td className="py-2 text-center text-muted-foreground">{noDataD}</td>
-                      <td className="py-2 text-center">
-                        <Badge variant={tracked === 0 ? "secondary" : Number(uptime) >= 80 ? "default" : Number(uptime) >= 50 ? "secondary" : "destructive"} className="text-[10px]">
-                          {uptime}{tracked > 0 ? "%" : ""}
-                        </Badge>
+                </thead>
+                <tbody className="divide-y divide-border/30">
+                  {devices.map((device, idx) => (
+                    <tr key={device.serialNumber} className={`hover:bg-blue-50/30 dark:hover:bg-blue-950/10 transition-colors ${idx % 2 === 0 ? "" : "bg-muted/5"}`}>
+                      <td className="sticky left-0 bg-card z-10 px-4 py-3 border-r border-border/30">
+                        <div className="font-semibold text-foreground truncate max-w-[170px]" title={device.branchName}>
+                          {device.branchName}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">{device.stateName}</div>
+                        <div className="text-[10px] text-muted-foreground/50 font-mono">{device.serialNumber}</div>
                       </td>
+                      {visibleDates.map((date) => {
+                        const status = statusMap.get(`${device.serialNumber}::${date}`);
+                        const isToday = date === today;
+                        return (
+                          <td key={date} className={`px-1 py-3 text-center h-14 ${isToday ? "bg-blue-50/40 dark:bg-blue-950/10" : ""}`}>
+                            <StatusCell status={status} />
+                          </td>
+                        );
+                      })}
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Device Uptime Summary Table ── */}
+      {devices.length > 0 && records.length > 0 && (
+        <Card className="shadow-sm overflow-hidden">
+          <CardHeader className="border-b border-border/40">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                <BarChart2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <div>
+                <CardTitle className="text-base text-indigo-700 dark:text-indigo-400">Device Uptime Summary</CardTitle>
+                <CardDescription className="mt-0.5">{rangeLabel}</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/40">
+                    <th className="text-left font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider w-8">#</th>
+                    <th className="text-left font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">Branch</th>
+                    <th className="text-left font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">State</th>
+                    <th className="text-left font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">Serial</th>
+                    <th className="text-center font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">Online</th>
+                    <th className="text-center font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">Offline</th>
+                    <th className="text-center font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">No Data</th>
+                    <th className="text-center font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">Uptime %</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/30">
+                  {devices.map((device, idx) => {
+                    let onlineD = 0, offlineD = 0, noDataD = 0;
+                    for (const date of dateRange) {
+                      const s = statusMap.get(`${device.serialNumber}::${date}`);
+                      if (!s) noDataD++;
+                      else if (s === "online") onlineD++;
+                      else if (s === "offline") offlineD++;
+                    }
+                    const tracked = onlineD + offlineD;
+                    const uptime = tracked > 0 ? ((onlineD / tracked) * 100).toFixed(1) : null;
+                    const isGood = uptime !== null && Number(uptime) >= 80;
+                    const isMid  = uptime !== null && Number(uptime) >= 50 && Number(uptime) < 80;
+                    return (
+                      <tr key={device.serialNumber} className="hover:bg-muted/20 transition-colors">
+                        <td className="px-4 py-3.5 text-muted-foreground/50 text-xs font-mono">{idx + 1}</td>
+                        <td className="px-4 py-3.5 font-semibold">{device.branchName}</td>
+                        <td className="px-4 py-3.5 text-muted-foreground text-sm">{device.stateName}</td>
+                        <td className="px-4 py-3.5 font-mono text-xs text-muted-foreground">{device.serialNumber}</td>
+                        <td className="px-4 py-3.5 text-center">
+                          <span className="font-bold text-green-600 dark:text-green-400">{onlineD}</span>
+                        </td>
+                        <td className="px-4 py-3.5 text-center">
+                          {offlineD > 0
+                            ? <span className="font-bold text-red-600 dark:text-red-400">{offlineD}</span>
+                            : <span className="text-muted-foreground/40">0</span>}
+                        </td>
+                        <td className="px-4 py-3.5 text-center text-muted-foreground">{noDataD || "—"}</td>
+                        <td className="px-4 py-3.5 text-center">
+                          {uptime === null ? (
+                            <Badge variant="secondary" className="text-[10px]">—</Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] font-semibold ${
+                                isGood ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800/50"
+                                : isMid  ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400"
+                                :          "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800/50"
+                              }`}
+                            >
+                              {uptime}%
+                            </Badge>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

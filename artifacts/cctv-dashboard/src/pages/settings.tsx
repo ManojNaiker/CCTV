@@ -160,7 +160,7 @@ export default function Settings() {
           user: emailUser,
           password: emailPassword,
           from: emailFrom || emailUser,
-          to: emailUser,
+          to: "",
           enabled: emailEnabled,
         }),
       });

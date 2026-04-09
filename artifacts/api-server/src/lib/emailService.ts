@@ -66,16 +66,18 @@ export async function sendEmail(subject: string, html: string, text?: string, ex
     return;
   }
 
-  if (!settings.host || !settings.user || !settings.password || !settings.to) {
+  if (!settings.host || !settings.user || !settings.password) {
     logger.warn("Email settings incomplete — skipping send");
     return;
   }
 
   const transporter = createTransporter(settings);
-  const toList = [
-    ...settings.to.split(",").map((e) => e.trim()).filter(Boolean),
-    ...(extraTo ?? []),
-  ].filter((v, i, arr) => arr.indexOf(v) === i);
+  const toList = [...(extraTo ?? [])].filter((v, i, arr) => arr.indexOf(v) === i);
+
+  if (toList.length === 0) {
+    logger.warn("No recipients defined — skipping send");
+    return;
+  }
 
   await transporter.sendMail({
     from: settings.from || settings.user,

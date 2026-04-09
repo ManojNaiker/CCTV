@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, or, desc, sql, gte, lte, and } from "drizzle-orm";
-import { db, devicesTable, auditLogsTable, deviceStatusHistoryTable } from "@workspace/db";
+import { db, devicesTable, auditLogsTable, deviceStatusHistoryTable, settingsTable } from "@workspace/db";
 import {
   ListDevicesQueryParams,
   CreateDeviceBody,
@@ -237,6 +237,11 @@ router.post("/devices/refresh", async (req, res): Promise<void> => {
     const description = `Hik-Connect refresh: ${totalDevices} devices checked. Online: ${onlineCount}, Offline: ${offlineCount}, Unknown: ${unknownCount}`;
     await logAction("REFRESH", "device", "all", description);
 
+    // Always update the last refresh timestamp regardless of whether device statuses changed
+    await db.insert(settingsTable)
+      .values({ key: "last_refresh_at", value: now.toISOString() })
+      .onConflictDoUpdate({ target: settingsTable.key, set: { value: now.toISOString() } });
+
     logger.info({ updatedCount, onlineCount, offlineCount, unknownCount }, "Refresh complete");
 
     res.json({
@@ -270,14 +275,17 @@ router.get("/devices/stats/summary", async (req, res): Promise<void> => {
     total += count;
   }
 
-  const lastDevice = await db.select({ updatedAt: devicesTable.updatedAt }).from(devicesTable).orderBy(desc(devicesTable.updatedAt)).limit(1);
+  const lastRefreshSetting = await db.select({ value: settingsTable.value })
+    .from(settingsTable)
+    .where(eq(settingsTable.key, "last_refresh_at"))
+    .limit(1);
 
   res.json({
     total,
     online: stats.online ?? 0,
     offline: stats.offline ?? 0,
     unknown: stats.unknown ?? 0,
-    lastRefreshedAt: lastDevice[0]?.updatedAt?.toISOString() ?? null,
+    lastRefreshedAt: lastRefreshSetting[0]?.value ?? null,
   });
 });
 

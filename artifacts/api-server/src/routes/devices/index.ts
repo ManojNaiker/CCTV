@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, or, desc, sql } from "drizzle-orm";
-import { db, devicesTable, auditLogsTable } from "@workspace/db";
+import { eq, ilike, or, desc, sql, gte, lte, and } from "drizzle-orm";
+import { db, devicesTable, auditLogsTable, deviceStatusHistoryTable } from "@workspace/db";
 import {
   ListDevicesQueryParams,
   CreateDeviceBody,
@@ -221,6 +221,16 @@ router.post("/devices/refresh", async (req, res): Promise<void> => {
           .where(eq(devicesTable.id, device.id));
         updatedCount++;
       }
+
+      // Record a status history snapshot for every device on each refresh
+      await db.insert(deviceStatusHistoryTable).values({
+        deviceId: device.id,
+        serialNumber: device.serialNumber,
+        branchName: device.branchName,
+        stateName: device.stateName,
+        status: newStatus,
+        recordedAt: now,
+      });
     }
 
     const totalDevices = allDevices.length;
@@ -284,6 +294,52 @@ router.get("/devices/offline-streak", async (req, res): Promise<void> => {
     offlineDays: d.offlineDays ?? 0,
     remark: d.remark,
   })));
+});
+
+router.get("/devices/status-history", async (req, res): Promise<void> => {
+  const { from, to } = req.query as { from?: string; to?: string };
+
+  if (!from || !to) {
+    res.status(400).json({ error: "from and to query params are required (YYYY-MM-DD)" });
+    return;
+  }
+
+  const fromDate = new Date(`${from}T00:00:00+05:30`);
+  const toDate = new Date(`${to}T23:59:59+05:30`);
+
+  if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+    res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD" });
+    return;
+  }
+
+  const records = await db.select().from(deviceStatusHistoryTable)
+    .where(and(
+      gte(deviceStatusHistoryTable.recordedAt, fromDate),
+      lte(deviceStatusHistoryTable.recordedAt, toDate)
+    ))
+    .orderBy(deviceStatusHistoryTable.recordedAt);
+
+  // Aggregate: for each device+day, keep the last status recorded that day
+  const dayMap = new Map<string, { deviceId: number; serialNumber: string; branchName: string; stateName: string; date: string; status: string; recordedAt: Date }>();
+
+  for (const r of records) {
+    const dateIST = r.recordedAt.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    const key = `${r.serialNumber}::${dateIST}`;
+    const existing = dayMap.get(key);
+    if (!existing || r.recordedAt > existing.recordedAt) {
+      dayMap.set(key, {
+        deviceId: r.deviceId,
+        serialNumber: r.serialNumber,
+        branchName: r.branchName,
+        stateName: r.stateName,
+        date: dateIST,
+        status: r.status,
+        recordedAt: r.recordedAt,
+      });
+    }
+  }
+
+  res.json(Array.from(dayMap.values()).map(({ recordedAt: _r, ...rest }) => rest));
 });
 
 router.get("/devices/:id", async (req, res): Promise<void> => {

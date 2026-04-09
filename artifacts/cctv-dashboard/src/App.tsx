@@ -13,6 +13,7 @@ import AuditLogs from "@/pages/audit-logs";
 import Settings from "@/pages/settings";
 import OfflineReport from "@/pages/offline-report";
 import CcList from "@/pages/cc-list";
+import StatusReport from "@/pages/status-report";
 import NotFound from "@/pages/not-found";
 import LoginPage from "@/pages/login";
 
@@ -54,6 +55,7 @@ function AppRoutes() {
         <Route path="/settings" component={Settings} />
         <Route path="/offline-report" component={OfflineReport} />
         <Route path="/cc-list" component={CcList} />
+        <Route path="/status-report" component={StatusReport} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

@@ -169,79 +169,79 @@ function buildOfflineAlertHtml(devices: OfflineDevice[]): string {
         const remark = d.remark
           ? d.remark
           : d.offlineDays >= 3
-          ? `Offline for ${d.offlineDays} days.`
+          ? `Has been offline for ${d.offlineDays} days.`
           : "";
         return `
-        <tr style="border-bottom: 1px solid #f3f4f6; ${i % 2 === 1 ? "background:#f9fafb;" : ""}">
-          <td style="padding: 8px 12px; text-align: center; color: #6b7280; font-size: 13px;">${i + 1}</td>
-          <td style="padding: 8px 12px; color: #111827; font-size: 13px;">${d.stateName}</td>
-          <td style="padding: 8px 12px; color: #111827; font-size: 13px; font-weight: 600;">${d.branchName}</td>
-          <td style="padding: 8px 12px; text-align: center;">
-            <span style="background:#fee2e2; color:#dc2626; padding:3px 10px; border-radius:12px; font-size:12px; font-weight:600;">Offline</span>
+        <tr style="border-bottom: 1px solid #e2e8f0; ${i % 2 === 1 ? "background:#f8fafc;" : "background:#ffffff;"}">
+          <td style="padding: 10px 14px; text-align: center; color: #64748b; font-size: 13px; font-weight: 500;">${i + 1}</td>
+          <td style="padding: 10px 14px; color: #334155; font-size: 13px; font-weight: 400;">${d.stateName}</td>
+          <td style="padding: 10px 14px; color: #0f172a; font-size: 13px; font-weight: 600;">${d.branchName}</td>
+          <td style="padding: 10px 14px; text-align: center;">
+            <span style="display:inline-block; background:#fef2f2; color:#b91c1c; padding:3px 12px; border-radius:4px; font-size:12px; font-weight:600; letter-spacing:0.3px; border: 1px solid #fecaca;">Offline</span>
           </td>
-          <td style="padding: 8px 12px; color: #6b7280; font-size: 12px;">${remark}</td>
+          <td style="padding: 10px 14px; color: #64748b; font-size: 13px; font-style: ${remark ? "normal" : "italic"};">${remark || "—"}</td>
         </tr>`;
       }
     )
     .join("");
 
   return `
-<div style="font-family: Arial, sans-serif; max-width: 680px; margin: 0 auto; padding: 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+<div style="font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; max-width: 700px; margin: 0 auto; padding: 0; border: 1px solid #cbd5e1; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
 
   <!-- Header -->
-  <div style="background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 100%); padding: 20px 28px;">
-    <h2 style="color: #ffffff; margin: 0; font-size: 18px; font-weight: 700; letter-spacing: 0.3px;">Light Finance — CCTV Monitoring</h2>
-    <p style="color: #bfdbfe; margin: 4px 0 0; font-size: 12px;">Offline Device Alert &nbsp;|&nbsp; Generated: ${now} IST</p>
+  <div style="background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%); padding: 22px 32px;">
+    <h2 style="color: #ffffff; margin: 0; font-size: 19px; font-weight: 700; letter-spacing: 0.2px; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">Light Finance &mdash; CCTV Monitoring</h2>
+    <p style="color: #bfdbfe; margin: 5px 0 0; font-size: 12px; letter-spacing: 0.3px; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">Offline Device Alert &nbsp;&bull;&nbsp; Generated: ${now} IST</p>
   </div>
 
   <!-- Body -->
-  <div style="padding: 24px 28px; background: #ffffff;">
+  <div style="padding: 28px 32px; background: #ffffff;">
 
     <!-- Branch Team message -->
-    <div style="margin-bottom: 20px; padding: 16px 18px; background: #f0f9ff; border-left: 4px solid #0ea5e9; border-radius: 4px;">
-      <p style="margin: 0 0 8px; font-size: 14px; font-weight: 700; color: #0c4a6e;">Dear Branch Team,</p>
-      <p style="margin: 0 0 8px; font-size: 13px; color: #1e3a5f; line-height: 1.6;">
+    <div style="margin-bottom: 18px; padding: 16px 20px; background: #f0f9ff; border-left: 4px solid #0284c7; border-radius: 6px;">
+      <p style="margin: 0 0 10px; font-size: 14px; font-weight: 700; color: #0c4a6e; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">Dear Branch Team,</p>
+      <p style="margin: 0 0 8px; font-size: 13.5px; color: #1e3a5f; line-height: 1.7; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">
         Please find below the CCTV status of your branches; please check your internet cable if any issue persists; and please contact the IT team.
       </p>
-      <p style="margin: 0 0 8px; font-size: 13px; color: #374151; line-height: 1.6;">
+      <p style="margin: 0 0 8px; font-size: 13.5px; color: #334155; line-height: 1.7; font-family: Arial, sans-serif;">
         कृपया अपनी शाखाओं की सीसीटीवी स्थिति नीचे देखें; कृपया अपना इंटरनेट केबल जांचें; यदि समस्या बनी रहती है तो आईटी टीम से संपर्क करें।
       </p>
-      <p style="margin: 0; font-size: 13px; color: #374151; line-height: 1.6;">
+      <p style="margin: 0; font-size: 13.5px; color: #334155; line-height: 1.7; font-family: Arial, sans-serif;">
         કૃપા કરીને તમારી શાખાઓની સીસીટીવી સ્થિતિ નીચે શોધો; કૃપા કરીને તમારી ઇન્ટરનેટ કેબલ તપાસો; જો સમસ્યા ચાલુ રહે તો કૃપા કરીને IT ટીમનો સંપર્ક કરો.
       </p>
     </div>
 
     <!-- RM message -->
-    <div style="margin-bottom: 20px; padding: 16px 18px; background: #fff7ed; border-left: 4px solid #f97316; border-radius: 4px;">
-      <p style="margin: 0 0 8px; font-size: 14px; font-weight: 700; color: #7c2d12;">Dear RM's,</p>
-      <p style="margin: 0 0 8px; font-size: 13px; color: #1e3a5f; line-height: 1.6;">
+    <div style="margin-bottom: 18px; padding: 16px 20px; background: #fff7ed; border-left: 4px solid #ea580c; border-radius: 6px;">
+      <p style="margin: 0 0 10px; font-size: 14px; font-weight: 700; color: #7c2d12; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">Dear RM's,</p>
+      <p style="margin: 0 0 8px; font-size: 13.5px; color: #1e3a5f; line-height: 1.7; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">
         The CCTV cameras at the following branches are showing as offline; please coordinate with your branch BMs to resolve the issue as soon as possible.
       </p>
-      <p style="margin: 0 0 8px; font-size: 13px; color: #374151; line-height: 1.6;">
+      <p style="margin: 0 0 8px; font-size: 13.5px; color: #334155; line-height: 1.7; font-family: Arial, sans-serif;">
         निम्नलिखित शाखाओं के सीसीटीवी कैमरे ऑफ़लाइन दिख रहे हैं; कृपया समस्या को यथाशीघ्र हल करने के लिए अपनी शाखा के बीएम के साथ समन्वय करें।
       </p>
-      <p style="margin: 0; font-size: 13px; color: #374151; line-height: 1.6;">
+      <p style="margin: 0; font-size: 13.5px; color: #334155; line-height: 1.7; font-family: Arial, sans-serif;">
         નીચેની શાખાઓ પરના સીસીટીવી કેમેરા ઑફલાઇન તરીકે દેખાઈ રહ્યા છે; શક્ય તેટલી વહેલી તકે સમસ્યાનો ઉકેલ લાવવા માટે કૃપા કરીને તમારી શાખા BM સાથે સંકલન કરો.
       </p>
     </div>
 
     ${
       hasLongOffline
-        ? `<div style="margin-bottom: 20px; padding: 12px 16px; background: #fef2f2; border-left: 4px solid #dc2626; border-radius: 4px; font-size: 13px; color: #7f1d1d;">
-      ⚠️ <strong>Since the branch has been offline for more than 3 days, CBM, DM, SH — please coordinate with your branch urgently.</strong>
+        ? `<div style="margin-bottom: 22px; padding: 13px 18px; background: #fff1f2; border-left: 4px solid #e11d48; border-radius: 6px; font-size: 13px; color: #881337; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; line-height: 1.6;">
+      ⚠️ &nbsp;<strong>Since the branch has been offline for more than 3 days, CBM, DM, SH &mdash; please coordinate with your branch urgently.</strong>
     </div>`
         : ""
     }
 
     <!-- Table -->
-    <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; font-family: Arial, sans-serif;">
+    <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">
       <thead>
-        <tr style="background: #1e40af;">
-          <th style="padding: 10px 12px; text-align: center; color: #ffffff; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; width: 40px;">NO</th>
-          <th style="padding: 10px 12px; text-align: left; color: #ffffff; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">State Name</th>
-          <th style="padding: 10px 12px; text-align: left; color: #ffffff; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Branch Name</th>
-          <th style="padding: 10px 12px; text-align: center; color: #ffffff; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">CCTV Status</th>
-          <th style="padding: 10px 12px; text-align: left; color: #ffffff; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Remark</th>
+        <tr style="background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%);">
+          <th style="padding: 11px 14px; text-align: center; color: #ffffff; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; width: 44px;">NO</th>
+          <th style="padding: 11px 14px; text-align: left; color: #ffffff; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;">State Name</th>
+          <th style="padding: 11px 14px; text-align: left; color: #ffffff; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;">Branch Name</th>
+          <th style="padding: 11px 14px; text-align: center; color: #ffffff; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;">CCTV Status</th>
+          <th style="padding: 11px 14px; text-align: left; color: #ffffff; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;">Remark</th>
         </tr>
       </thead>
       <tbody>
@@ -250,10 +250,10 @@ function buildOfflineAlertHtml(devices: OfflineDevice[]): string {
     </table>
 
     <!-- Signature -->
-    <div style="margin-top: 28px; padding-top: 16px; border-top: 1px solid #f3f4f6;">
-      <p style="margin: 0 0 2px; font-size: 13px; color: #374151;">Thanks &amp; Regards,</p>
-      <p style="margin: 0; font-size: 14px; font-weight: 700; color: #1e3a5f;">IT Team</p>
-      <p style="margin: 4px 0 0; font-size: 11px; color: #9ca3af;">Light Finance — CCTV Monitoring System</p>
+    <div style="margin-top: 30px; padding-top: 18px; border-top: 1px solid #e2e8f0;">
+      <p style="margin: 0 0 2px; font-size: 13px; color: #475569; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">Thanks &amp; Regards,</p>
+      <p style="margin: 4px 0 0; font-size: 15px; font-weight: 700; color: #1e3a5f; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">IT Team</p>
+      <p style="margin: 3px 0 0; font-size: 11.5px; color: #94a3b8; letter-spacing: 0.2px; font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">Light Finance &mdash; CCTV Monitoring System</p>
     </div>
 
   </div>

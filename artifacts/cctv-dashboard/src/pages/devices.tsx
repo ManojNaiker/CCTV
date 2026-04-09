@@ -53,29 +53,29 @@ import { Separator } from "@/components/ui/separator";
 function StatusBadge({ status, offlineDays }: { status: string; offlineDays?: number | null }) {
   if (status === "online") {
     return (
-      <Badge className="gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 font-mono text-[10px] px-2 py-0.5 rounded-sm">
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
-        ONLINE
+      <Badge className="gap-1.5 bg-green-50 text-green-700 border border-green-200 text-xs px-2 py-0.5">
+        <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse inline-block" />
+        Online
       </Badge>
     );
   }
   if (status === "offline") {
     return (
       <div className="flex items-center gap-1.5">
-        <Badge className="gap-1.5 bg-red-500/10 text-red-400 border border-red-500/25 font-mono text-[10px] px-2 py-0.5 rounded-sm">
-          <span className="h-1.5 w-1.5 rounded-full bg-red-400 inline-block" />
-          OFFLINE
+        <Badge className="gap-1.5 bg-red-50 text-red-700 border border-red-200 text-xs px-2 py-0.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-red-500 inline-block" />
+          Offline
         </Badge>
         {offlineDays && offlineDays > 0 && (
-          <span className="text-[10px] font-mono text-red-400/70">{offlineDays}d</span>
+          <span className="text-xs text-red-500 font-medium">{offlineDays}d</span>
         )}
       </div>
     );
   }
   return (
-    <Badge className="gap-1.5 bg-yellow-500/10 text-yellow-400 border border-yellow-500/25 font-mono text-[10px] px-2 py-0.5 rounded-sm">
-      <span className="h-1.5 w-1.5 rounded-full bg-yellow-400 inline-block" />
-      UNKNOWN
+    <Badge className="gap-1.5 bg-amber-50 text-amber-700 border border-amber-200 text-xs px-2 py-0.5">
+      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 inline-block" />
+      Unknown
     </Badge>
   );
 }
@@ -218,10 +218,8 @@ export default function Devices() {
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold tracking-tight font-mono">
-            <span className="text-primary">~/</span>device-inventory
-          </h1>
-          <p className="text-muted-foreground mt-0.5 text-xs font-mono">
+          <h1 className="text-3xl font-bold tracking-tight">Device Inventory</h1>
+          <p className="text-muted-foreground mt-1.5 text-sm">
             Manage CCTV devices across all branches
           </p>
         </div>
@@ -229,13 +227,13 @@ export default function Devices() {
           <Button
             variant="outline"
             size="sm"
-            className="gap-1.5 font-mono text-xs border-primary/30 text-primary hover:bg-primary/10 hover:text-primary"
+            className="gap-1.5"
             onClick={() => setIsBulkOpen(true)}
           >
             <Upload className="h-3.5 w-3.5" />
             Bulk Import
           </Button>
-          <Button size="sm" className="gap-1.5 font-mono text-xs" onClick={() => setIsCreateOpen(true)}>
+          <Button size="sm" className="gap-1.5" onClick={() => setIsCreateOpen(true)}>
             <Plus className="h-3.5 w-3.5" />
             Add Device
           </Button>
@@ -270,14 +268,14 @@ export default function Devices() {
           <div className="rounded border border-border/50 overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow className="bg-muted/20 hover:bg-muted/20 border-border/50">
-                  <TableHead className="font-mono text-[10px] text-muted-foreground/70 uppercase tracking-widest h-8">Branch</TableHead>
-                  <TableHead className="font-mono text-[10px] text-muted-foreground/70 uppercase tracking-widest h-8">Serial No.</TableHead>
-                  <TableHead className="font-mono text-[10px] text-muted-foreground/70 uppercase tracking-widest h-8">State</TableHead>
-                  <TableHead className="font-mono text-[10px] text-muted-foreground/70 uppercase tracking-widest h-8">Status</TableHead>
-                  <TableHead className="font-mono text-[10px] text-muted-foreground/70 uppercase tracking-widest h-8">Updated</TableHead>
-                  <TableHead className="font-mono text-[10px] text-muted-foreground/70 uppercase tracking-widest h-8">Remarks</TableHead>
-                  <TableHead className="w-[50px] h-8" />
+                <TableRow className="bg-muted/30 hover:bg-muted/30 border-border/50">
+                  <TableHead className="text-xs font-medium text-muted-foreground h-9">Branch</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground h-9">Serial No.</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground h-9">State</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground h-9">Status</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground h-9">Updated</TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground h-9">Remarks</TableHead>
+                  <TableHead className="w-[50px] h-9" />
                 </TableRow>
               </TableHeader>
               <TableBody>

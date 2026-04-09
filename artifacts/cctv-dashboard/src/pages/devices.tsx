@@ -324,55 +324,68 @@ export default function Devices() {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Device Inventory</h1>
-          <p className="text-muted-foreground mt-1.5 text-sm">
-            Manage CCTV devices across all branches
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 text-amber-600 border-amber-200 hover:bg-amber-50 hover:text-amber-700"
-            onClick={handleSendBulkAlert}
-            disabled={sendingBulk}
-          >
-            {sendingBulk ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-            Send Offline Alert Email
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => setIsBulkOpen(true)}
-          >
-            <Upload className="h-3.5 w-3.5" />
-            Bulk Import
-          </Button>
-          <Button size="sm" className="gap-1.5" onClick={() => setIsCreateOpen(true)}>
-            <Plus className="h-3.5 w-3.5" />
-            Add Device
-          </Button>
+    <div className="space-y-6">
+      {/* ── Header Banner ── */}
+      <div className="rounded-2xl overflow-hidden shadow-lg relative"
+        style={{ background: "linear-gradient(135deg, #064e3b 0%, #047857 50%, #059669 100%)" }}>
+        <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/5" />
+        <div className="absolute right-24 -bottom-8 h-32 w-32 rounded-full bg-white/5" />
+        <div className="absolute -left-6 -bottom-6 h-24 w-24 rounded-full bg-white/5" />
+
+        <div className="relative p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
+              <Video className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white tracking-tight">Device Inventory</h1>
+              <p className="text-emerald-100 text-sm mt-0.5">Manage CCTV devices across all branches</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <Button
+              variant="outline"
+              className="gap-2 bg-white/10 border-white/30 text-white hover:bg-white/20 hover:text-white h-10"
+              onClick={handleSendBulkAlert}
+              disabled={sendingBulk}
+            >
+              {sendingBulk ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Send Alert Email
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2 bg-white/10 border-white/30 text-white hover:bg-white/20 hover:text-white h-10"
+              onClick={() => setIsBulkOpen(true)}
+            >
+              <Upload className="h-4 w-4" />
+              Bulk Import
+            </Button>
+            <Button
+              className="gap-2 bg-white text-emerald-700 hover:bg-emerald-50 border-0 font-semibold h-10"
+              onClick={() => setIsCreateOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              Add Device
+            </Button>
+          </div>
         </div>
       </div>
 
-      <Card className="border-border/50">
+      <Card className="shadow-sm overflow-hidden">
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search branch, serial, state..."
-                className="pl-8 text-xs h-8 bg-background/50"
+                className="pl-9 bg-background"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-[150px] h-8 text-xs bg-background/50">
+              <SelectTrigger className="w-full sm:w-[160px] bg-background">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -384,17 +397,17 @@ export default function Devices() {
             </Select>
           </div>
 
-          <div className="rounded border border-border/50 overflow-hidden">
+          <div className="rounded-lg border border-border/50 overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow className="bg-muted/30 hover:bg-muted/30 border-border/50">
-                  <TableHead className="text-xs font-medium text-muted-foreground h-9">Branch</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground h-9">Serial No.</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground h-9">State</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground h-9">Status</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground h-9">Updated</TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground h-9">Remarks</TableHead>
-                  <TableHead className="w-[50px] h-9" />
+                <TableRow className="bg-muted/30 hover:bg-muted/30">
+                  <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider h-10">Branch</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider h-10">Serial No.</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider h-10">State</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider h-10">Status</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider h-10">Updated</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider h-10">Remarks</TableHead>
+                  <TableHead className="w-[50px] h-10" />
                 </TableRow>
               </TableHeader>
               <TableBody>

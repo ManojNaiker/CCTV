@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { Shield, ShieldAlert, ShieldCheck, MoreHorizontal, UserPlus, Check, X } from "lucide-react";
+import { Shield, ShieldAlert, ShieldCheck, MoreHorizontal, UserPlus, Users } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { 
   useListUsers,
@@ -45,7 +45,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
-export default function Users() {
+export default function UsersPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -92,40 +92,90 @@ export default function Users() {
     }
   };
 
-  const getRoleBadgeColor = (role: string) => {
+  const getRoleBadgeStyle = (role: string) => {
     switch (role) {
-      case 'admin': return 'bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20';
-      case 'operator': return 'bg-primary/10 text-primary border-primary/20 hover:bg-primary/20';
-      default: return 'bg-muted text-muted-foreground border-border hover:bg-muted/80';
+      case 'admin': return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800/50';
+      case 'operator': return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800/50';
+      default: return 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
     }
   };
 
+  const adminCount = (users ?? []).filter((u: any) => u.role === "admin").length;
+  const operatorCount = (users ?? []).filter((u: any) => u.role === "operator").length;
+  const activeCount = (users ?? []).filter((u: any) => u.isActive).length;
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage operators, admins, and their access levels.
-          </p>
+      {/* ── Header Banner ── */}
+      <div className="rounded-2xl overflow-hidden shadow-lg relative"
+        style={{ background: "linear-gradient(135deg, #312e81 0%, #4338ca 50%, #6366f1 100%)" }}>
+        <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/5" />
+        <div className="absolute right-24 -bottom-8 h-32 w-32 rounded-full bg-white/5" />
+        <div className="absolute -left-6 -bottom-6 h-24 w-24 rounded-full bg-white/5" />
+
+        <div className="relative p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
+              <Users className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white tracking-tight">User Management</h1>
+              <p className="text-indigo-100 text-sm mt-0.5">Manage operators, admins, and their access levels.</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="text-center px-4 py-2.5 rounded-xl bg-white/15 border border-white/20 min-w-[64px]">
+              {isLoading ? <div className="h-7 w-8 bg-white/20 animate-pulse rounded mx-auto mb-1" /> : <p className="text-2xl font-extrabold text-white">{users?.length ?? 0}</p>}
+              <p className="text-[10px] text-indigo-200 uppercase tracking-widest font-semibold">Total</p>
+            </div>
+            <div className="text-center px-4 py-2.5 rounded-xl bg-white/10 border border-white/15 min-w-[64px]">
+              {isLoading ? <div className="h-7 w-8 bg-white/20 animate-pulse rounded mx-auto mb-1" /> : <p className="text-2xl font-extrabold text-white">{activeCount}</p>}
+              <p className="text-[10px] text-indigo-200 uppercase tracking-widest font-semibold">Active</p>
+            </div>
+            <Button
+              className="gap-2 bg-white text-indigo-700 hover:bg-indigo-50 border-0 font-semibold h-10"
+              onClick={() => setIsCreateOpen(true)}
+            >
+              <UserPlus className="h-4 w-4" />
+              Add User
+            </Button>
+          </div>
         </div>
-        <Button className="gap-2" onClick={() => setIsCreateOpen(true)}>
-          <UserPlus className="h-4 w-4" />
-          Add User
-        </Button>
       </div>
 
-      <Card>
+      {/* ── Role summary pills ── */}
+      {!isLoading && (users?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800/50 dark:text-red-400 text-xs font-semibold">
+            <ShieldAlert className="h-3.5 w-3.5" /> {adminCount} Admin{adminCount !== 1 ? "s" : ""}
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800/50 dark:text-blue-400 text-xs font-semibold">
+            <ShieldCheck className="h-3.5 w-3.5" /> {operatorCount} Operator{operatorCount !== 1 ? "s" : ""}
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 text-xs font-semibold">
+            <Shield className="h-3.5 w-3.5" /> {(users?.length ?? 0) - adminCount - operatorCount} Viewer{((users?.length ?? 0) - adminCount - operatorCount) !== 1 ? "s" : ""}
+          </span>
+        </div>
+      )}
+
+      {/* ── Users Table ── */}
+      <Card className="shadow-sm overflow-hidden">
+        <div className="border-b border-border/40 bg-muted/30 px-6 py-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            {isLoading ? "Loading users..." : `${users?.length ?? 0} user${(users?.length ?? 0) !== 1 ? "s" : ""} registered`}
+          </p>
+        </div>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="pl-6">Name</TableHead>
-                <TableHead>Username</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Last Login</TableHead>
-                <TableHead className="w-[80px]"></TableHead>
+              <TableRow className="bg-muted/20 hover:bg-muted/20">
+                <TableHead className="pl-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Name</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Username</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Role</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Last Login</TableHead>
+                <TableHead className="w-[60px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -148,40 +198,48 @@ export default function Users() {
                 </TableRow>
               ) : (
                 users?.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="pl-6">
-                      <div className="font-medium">{user.fullName}</div>
-                      <div className="text-xs text-muted-foreground">{user.email}</div>
+                  <TableRow key={user.id} className="hover:bg-muted/20">
+                    <TableCell className="pl-6 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center shrink-0">
+                          <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                            {(user.fullName || user.username).charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="font-semibold text-sm">{user.fullName}</div>
+                          <div className="text-xs text-muted-foreground">{user.email}</div>
+                        </div>
+                      </div>
                     </TableCell>
-                    <TableCell className="font-mono text-sm">{user.username}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={`capitalize flex inline-flex items-center w-fit ${getRoleBadgeColor(user.role)}`}>
+                    <TableCell className="font-mono text-sm py-3.5">{user.username}</TableCell>
+                    <TableCell className="py-3.5">
+                      <Badge variant="outline" className={`capitalize inline-flex items-center gap-1 w-fit text-xs font-semibold ${getRoleBadgeStyle(user.role)}`}>
                         <RoleIcon role={user.role} />
                         {user.role}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-3.5">
                       <div className="flex items-center gap-2">
-                        {user.isActive ? (
-                          <><div className="h-2 w-2 rounded-full bg-green-500" /><span className="text-sm">Active</span></>
-                        ) : (
-                          <><div className="h-2 w-2 rounded-full bg-muted-foreground" /><span className="text-sm text-muted-foreground">Inactive</span></>
-                        )}
+                        <span className={`h-2 w-2 rounded-full ${user.isActive ? "bg-green-500" : "bg-muted-foreground/40"}`} />
+                        <span className={`text-sm ${user.isActive ? "text-green-700 dark:text-green-400 font-medium" : "text-muted-foreground"}`}>
+                          {user.isActive ? "Active" : "Inactive"}
+                        </span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {user.lastLoginAt ? format(new Date(user.lastLoginAt), "MMM d, yyyy HH:mm") : 'Never'}
+                    <TableCell className="text-muted-foreground text-xs py-3.5">
+                      {user.lastLoginAt ? format(new Date(user.lastLoginAt), "dd MMM yyyy, HH:mm") : <span className="opacity-40 italic">Never</span>}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-3.5">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
+                          <Button variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground">
                             <span className="sr-only">Open menu</span>
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => toggleActive(user)}>
+                          <DropdownMenuItem className="cursor-pointer" onClick={() => toggleActive(user)}>
                             {user.isActive ? "Deactivate User" : "Activate User"}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -195,32 +253,35 @@ export default function Users() {
         </CardContent>
       </Card>
 
+      {/* ── Add User Dialog ── */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-4 w-4 text-indigo-600" /> Add New User
+            </DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>Username</Label>
-              <Input value={createData.username} onChange={e => setCreateData({...createData, username: e.target.value})} />
-            </div>
-            <div className="grid gap-2">
-              <Label>Full Name</Label>
-              <Input value={createData.fullName} onChange={e => setCreateData({...createData, fullName: e.target.value})} />
-            </div>
-            <div className="grid gap-2">
-              <Label>Email</Label>
-              <Input type="email" value={createData.email} onChange={e => setCreateData({...createData, email: e.target.value})} />
-            </div>
-            <div className="grid gap-2">
-              <Label>Password</Label>
-              <Input type="password" value={createData.password} onChange={e => setCreateData({...createData, password: e.target.value})} />
-            </div>
-            <div className="grid gap-2">
-              <Label>Role</Label>
-              <Select value={createData.role} onValueChange={(v: any) => setCreateData({...createData, role: v})}>
-                <SelectTrigger>
+          <div className="grid gap-3 py-2">
+            {[
+              { label: "Username", key: "username", type: "text" },
+              { label: "Full Name", key: "fullName", type: "text" },
+              { label: "Email", key: "email", type: "email" },
+              { label: "Password", key: "password", type: "password" },
+            ].map(({ label, key, type }) => (
+              <div key={key} className="grid gap-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</Label>
+                <Input
+                  type={type}
+                  className="h-9"
+                  value={(createData as any)[key]}
+                  onChange={e => setCreateData({ ...createData, [key]: e.target.value })}
+                />
+              </div>
+            ))}
+            <div className="grid gap-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Role</Label>
+              <Select value={createData.role} onValueChange={(v: any) => setCreateData({ ...createData, role: v })}>
+                <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -233,7 +294,13 @@ export default function Users() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={createMutation.isPending || !createData.username || !createData.password}>Add User</Button>
+            <Button
+              onClick={handleCreate}
+              disabled={createMutation.isPending || !createData.username || !createData.password}
+              className="gap-2"
+            >
+              {createMutation.isPending ? "Adding..." : "Add User"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

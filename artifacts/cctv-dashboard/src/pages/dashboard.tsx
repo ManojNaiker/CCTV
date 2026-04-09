@@ -16,6 +16,8 @@ import {
   WifiOff,
   HelpCircle,
   ArrowRight,
+  Activity,
+  Clock,
 } from "lucide-react";
 import {
   PieChart,
@@ -36,40 +38,6 @@ const COLORS = {
   offline: "#ef4444",
   unknown: "#f97316",
 };
-
-function StatCard({
-  title,
-  value,
-  icon: Icon,
-  colorClass,
-  bgClass,
-  borderClass,
-  loading,
-}: {
-  title: string;
-  value: number;
-  icon: React.ElementType;
-  colorClass: string;
-  bgClass: string;
-  borderClass: string;
-  loading: boolean;
-}) {
-  return (
-    <Card className={`${borderClass} ${bgClass} shadow-sm hover:shadow-md transition-shadow`}>
-      <CardHeader className="flex flex-row items-center justify-between pb-3 pt-5 px-5">
-        <CardTitle className={`text-sm font-medium text-muted-foreground`}>{title}</CardTitle>
-        <Icon className={`h-5 w-5 ${colorClass} opacity-70`} />
-      </CardHeader>
-      <CardContent className="px-5 pb-5">
-        {loading ? (
-          <Skeleton className="h-9 w-20" />
-        ) : (
-          <div className={`text-3xl font-semibold ${colorClass}`}>{value.toLocaleString()}</div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
 
 interface CustomLabelProps {
   cx: number;
@@ -111,7 +79,6 @@ export default function Dashboard() {
         setNextRefresh(120);
       },
       onError: () => {
-        // Reset timer even on failure so it doesn't get stuck at 0
         setNextRefresh(120);
       },
     },
@@ -120,14 +87,13 @@ export default function Dashboard() {
   useEffect(() => {
     const timer = setInterval(() => {
       setNextRefresh((prev) => {
-        if (prev <= 1) return 0; // signal to fire refresh
+        if (prev <= 1) return 0;
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timer);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When countdown hits 0, fire the actual Hik-Connect refresh
   useEffect(() => {
     if (nextRefresh === 0 && !refreshMutation.isPending) {
       refreshMutation.mutate(undefined);
@@ -146,94 +112,139 @@ export default function Dashboard() {
   ].filter((d) => d.value > 0);
 
   const uptime = total > 0 ? ((online / total) * 100).toFixed(1) : "0.0";
+  const timerDisplay = `${Math.floor(nextRefresh / 60)}:${(nextRefresh % 60).toString().padStart(2, "0")}`;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">CCTV Operations Dashboard</h1>
-          <p className="text-muted-foreground mt-1.5 text-sm">
-            Real-time monitoring of nationwide branch cameras.
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="text-sm text-muted-foreground text-right hidden sm:block">
-            <div>
-              Auto-refresh in{" "}
-              <span className="font-mono text-foreground font-medium">
-                {Math.floor(nextRefresh / 60)}:{(nextRefresh % 60).toString().padStart(2, "0")}
-              </span>
+      {/* ── Header Banner ── */}
+      <div className="rounded-2xl overflow-hidden shadow-lg relative"
+        style={{ background: "linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #2563eb 100%)" }}>
+        <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/5" />
+        <div className="absolute right-24 -bottom-8 h-32 w-32 rounded-full bg-white/5" />
+        <div className="absolute -left-6 -bottom-6 h-24 w-24 rounded-full bg-white/5" />
+
+        <div className="relative p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
+              <Activity className="h-6 w-6 text-white" />
             </div>
-            {stats?.lastRefreshedAt && (
-              <div className="text-xs">
-                Last checked:{" "}
-                {formatDistanceToNow(new Date(stats.lastRefreshedAt), { addSuffix: true })}
-              </div>
-            )}
+            <div>
+              <h1 className="text-2xl font-bold text-white tracking-tight">CCTV Operations Dashboard</h1>
+              <p className="text-blue-100 text-sm mt-0.5">
+                Real-time monitoring of nationwide branch cameras.
+              </p>
+            </div>
           </div>
-          <Button
-            onClick={() => refreshMutation.mutate(undefined)}
-            disabled={refreshMutation.isPending}
-            className="gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshMutation.isPending ? "animate-spin" : ""}`} />
-            Refresh Now
-          </Button>
+
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Timer */}
+            <div className="text-center px-4 py-2.5 rounded-xl bg-white/15 border border-white/20 min-w-[100px]">
+              <div className="flex items-center gap-1.5 justify-center mb-0.5">
+                <Clock className="h-3 w-3 text-blue-200" />
+                <span className="text-[10px] text-blue-200 uppercase tracking-widest font-semibold">Next Refresh</span>
+              </div>
+              <p className="text-xl font-bold text-white font-mono">{timerDisplay}</p>
+              {stats?.lastRefreshedAt && (
+                <p className="text-[10px] text-blue-200/60 mt-0.5">
+                  Last: {formatDistanceToNow(new Date(stats.lastRefreshedAt), { addSuffix: true })}
+                </p>
+              )}
+            </div>
+
+            <Button
+              onClick={() => refreshMutation.mutate(undefined)}
+              disabled={refreshMutation.isPending}
+              className="gap-2 bg-white text-blue-700 hover:bg-blue-50 border-0 font-semibold h-10"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshMutation.isPending ? "animate-spin" : ""}`} />
+              Refresh Now
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Stat Cards */}
+      {/* ── Stat Cards ── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Total Devices"
-          value={total}
-          icon={MonitorCheck}
-          colorClass="text-foreground"
-          bgClass=""
-          borderClass=""
-          loading={statsLoading}
-        />
-        <StatCard
-          title="Online"
-          value={online}
-          icon={Wifi}
-          colorClass="text-green-700 dark:text-green-400"
-          bgClass="bg-green-50 dark:bg-green-950/40"
-          borderClass="border-green-200 dark:border-green-800/50"
-          loading={statsLoading}
-        />
-        <StatCard
-          title="Offline"
-          value={offline}
-          icon={WifiOff}
-          colorClass="text-red-600 dark:text-red-400"
-          bgClass="bg-red-50 dark:bg-red-950/40"
-          borderClass="border-red-200 dark:border-red-800/50"
-          loading={statsLoading}
-        />
-        <StatCard
-          title="Unknown State"
-          value={unknown}
-          icon={HelpCircle}
-          colorClass="text-orange-600 dark:text-orange-400"
-          bgClass="bg-orange-50 dark:bg-orange-950/40"
-          borderClass="border-orange-200 dark:border-orange-800/50"
-          loading={statsLoading}
-        />
+        {/* Total */}
+        <Card className="border-border/60 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-slate-400 to-slate-500" />
+          <CardContent className="pt-4 pb-5 px-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Devices</p>
+              <div className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                <MonitorCheck className="h-4.5 w-4.5 text-slate-600 dark:text-slate-300" />
+              </div>
+            </div>
+            {statsLoading ? <Skeleton className="h-9 w-20" /> : (
+              <p className="text-3xl font-extrabold text-foreground">{total.toLocaleString()}</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Online */}
+        <Card className="border-green-200 dark:border-green-800/50 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-green-400 to-emerald-500" />
+          <CardContent className="pt-4 pb-5 px-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-green-600 dark:text-green-400 uppercase tracking-wider">Online</p>
+              <div className="h-9 w-9 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
+                <Wifi className="h-4 w-4 text-green-600 dark:text-green-400" />
+              </div>
+            </div>
+            {statsLoading ? <Skeleton className="h-9 w-20" /> : (
+              <p className="text-3xl font-extrabold text-green-700 dark:text-green-400">{online.toLocaleString()}</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Offline */}
+        <Card className="border-red-200 dark:border-red-800/50 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-red-400 to-rose-500" />
+          <CardContent className="pt-4 pb-5 px-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">Offline</p>
+              <div className="h-9 w-9 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
+                <WifiOff className="h-4 w-4 text-red-600 dark:text-red-400" />
+              </div>
+            </div>
+            {statsLoading ? <Skeleton className="h-9 w-20" /> : (
+              <p className="text-3xl font-extrabold text-red-600 dark:text-red-400">{offline.toLocaleString()}</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Unknown */}
+        <Card className="border-orange-200 dark:border-orange-800/50 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-orange-400 to-amber-500" />
+          <CardContent className="pt-4 pb-5 px-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-orange-600 dark:text-orange-400 uppercase tracking-wider">Unknown</p>
+              <div className="h-9 w-9 rounded-xl bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center">
+                <HelpCircle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+              </div>
+            </div>
+            {statsLoading ? <Skeleton className="h-9 w-20" /> : (
+              <p className="text-3xl font-extrabold text-orange-600 dark:text-orange-400">{unknown.toLocaleString()}</p>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Donut Chart + Summary */}
+      {/* ── Donut Chart + Summary ── */}
       <div className="grid gap-6 lg:grid-cols-5">
-        {/* Donut Chart */}
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle>Device Status Distribution</CardTitle>
-            <CardDescription>
-              Network health overview across all {total} branches
-            </CardDescription>
+        <Card className="lg:col-span-3 shadow-sm">
+          <CardHeader className="border-b border-border/40 pb-4">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                <MonitorX className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Device Status Distribution</CardTitle>
+                <CardDescription>Network health across all {total} branches</CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             {statsLoading ? (
               <div className="h-72 flex items-center justify-center">
                 <Skeleton className="h-56 w-56 rounded-full" />
@@ -281,66 +292,78 @@ export default function Dashboard() {
         </Card>
 
         {/* Summary Panel */}
-        <Card className="lg:col-span-2 flex flex-col">
-          <CardHeader>
-            <CardTitle>Network Summary</CardTitle>
-            <CardDescription>Status breakdown & quick actions</CardDescription>
+        <Card className="lg:col-span-2 flex flex-col shadow-sm">
+          <CardHeader className="border-b border-border/40 pb-4">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <Activity className="h-4 w-4 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Network Summary</CardTitle>
+                <CardDescription>Status breakdown & quick actions</CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="flex-1 flex flex-col gap-4">
-            {/* Uptime Badge */}
-            <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800/50">
-              <span className="text-sm font-medium text-green-800 dark:text-green-300">Network Uptime</span>
-              <span className="text-2xl font-bold text-green-700 dark:text-green-400">{uptime}%</span>
+          <CardContent className="flex-1 flex flex-col gap-4 pt-4">
+            {/* Uptime */}
+            <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border border-green-200 dark:border-green-800/50">
+              <div>
+                <p className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wider">Network Uptime</p>
+                {!statsLoading && stats?.lastRefreshedAt && (
+                  <p className="text-[10px] text-green-600/60 mt-0.5">
+                    As of {formatDistanceToNow(new Date(stats.lastRefreshedAt), { addSuffix: true })}
+                  </p>
+                )}
+              </div>
+              <span className="text-3xl font-extrabold text-green-700 dark:text-green-400">{uptime}%</span>
             </div>
 
             {/* Status rows */}
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {[
-                { label: "Online Branches", value: online, color: "bg-green-500", textColor: "text-green-700 dark:text-green-400" },
-                { label: "Offline Branches", value: offline, color: "bg-red-500", textColor: "text-red-600 dark:text-red-400" },
-                { label: "Unknown State", value: unknown, color: "bg-orange-500", textColor: "text-orange-600 dark:text-orange-400" },
+                { label: "Online Branches", value: online, barColor: "bg-green-500", textColor: "text-green-700 dark:text-green-400" },
+                { label: "Offline Branches", value: offline, barColor: "bg-red-500", textColor: "text-red-600 dark:text-red-400" },
+                { label: "Unknown State", value: unknown, barColor: "bg-orange-500", textColor: "text-orange-600 dark:text-orange-400" },
               ].map((row) => (
-                <div key={row.label} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className={`h-2.5 w-2.5 rounded-full ${row.color}`} />
-                    <span className="text-muted-foreground">{row.label}</span>
+                <div key={row.label}>
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <div className="flex items-center gap-2">
+                      <div className={`h-2 w-2 rounded-full ${row.barColor}`} />
+                      <span className="text-muted-foreground text-xs">{row.label}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`font-bold text-sm ${row.textColor}`}>{statsLoading ? "—" : row.value}</span>
+                      {total > 0 && !statsLoading && (
+                        <span className="text-xs text-muted-foreground/60 w-10 text-right">
+                          {((row.value / total) * 100).toFixed(1)}%
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className={`font-semibold ${row.textColor}`}>{statsLoading ? "—" : row.value}</span>
-                    {total > 0 && !statsLoading && (
-                      <span className="text-xs text-muted-foreground w-12 text-right">
-                        {((row.value / total) * 100).toFixed(1)}%
-                      </span>
-                    )}
-                  </div>
+                  {!statsLoading && total > 0 && (
+                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full ${row.barColor} rounded-full transition-all`}
+                        style={{ width: `${(row.value / total) * 100}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
-
-              {/* Progress bars */}
-              {!statsLoading && total > 0 && (
-                <div className="mt-4 space-y-2">
-                  <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden flex">
-                    <div style={{ width: `${(online / total) * 100}%` }} className="bg-green-500 transition-all" />
-                    <div style={{ width: `${(offline / total) * 100}%` }} className="bg-red-500 transition-all" />
-                    <div style={{ width: `${(unknown / total) * 100}%` }} className="bg-orange-400 transition-all" />
-                  </div>
-                  <p className="text-xs text-muted-foreground">Combined network health</p>
-                </div>
-              )}
             </div>
 
             {/* Quick actions */}
             <div className="mt-auto space-y-2 pt-2">
               {offline > 0 && (
                 <Link href="/offline-report">
-                  <Button variant="destructive" size="sm" className="w-full gap-2 justify-between">
+                  <Button variant="destructive" size="sm" className="w-full gap-2 justify-between h-9">
                     <span>View {offline} Offline Devices</span>
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
               )}
               <Link href="/devices">
-                <Button variant="outline" size="sm" className="w-full gap-2 justify-between">
+                <Button variant="outline" size="sm" className="w-full gap-2 justify-between h-9">
                   <span>Manage All Devices</span>
                   <ArrowRight className="h-4 w-4" />
                 </Button>

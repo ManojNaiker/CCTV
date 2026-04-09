@@ -82,13 +82,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         return (
           <Link key={item.href} href={item.href} onClick={() => setMobileMenuOpen(false)}>
             <span
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all cursor-pointer text-sm font-semibold ${
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all cursor-pointer text-sm font-medium relative ${
                 isActive
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-md"
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-md font-semibold"
                   : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
               }`}
             >
-              <Icon className="h-4 w-4 shrink-0" />
+              {isActive && (
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full bg-sidebar-primary-foreground/60" />
+              )}
+              <Icon className={`h-4 w-4 shrink-0 ${isActive ? "opacity-100" : "opacity-70"}`} />
               {item.label}
             </span>
           </Link>
@@ -98,7 +101,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   );
 
   const LogoBlock = () => (
-    <div className="flex items-center gap-2 px-2 mb-8">
+    <div className="flex items-center gap-2 px-2 mb-6">
       <img
         src="/logo.png"
         alt="Light Finance"
@@ -111,13 +114,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   );
 
   const UserBlock = () => (
-    <div className="flex items-center gap-2 px-2 mb-4 pb-4 border-b border-sidebar-border/40">
-      <div className="flex items-center justify-center h-8 w-8 rounded-full bg-sidebar-accent border border-sidebar-border/50 shrink-0">
-        <UserCircle className="h-4 w-4 text-sidebar-foreground/60" />
+    <div className="flex items-center gap-3 px-3 py-2.5 mb-4 rounded-xl bg-sidebar-accent/60 border border-sidebar-border/30">
+      <div className="flex items-center justify-center h-8 w-8 rounded-full bg-blue-500/20 border border-blue-400/30 shrink-0">
+        <UserCircle className="h-4 w-4 text-blue-300" />
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-xs font-semibold text-sidebar-foreground truncate">{user?.fullName ?? user?.username}</p>
-        <p className="text-[10px] text-sidebar-foreground/40 capitalize">{user?.role}</p>
+        <p className="text-[10px] text-sidebar-foreground/40 capitalize tracking-wide">{user?.role}</p>
       </div>
     </div>
   );
@@ -125,15 +128,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen w-full flex-col bg-background md:flex-row">
       {/* Desktop Sidebar */}
-      <aside
-        className="hidden w-64 flex-col border-r border-sidebar-border px-4 py-6 md:flex bg-sidebar"
-      >
+      <aside className="hidden w-64 flex-col border-r border-sidebar-border px-4 py-6 md:flex bg-sidebar">
         <LogoBlock />
         {user && <UserBlock />}
-        <nav className="flex flex-1 flex-col gap-1.5">
+
+        <p className="text-[10px] font-semibold text-sidebar-foreground/30 uppercase tracking-widest px-3 mb-2">Navigation</p>
+        <nav className="flex flex-1 flex-col gap-1">
           <NavLinks />
         </nav>
-        <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-sidebar-border/60">
+
+        <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-sidebar-border/40">
           <Button
             variant="ghost"
             className="flex-1 justify-start gap-3 text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-accent text-sm h-9 font-medium"
@@ -158,11 +162,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </SheetTrigger>
             <SheetContent side="left" className="w-64 sm:max-w-none">
               <div className="px-2 mb-6 pt-2">
-                <img
-                  src="/logo.png"
-                  alt="Light Finance"
-                  className="h-10 w-auto object-contain"
-                />
+                <img src="/logo.png" alt="Light Finance" className="h-10 w-auto object-contain" />
               </div>
               {user && (
                 <div className="flex items-center gap-2 px-2 mb-4 pb-4 border-b border-border/40">
@@ -175,7 +175,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   </div>
                 </div>
               )}
-              <nav className="flex flex-col gap-2">
+              <nav className="flex flex-col gap-1.5">
                 <NavLinks />
               </nav>
               <div className="mt-6 pt-4 border-t border-border/40">

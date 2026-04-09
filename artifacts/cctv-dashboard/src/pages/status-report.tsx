@@ -69,20 +69,20 @@ function getPresetRange(days: number): { from: string; to: string } {
 function StatusCell({ status }: { status: string | undefined }) {
   if (!status) {
     return (
-      <div className="w-full h-full flex items-center justify-center">
-        <div className="w-2.5 h-2.5 rounded-full bg-muted-foreground/20" title="No data" />
+      <div className="w-full h-full flex items-center justify-center px-1" title="No data">
+        <div className="w-full h-1.5 rounded-full bg-muted-foreground/15" />
       </div>
     );
   }
-  const cfg: Record<string, { bg: string; label: string }> = {
-    online:  { bg: "bg-green-500", label: "Online"  },
-    offline: { bg: "bg-red-500",   label: "Offline" },
-    unknown: { bg: "bg-orange-400", label: "Unknown" },
+  const cfg: Record<string, { bar: string; label: string }> = {
+    online:  { bar: "bg-green-500", label: "Online"  },
+    offline: { bar: "bg-red-500",   label: "Offline" },
+    unknown: { bar: "bg-orange-400", label: "Unknown" },
   };
-  const { bg, label } = cfg[status] ?? { bg: "bg-gray-400", label: status };
+  const { bar, label } = cfg[status] ?? { bar: "bg-gray-400", label: status };
   return (
-    <div className="w-full h-full flex items-center justify-center" title={label}>
-      <div className={`w-2.5 h-2.5 rounded-full ${bg}`} />
+    <div className="w-full h-full flex items-center justify-center px-1" title={label}>
+      <div className={`w-full h-1.5 rounded-full ${bar}`} />
     </div>
   );
 }
@@ -346,10 +346,10 @@ export default function StatusReport() {
 
       {/* ── Legend ── */}
       <div className="flex items-center gap-5 text-xs text-muted-foreground px-1">
-        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-green-500" />Online</div>
-        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-500" />Offline</div>
-        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-orange-400" />Unknown</div>
-        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-muted-foreground/20" />No Data</div>
+        <div className="flex items-center gap-2"><div className="w-6 h-1.5 rounded-full bg-green-500" />Online</div>
+        <div className="flex items-center gap-2"><div className="w-6 h-1.5 rounded-full bg-red-500" />Offline</div>
+        <div className="flex items-center gap-2"><div className="w-6 h-1.5 rounded-full bg-orange-400" />Unknown</div>
+        <div className="flex items-center gap-2"><div className="w-6 h-1.5 rounded-full bg-muted-foreground/15" />No Data</div>
       </div>
 
       {/* ── Calendar Grid ── */}

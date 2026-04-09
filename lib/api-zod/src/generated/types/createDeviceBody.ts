@@ -12,4 +12,6 @@ export interface CreateDeviceBody {
   stateName: string;
   /** @nullable */
   remark?: string | null;
+  /** @nullable */
+  email?: string | null;
 }

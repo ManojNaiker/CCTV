@@ -107,6 +107,7 @@ router.post("/devices/bulk", async (req, res): Promise<void> => {
         branchName: deviceData.branchName.trim(),
         stateName: deviceData.stateName.trim(),
         remark: deviceData.remark ?? null,
+        email: deviceData.email ?? null,
       }).returning();
 
       await logAction("CREATE", "device", String(device.id), `Device '${device.branchName}' (${device.serialNumber}) added via bulk import`);

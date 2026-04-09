@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { format } from "date-fns";
-import { Search, Plus, MoreHorizontal, FileEdit, Trash2, Video, Upload, ChevronRight, CheckCircle2, AlertCircle, SkipForward } from "lucide-react";
+import { Search, Plus, MoreHorizontal, FileEdit, Trash2, Video, Upload, ChevronRight, CheckCircle2, AlertCircle, SkipForward, Download, FileSpreadsheet, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import * as XLSX from "xlsx";
 import { 
   useListDevices,
   useCreateDevice,
@@ -47,7 +48,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 
 function StatusBadge({ status, offlineDays }: { status: string; offlineDays?: number | null }) {
@@ -84,28 +84,67 @@ type ParsedRow = {
   stateName: string;
   branchName: string;
   serialNumber: string;
+  email?: string;
   error?: string;
 };
 
-function parseBulkInput(raw: string): ParsedRow[] {
-  const lines = raw.split("\n").map(l => l.trim()).filter(Boolean);
-  return lines.map((line, i) => {
-    const parts = line.split(/\t|,/).map(p => p.trim());
-    if (parts.length < 3) {
-      return { stateName: "", branchName: "", serialNumber: "", error: `Row ${i + 1}: needs 3 columns` };
-    }
-    const [stateName, branchName, serialNumber] = parts;
-    if (!stateName || !branchName || !serialNumber) {
-      return { stateName, branchName, serialNumber, error: `Row ${i + 1}: empty field detected` };
-    }
-    return { stateName, branchName, serialNumber };
+function downloadTemplate() {
+  const ws = XLSX.utils.aoa_to_sheet([
+    ["State Name", "Branch Name", "Serial Number", "Email ID"],
+    ["Rajasthan", "Bhinder", "DS-ABC123", "bhinder@company.com"],
+    ["Maharashtra", "Pune Main", "DS-XYZ456", "pune@company.com"],
+    ["Gujarat", "Ahmedabad", "DS-DEF789", ""],
+  ]);
+  ws["!cols"] = [{ wch: 20 }, { wch: 25 }, { wch: 20 }, { wch: 30 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Devices");
+  XLSX.writeFile(wb, "device_import_template.xlsx");
+}
+
+function parseExcelFile(file: File): Promise<ParsedRow[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target!.result as ArrayBuffer);
+        const wb = XLSX.read(data, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1 }) as string[][];
+
+        const dataRows = rows.filter(r => r.some(c => c !== undefined && String(c).trim() !== ""));
+        const startIdx = dataRows.findIndex(r => {
+          const first = String(r[0] || "").toLowerCase();
+          return first === "state name" || first === "state";
+        });
+        const actualData = startIdx >= 0 ? dataRows.slice(startIdx + 1) : dataRows;
+
+        const parsed: ParsedRow[] = actualData.map((row, i) => {
+          const stateName = String(row[0] || "").trim();
+          const branchName = String(row[1] || "").trim();
+          const serialNumber = String(row[2] || "").trim();
+          const email = String(row[3] || "").trim();
+
+          if (!stateName || !branchName || !serialNumber) {
+            return { stateName, branchName, serialNumber, email, error: `Row ${i + 1}: State, Branch, or Serial is empty` };
+          }
+          return { stateName, branchName, serialNumber, email: email || undefined };
+        });
+
+        resolve(parsed);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsArrayBuffer(file);
   });
 }
 
 export default function Devices() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
@@ -118,12 +157,13 @@ export default function Devices() {
   const [deleteDevice, setDeleteDevice] = useState<any>(null);
 
   const [isBulkOpen, setIsBulkOpen] = useState(false);
-  const [bulkText, setBulkText] = useState("");
+  const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [bulkResult, setBulkResult] = useState<{ created: number; skipped: number; errors: string[] } | null>(null);
+  const [fileError, setFileError] = useState<string>("");
 
-  const parsedRows = useMemo(() => parseBulkInput(bulkText), [bulkText]);
-  const validRows = parsedRows.filter(r => !r.error);
-  const errorRows = parsedRows.filter(r => !!r.error);
+  const validRows = useMemo(() => parsedRows.filter(r => !r.error), [parsedRows]);
+  const errorRows = useMemo(() => parsedRows.filter(r => !!r.error), [parsedRows]);
 
   const { data: devices, isLoading } = useListDevices(
     { search: search || undefined, status: statusFilter !== "all" ? statusFilter as any : undefined },
@@ -146,7 +186,8 @@ export default function Devices() {
       onSuccess: (data) => {
         queryClient.invalidateQueries({ queryKey: getListDevicesQueryKey() });
         setBulkResult(data);
-        setBulkText("");
+        setParsedRows([]);
+        setSelectedFile(null);
         toast({
           title: "Bulk import complete",
           description: `${data.created} added, ${data.skipped} skipped`,
@@ -182,6 +223,29 @@ export default function Devices() {
     createMutation.mutate({ data: createData });
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileError("");
+    setSelectedFile(file);
+    try {
+      const rows = await parseExcelFile(file);
+      setParsedRows(rows);
+    } catch {
+      setFileError("File read nahi ho saka. Valid .xlsx ya .xls file upload karein.");
+      setSelectedFile(null);
+      setParsedRows([]);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleClearFile = () => {
+    setSelectedFile(null);
+    setParsedRows([]);
+    setFileError("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const handleBulkImport = () => {
     if (validRows.length === 0) return;
     bulkMutation.mutate({
@@ -190,6 +254,7 @@ export default function Devices() {
           stateName: r.stateName,
           branchName: r.branchName,
           serialNumber: r.serialNumber,
+          email: r.email || null,
         })),
       },
     });
@@ -210,7 +275,9 @@ export default function Devices() {
 
   const handleBulkClose = () => {
     setIsBulkOpen(false);
-    setBulkText("");
+    setParsedRows([]);
+    setSelectedFile(null);
+    setFileError("");
     setBulkResult(null);
   };
 
@@ -247,13 +314,13 @@ export default function Devices() {
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 placeholder="Search branch, serial, state..."
-                className="pl-8 font-mono text-xs h-8 bg-background/50"
+                className="pl-8 text-xs h-8 bg-background/50"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-[150px] h-8 font-mono text-xs bg-background/50">
+              <SelectTrigger className="w-full sm:w-[150px] h-8 text-xs bg-background/50">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -296,7 +363,7 @@ export default function Devices() {
                     <TableCell colSpan={7} className="h-32 text-center">
                       <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground/40">
                         <Video className="h-7 w-7" />
-                        <span className="font-mono text-[10px] tracking-widest uppercase">No devices found</span>
+                        <span className="text-[10px] tracking-widest uppercase">No devices found</span>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -322,7 +389,7 @@ export default function Devices() {
                               <MoreHorizontal className="h-3.5 w-3.5" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="font-mono text-xs min-w-[120px]">
+                          <DropdownMenuContent align="end" className="text-xs min-w-[120px]">
                             <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => openEdit(device)}>
                               <FileEdit className="h-3.5 w-3.5" /> Edit
                             </DropdownMenuItem>
@@ -351,7 +418,7 @@ export default function Devices() {
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-mono text-sm">
+            <DialogTitle className="text-sm">
               <span className="text-primary">+</span> Add Device
             </DialogTitle>
           </DialogHeader>
@@ -363,7 +430,7 @@ export default function Devices() {
               { label: "Remark", key: "remark", placeholder: "Optional note..." },
             ].map(({ label, key, placeholder, mono }) => (
               <div key={key} className="grid gap-1">
-                <Label className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">{label}</Label>
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">{label}</Label>
                 <Input
                   className={`text-sm h-8 bg-background/50 ${mono ? "font-mono" : ""}`}
                   placeholder={placeholder}
@@ -374,10 +441,10 @@ export default function Devices() {
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" className="font-mono text-xs h-8" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
+            <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
             <Button
               size="sm"
-              className="font-mono text-xs h-8"
+              className="text-xs h-8"
               onClick={handleCreate}
               disabled={createMutation.isPending || !createData.serialNumber || !createData.branchName || !createData.stateName}
             >
@@ -391,17 +458,12 @@ export default function Devices() {
       <Dialog open={isBulkOpen} onOpenChange={handleBulkClose}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="font-mono text-sm">
+            <DialogTitle className="text-sm">
               <span className="text-primary">↑</span> Bulk Import Devices
             </DialogTitle>
-            <DialogDescription className="font-mono text-[11px] text-muted-foreground pt-1">
-              One device per line. Format:&nbsp;
-              <span className="text-primary">State Name</span>
-              <ChevronRight className="inline h-3 w-3 mx-0.5 opacity-50" />
-              <span className="text-primary">Branch Name</span>
-              <ChevronRight className="inline h-3 w-3 mx-0.5 opacity-50" />
-              <span className="text-primary">Serial Number</span>
-              &nbsp;— tab or comma separated.
+            <DialogDescription className="text-xs text-muted-foreground pt-1">
+              Excel file upload karein jisme State Name, Branch Name, Serial Number aur Email ID columns hon.
+              Neeche se template download karein.
             </DialogDescription>
           </DialogHeader>
 
@@ -412,17 +474,17 @@ export default function Devices() {
                   <div className="rounded border border-emerald-500/20 bg-emerald-500/5 p-4 flex flex-col items-center gap-1.5">
                     <CheckCircle2 className="h-5 w-5 text-emerald-400" />
                     <span className="font-mono text-2xl font-bold text-emerald-400">{bulkResult.created}</span>
-                    <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">Created</span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Created</span>
                   </div>
                   <div className="rounded border border-yellow-500/20 bg-yellow-500/5 p-4 flex flex-col items-center gap-1.5">
                     <SkipForward className="h-5 w-5 text-yellow-400" />
                     <span className="font-mono text-2xl font-bold text-yellow-400">{bulkResult.skipped}</span>
-                    <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">Skipped</span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Skipped</span>
                   </div>
                   <div className="rounded border border-red-500/20 bg-red-500/5 p-4 flex flex-col items-center gap-1.5">
                     <AlertCircle className="h-5 w-5 text-red-400" />
                     <span className="font-mono text-2xl font-bold text-red-400">{bulkResult.errors.length}</span>
-                    <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">Errors</span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Errors</span>
                   </div>
                 </div>
                 {bulkResult.errors.length > 0 && (
@@ -434,42 +496,99 @@ export default function Devices() {
                 )}
               </div>
               <DialogFooter>
-                <Button size="sm" className="font-mono text-xs h-8" onClick={handleBulkClose}>Done</Button>
+                <Button size="sm" className="text-xs h-8" onClick={handleBulkClose}>Done</Button>
               </DialogFooter>
             </>
           ) : (
             <>
-              <div className="space-y-3 py-1">
-                <Textarea
-                  className="font-mono text-xs h-40 bg-background/50 border-border/50 resize-none placeholder:text-muted-foreground/30 leading-relaxed"
-                  placeholder={"Rajasthan\tBhinder\tDS-ABC123\nMaharashtra\tPune Main\tDS-XYZ456\nGujarat\tAhmedabad\tDS-DEF789"}
-                  value={bulkText}
-                  onChange={e => setBulkText(e.target.value)}
-                />
+              <div className="space-y-4 py-1">
+                {/* Template Download */}
+                <div className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-muted/30">
+                  <div className="flex items-center gap-2.5">
+                    <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                    <div>
+                      <p className="text-sm font-medium">Excel Template</p>
+                      <p className="text-xs text-muted-foreground">State, Branch, Serial, Email columns ke saath ready template</p>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8" onClick={downloadTemplate}>
+                    <Download className="h-3.5 w-3.5" />
+                    Download
+                  </Button>
+                </div>
 
+                {/* File Upload */}
+                <div>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider mb-2 block">Excel File Upload</Label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                  {selectedFile ? (
+                    <div className="flex items-center justify-between p-3 rounded-lg border border-primary/30 bg-primary/5">
+                      <div className="flex items-center gap-2.5">
+                        <FileSpreadsheet className="h-4 w-4 text-primary" />
+                        <div>
+                          <p className="text-sm font-medium">{selectedFile.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {parsedRows.length} rows detected &mdash; {validRows.length} valid
+                            {errorRows.length > 0 && `, ${errorRows.length} invalid`}
+                          </p>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={handleClearFile}>
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full flex flex-col items-center justify-center gap-2 p-6 rounded-lg border-2 border-dashed border-border/60 hover:border-primary/40 hover:bg-primary/5 transition-colors cursor-pointer"
+                    >
+                      <Upload className="h-6 w-6 text-muted-foreground/50" />
+                      <div className="text-center">
+                        <p className="text-sm font-medium text-muted-foreground">Excel file yahan upload karein</p>
+                        <p className="text-xs text-muted-foreground/60 mt-0.5">.xlsx ya .xls format support hai</p>
+                      </div>
+                    </button>
+                  )}
+                  {fileError && (
+                    <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
+                      <AlertCircle className="h-3.5 w-3.5" /> {fileError}
+                    </p>
+                  )}
+                </div>
+
+                {/* Preview */}
                 {parsedRows.length > 0 && (
                   <>
                     <Separator className="bg-border/40" />
                     <div className="space-y-2">
-                      <p className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest">
                         Preview &mdash; {validRows.length} valid&nbsp;&nbsp;·&nbsp;&nbsp;{errorRows.length} invalid
                       </p>
                       <div className="rounded border border-border/40 overflow-hidden max-h-44 overflow-y-auto">
                         <Table>
                           <TableHeader>
                             <TableRow className="bg-muted/20 hover:bg-muted/20">
-                              <TableHead className="font-mono text-[10px] h-6 text-muted-foreground/60 uppercase">State</TableHead>
-                              <TableHead className="font-mono text-[10px] h-6 text-muted-foreground/60 uppercase">Branch</TableHead>
-                              <TableHead className="font-mono text-[10px] h-6 text-muted-foreground/60 uppercase">Serial</TableHead>
-                              <TableHead className="font-mono text-[10px] h-6 w-8" />
+                              <TableHead className="text-[10px] h-6 text-muted-foreground/60 uppercase">State</TableHead>
+                              <TableHead className="text-[10px] h-6 text-muted-foreground/60 uppercase">Branch</TableHead>
+                              <TableHead className="text-[10px] h-6 text-muted-foreground/60 uppercase">Serial</TableHead>
+                              <TableHead className="text-[10px] h-6 text-muted-foreground/60 uppercase">Email</TableHead>
+                              <TableHead className="text-[10px] h-6 w-8" />
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {parsedRows.map((row, i) => (
                               <TableRow key={i} className={`border-border/30 ${row.error ? "bg-red-500/5" : ""}`}>
-                                <TableCell className="font-mono text-[11px] py-1.5">{row.stateName || <span className="text-red-400/70">—</span>}</TableCell>
-                                <TableCell className="font-mono text-[11px] py-1.5">{row.branchName || <span className="text-red-400/70">—</span>}</TableCell>
+                                <TableCell className="text-[11px] py-1.5">{row.stateName || <span className="text-red-400/70">—</span>}</TableCell>
+                                <TableCell className="text-[11px] py-1.5">{row.branchName || <span className="text-red-400/70">—</span>}</TableCell>
                                 <TableCell className="font-mono text-[11px] py-1.5">{row.serialNumber || <span className="text-red-400/70">—</span>}</TableCell>
+                                <TableCell className="text-[11px] py-1.5 text-muted-foreground">{row.email || <span className="opacity-40">—</span>}</TableCell>
                                 <TableCell className="py-1.5">
                                   {row.error
                                     ? <AlertCircle className="h-3 w-3 text-red-400" title={row.error} />
@@ -487,10 +606,10 @@ export default function Devices() {
               </div>
 
               <DialogFooter>
-                <Button variant="outline" size="sm" className="font-mono text-xs h-8" onClick={handleBulkClose}>Cancel</Button>
+                <Button variant="outline" size="sm" className="text-xs h-8" onClick={handleBulkClose}>Cancel</Button>
                 <Button
                   size="sm"
-                  className="font-mono text-xs h-8 gap-1.5"
+                  className="text-xs h-8 gap-1.5"
                   onClick={handleBulkImport}
                   disabled={validRows.length === 0 || bulkMutation.isPending}
                 >
@@ -510,23 +629,23 @@ export default function Devices() {
       <Dialog open={!!editDevice} onOpenChange={(open) => !open && setEditDevice(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-mono text-sm">
+            <DialogTitle className="text-sm">
               <span className="text-primary">~</span> Edit Device
             </DialogTitle>
           </DialogHeader>
           <div className="grid gap-3 py-1">
             <div className="grid gap-1">
-              <Label className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">Branch Name</Label>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Branch Name</Label>
               <Input className="text-sm h-8 bg-background/50" value={editData.branchName} onChange={e => setEditData({...editData, branchName: e.target.value})} />
             </div>
             <div className="grid gap-1">
-              <Label className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">State Name</Label>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">State Name</Label>
               <Input className="text-sm h-8 bg-background/50" value={editData.stateName} onChange={e => setEditData({...editData, stateName: e.target.value})} />
             </div>
             <div className="grid gap-1">
-              <Label className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">Status</Label>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Status</Label>
               <Select value={editData.status} onValueChange={(v: any) => setEditData({...editData, status: v})}>
-                <SelectTrigger className="font-mono text-xs h-8 bg-background/50">
+                <SelectTrigger className="text-xs h-8 bg-background/50">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -537,13 +656,13 @@ export default function Devices() {
               </Select>
             </div>
             <div className="grid gap-1">
-              <Label className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">Remark</Label>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Remark</Label>
               <Input className="text-sm h-8 bg-background/50" value={editData.remark} onChange={e => setEditData({...editData, remark: e.target.value})} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" className="font-mono text-xs h-8" onClick={() => setEditDevice(null)}>Cancel</Button>
-            <Button size="sm" className="font-mono text-xs h-8" onClick={handleUpdate} disabled={updateMutation.isPending}>
+            <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => setEditDevice(null)}>Cancel</Button>
+            <Button size="sm" className="text-xs h-8" onClick={handleUpdate} disabled={updateMutation.isPending}>
               {updateMutation.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
@@ -554,7 +673,7 @@ export default function Devices() {
       <Dialog open={!!deleteDevice} onOpenChange={(open) => !open && setDeleteDevice(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle className="font-mono text-sm text-destructive">
+            <DialogTitle className="text-sm text-destructive">
               ⚠ Confirm Delete
             </DialogTitle>
           </DialogHeader>
@@ -564,8 +683,8 @@ export default function Devices() {
             {" "}This cannot be undone.
           </p>
           <DialogFooter>
-            <Button variant="outline" size="sm" className="font-mono text-xs h-8" onClick={() => setDeleteDevice(null)}>Cancel</Button>
-            <Button variant="destructive" size="sm" className="font-mono text-xs h-8" onClick={handleDelete} disabled={deleteMutation.isPending}>
+            <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => setDeleteDevice(null)}>Cancel</Button>
+            <Button variant="destructive" size="sm" className="text-xs h-8" onClick={handleDelete} disabled={deleteMutation.isPending}>
               {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>

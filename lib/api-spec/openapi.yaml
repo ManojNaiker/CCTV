@@ -397,6 +397,8 @@ components:
           type: string
         remark:
           type: ["string", "null"]
+        email:
+          type: ["string", "null"]
       required:
         - serialNumber
         - branchName

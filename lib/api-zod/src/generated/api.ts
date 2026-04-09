@@ -45,6 +45,7 @@ export const CreateDeviceBody = zod.object({
   branchName: zod.string(),
   stateName: zod.string(),
   remark: zod.string().nullish(),
+  email: zod.string().nullish(),
 });
 
 /**
@@ -57,6 +58,7 @@ export const BulkCreateDevicesBody = zod.object({
       branchName: zod.string(),
       stateName: zod.string(),
       remark: zod.string().nullish(),
+      email: zod.string().nullish(),
     }),
   ),
 });

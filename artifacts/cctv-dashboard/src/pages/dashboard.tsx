@@ -110,22 +110,29 @@ export default function Dashboard() {
         toast({ title: "Refresh Complete", description: data.message });
         setNextRefresh(120);
       },
+      onError: () => {
+        // Reset timer even on failure so it doesn't get stuck at 0
+        setNextRefresh(120);
+      },
     },
   });
 
   useEffect(() => {
     const timer = setInterval(() => {
       setNextRefresh((prev) => {
-        if (prev <= 1) {
-          queryClient.invalidateQueries({ queryKey: getGetDeviceStatsQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getListDevicesQueryKey() });
-          return 120;
-        }
+        if (prev <= 1) return 0; // signal to fire refresh
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [queryClient]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When countdown hits 0, fire the actual Hik-Connect refresh
+  useEffect(() => {
+    if (nextRefresh === 0 && !refreshMutation.isPending) {
+      refreshMutation.mutate(undefined);
+    }
+  }, [nextRefresh]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const online = stats?.online ?? 0;
   const offline = stats?.offline ?? 0;

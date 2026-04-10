@@ -2,6 +2,8 @@ import nodemailer from "nodemailer";
 import { db, settingsTable, devicesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export interface EmailSettings {
   host: string;
@@ -58,12 +60,15 @@ export function createTransporter(settings: EmailSettings) {
   });
 }
 
+type EmailAttachment = { filename: string; content: Buffer; contentType: string };
+
 export async function sendEmail(
   subject: string,
   html: string,
   text?: string,
   extraTo?: string[],
-  extraCc?: string[]
+  extraCc?: string[],
+  attachments?: EmailAttachment[]
 ): Promise<void> {
   const settings = await getEmailSettings();
 
@@ -93,9 +98,49 @@ export async function sendEmail(
     subject,
     html,
     text,
+    attachments: attachments?.map((a) => ({
+      filename: a.filename,
+      content: a.content,
+      contentType: a.contentType,
+    })),
   });
 
   logger.info({ to: toList, cc: ccList, subject }, "Email sent successfully");
+}
+
+function buildOfflinePDF(devices: OfflineDevice[], dateStr: string): Buffer {
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text("Light Finance — CCTV Offline Report", pageW / 2, 14, { align: "center" });
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Date: ${dateStr}`, pageW / 2, 20, { align: "center" });
+
+  autoTable(doc, {
+    startY: 26,
+    head: [["#", "State", "Branch", "Status", "Offline Days", "Remark"]],
+    body: devices.map((d, i) => [
+      String(i + 1),
+      d.stateName,
+      d.branchName,
+      "Offline",
+      String(d.offlineDays),
+      d.remark || (d.offlineDays >= 3 ? `Offline for ${d.offlineDays} days` : ""),
+    ]),
+    styles: { fontSize: 9, cellPadding: 3 },
+    headStyles: { fillColor: [255, 192, 0], textColor: [0, 0, 0], fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [255, 250, 235] },
+    columnStyles: {
+      0: { halign: "center", cellWidth: 12 },
+      3: { halign: "center", cellWidth: 22 },
+      4: { halign: "center", cellWidth: 26 },
+    },
+  });
+
+  return Buffer.from(doc.output("arraybuffer"));
 }
 
 export async function sendUserCreatedEmail(userData: {
@@ -257,7 +302,10 @@ export async function sendOfflineAlert(device: {
   }
 
   const html = buildOfflineAlertHtml([device]);
-  await sendEmail(subject, html, undefined, toPrimary, ccRecipients);
+  const pdfBuffer = buildOfflinePDF([device], dateStr);
+  await sendEmail(subject, html, undefined, toPrimary, ccRecipients, [
+    { filename: `CCTV_Offline_Report_${dateStr}.pdf`, content: pdfBuffer, contentType: "application/pdf" },
+  ]);
 }
 
 export async function sendBulkOfflineAlert(devices: OfflineDevice[]): Promise<void> {
@@ -289,5 +337,8 @@ export async function sendBulkOfflineAlert(devices: OfflineDevice[]): Promise<vo
   const uniqueCc = ccRecipients.filter((v, i, arr) => arr.indexOf(v) === i);
 
   const html = buildOfflineAlertHtml(devices);
-  await sendEmail(subject, html, undefined, uniqueTo, uniqueCc);
+  const pdfBuffer = buildOfflinePDF(devices, dateStr);
+  await sendEmail(subject, html, undefined, uniqueTo, uniqueCc, [
+    { filename: `CCTV_Offline_Report_${dateStr}.pdf`, content: pdfBuffer, contentType: "application/pdf" },
+  ]);
 }

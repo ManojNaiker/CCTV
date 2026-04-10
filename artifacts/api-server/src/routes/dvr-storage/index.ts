@@ -9,6 +9,15 @@ function getISTDate(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 }
 
+function calcTotalDays(lastRecording: string | null, activityDate: string): number | null {
+  if (!lastRecording) return null;
+  const last = new Date(lastRecording).getTime();
+  const activity = new Date(activityDate).getTime();
+  if (isNaN(last) || isNaN(activity)) return null;
+  const diff = Math.round((activity - last) / (1000 * 60 * 60 * 24));
+  return diff >= 0 ? diff : null;
+}
+
 function isCompleted(record: {
   branchCameraCount: number | null;
   noOfRecordingCamera: number | null;
@@ -151,6 +160,15 @@ router.patch("/dvr-storage/:id", async (req, res): Promise<void> => {
     }
 
     const merged = { ...existing, ...updateData };
+
+    // Always auto-compute totalRecordingDay from lastRecording + activityDate
+    const autoTotalDays = calcTotalDays(
+      merged.lastRecording as string | null,
+      merged.activityDate as string
+    );
+    updateData["totalRecordingDay"] = autoTotalDays;
+    merged.totalRecordingDay = autoTotalDays;
+
     updateData["status"] = isCompleted({
       branchCameraCount: merged.branchCameraCount as number | null,
       noOfRecordingCamera: merged.noOfRecordingCamera as number | null,

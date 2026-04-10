@@ -47,6 +47,15 @@ function getISTDateStr(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 }
 
+function calcTotalDays(lastRecording: string | null, activityDate: string): number | null {
+  if (!lastRecording) return null;
+  const last = new Date(lastRecording).getTime();
+  const activity = new Date(activityDate).getTime();
+  if (isNaN(last) || isNaN(activity)) return null;
+  const diff = Math.round((activity - last) / (1000 * 60 * 60 * 24));
+  return diff >= 0 ? diff : null;
+}
+
 type EditableCellProps = {
   value: string | number | null;
   onSave: (val: string) => void;
@@ -214,9 +223,13 @@ function RecordTableInner({ rows, onSave }: RecordTableProps) {
                   onSave={(v) => onSave(r.id, "lastRecording", v)} />
               </td>
               <td className="px-3 py-2 text-center text-muted-foreground">{r.activityDate}</td>
-              <td className="px-2 py-2 text-center">
-                <EditableCell value={r.totalRecordingDay} type="number" align="center"
-                  onSave={(v) => onSave(r.id, "totalRecordingDay", v)} />
+              <td className="px-3 py-2 text-center font-mono text-sm">
+                {(() => {
+                  const days = calcTotalDays(r.lastRecording, r.activityDate);
+                  return days !== null
+                    ? <span className="font-semibold text-blue-700 dark:text-blue-400">{days}</span>
+                    : <span className="text-muted-foreground/40">—</span>;
+                })()}
               </td>
               <td className="px-2 py-2">
                 <EditableCell value={r.remark}
@@ -343,8 +356,14 @@ export default function DvrStorage() {
   const handleSave = useCallback(
     (id: number, field: string, value: string) => {
       updateMutation.mutate({ id, field, value });
+      if (field === "lastRecording") {
+        const row = records.find((r) => r.id === id);
+        const actDate = row?.activityDate ?? getISTDateStr();
+        const days = calcTotalDays(value || null, actDate);
+        updateMutation.mutate({ id, field: "totalRecordingDay", value: days !== null ? String(days) : "" });
+      }
     },
-    [updateMutation]
+    [updateMutation, records]
   );
 
   return (

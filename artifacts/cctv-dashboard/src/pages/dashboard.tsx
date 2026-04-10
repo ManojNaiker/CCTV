@@ -18,6 +18,7 @@ import {
   ArrowRight,
   Activity,
   Clock,
+  TrendingUp,
 } from "lucide-react";
 import {
   PieChart,
@@ -34,9 +35,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 
 const COLORS = {
-  online: "#4ade80",
-  offline: "#fb7185",
-  unknown: "#fb923c",
+  online: "#22c55e",
+  offline: "#ef4444",
+  unknown: "#f59e0b",
 };
 
 interface CustomLabelProps {
@@ -55,7 +56,7 @@ function CustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: Cu
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
   return (
-    <text x={x} y={y} fill="#78350f" textAnchor="middle" dominantBaseline="central" fontSize={13} fontWeight={700}>
+    <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={700}>
       {`${(percent * 100).toFixed(0)}%`}
     </text>
   );
@@ -116,38 +117,45 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* ── Header Banner — warm amber/orange gradient ── */}
+      {/* ── Header Banner — professional dark navy gradient ── */}
       <div
-        className="rounded-2xl overflow-hidden shadow-lg relative"
-        style={{ background: "linear-gradient(135deg, #78350f 0%, #b45309 45%, #d97706 100%)" }}
+        className="rounded-2xl overflow-hidden relative"
+        style={{
+          background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #1e40af 100%)",
+          boxShadow: "0 4px 24px rgba(30, 64, 175, 0.25)",
+        }}
       >
-        <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/5" />
-        <div className="absolute right-24 -bottom-8 h-32 w-32 rounded-full bg-white/5" />
-        <div className="absolute -left-6 -bottom-6 h-24 w-24 rounded-full bg-white/5" />
+        {/* Subtle decorative circles */}
+        <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-blue-400/8 pointer-events-none" />
+        <div className="absolute right-32 -bottom-10 h-36 w-36 rounded-full bg-blue-300/6 pointer-events-none" />
+        <div className="absolute -left-8 bottom-0 h-28 w-28 rounded-full bg-white/4 pointer-events-none" />
+
+        {/* Top accent line */}
+        <div className="h-0.5 w-full bg-gradient-to-r from-blue-500/0 via-blue-400/60 to-blue-500/0" />
 
         <div className="relative p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
-              <Activity className="h-6 w-6 text-white" />
+            <div className="h-12 w-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/15 backdrop-blur-sm">
+              <Activity className="h-6 w-6 text-blue-200" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white tracking-tight">CCTV Operations Dashboard</h1>
-              <p className="text-amber-100 text-sm mt-0.5">
-                Real-time monitoring of nationwide branch cameras.
+              <p className="text-blue-200/70 text-sm mt-0.5">
+                Real-time monitoring of nationwide branch cameras
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
             {/* Timer */}
-            <div className="text-center px-4 py-2.5 rounded-xl bg-white/15 border border-white/20 min-w-[110px]">
+            <div className="text-center px-4 py-2.5 rounded-xl bg-white/8 border border-white/12 min-w-[110px] backdrop-blur-sm">
               <div className="flex items-center gap-1.5 justify-center mb-0.5">
-                <Clock className="h-3 w-3 text-amber-200" />
-                <span className="text-[10px] text-amber-200 uppercase tracking-widest font-semibold">Next Refresh</span>
+                <Clock className="h-3 w-3 text-blue-300" />
+                <span className="text-[10px] text-blue-300 uppercase tracking-widest font-semibold">Next Refresh</span>
               </div>
               <p className="text-xl font-bold text-white font-mono">{timerDisplay}</p>
               {stats?.lastRefreshedAt && (
-                <p className="text-[10px] text-amber-200/60 mt-0.5">
+                <p className="text-[10px] text-blue-200/50 mt-0.5">
                   Last: {formatDistanceToNow(new Date(stats.lastRefreshedAt), { addSuffix: true })}
                 </p>
               )}
@@ -156,7 +164,7 @@ export default function Dashboard() {
             <Button
               onClick={() => refreshMutation.mutate(undefined)}
               disabled={refreshMutation.isPending}
-              className="gap-2 bg-white text-amber-800 hover:bg-amber-50 border-0 font-semibold h-10"
+              className="gap-2 bg-white/90 text-blue-900 hover:bg-white border-0 font-semibold h-10 shadow-lg shadow-blue-900/20"
             >
               <RefreshCw className={`h-4 w-4 ${refreshMutation.isPending ? "animate-spin" : ""}`} />
               Refresh Now
@@ -167,82 +175,100 @@ export default function Dashboard() {
 
       {/* ── Stat Cards ── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Total — warm amber/gold */}
-        <Card className="border-amber-200 dark:border-amber-800/40 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-          <div className="h-1 bg-gradient-to-r from-amber-400 to-yellow-500" />
-          <CardContent className="pt-4 pb-5 px-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Total Devices</p>
-              <div className="h-9 w-9 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
-                <MonitorCheck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+        {/* Total */}
+        <Card className="border-slate-200 dark:border-slate-700/60 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
+          <div className="h-0.5 bg-gradient-to-r from-blue-500 to-indigo-500" />
+          <CardContent className="pt-5 pb-5 px-5">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Devices</p>
+              </div>
+              <div className="h-9 w-9 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center border border-blue-100 dark:border-blue-800/40 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/50 transition-colors">
+                <MonitorCheck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               </div>
             </div>
             {statsLoading ? <Skeleton className="h-9 w-20" /> : (
-              <p className="text-3xl font-extrabold text-amber-800 dark:text-amber-300">{total.toLocaleString()}</p>
+              <p className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 tracking-tight">{total.toLocaleString()}</p>
             )}
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">Registered cameras</p>
           </CardContent>
         </Card>
 
         {/* Online */}
-        <Card className="border-emerald-200 dark:border-emerald-800/50 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-          <div className="h-1 bg-gradient-to-r from-emerald-300 to-green-400" />
-          <CardContent className="pt-4 pb-5 px-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Online</p>
-              <div className="h-9 w-9 rounded-xl bg-emerald-50 dark:bg-emerald-900/40 flex items-center justify-center">
-                <Wifi className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+        <Card className="border-slate-200 dark:border-slate-700/60 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
+          <div className="h-0.5 bg-gradient-to-r from-emerald-400 to-green-500" />
+          <CardContent className="pt-5 pb-5 px-5">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Online</p>
+              </div>
+              <div className="h-9 w-9 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center border border-emerald-100 dark:border-emerald-800/40 group-hover:bg-emerald-100 dark:group-hover:bg-emerald-900/50 transition-colors">
+                <Wifi className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               </div>
             </div>
             {statsLoading ? <Skeleton className="h-9 w-20" /> : (
-              <p className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">{online.toLocaleString()}</p>
+              <p className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 tracking-tight">{online.toLocaleString()}</p>
             )}
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">
+              {total > 0 && !statsLoading ? `${((online / total) * 100).toFixed(1)}% of total` : "Actively streaming"}
+            </p>
           </CardContent>
         </Card>
 
         {/* Offline */}
-        <Card className="border-rose-200 dark:border-rose-800/50 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-          <div className="h-1 bg-gradient-to-r from-rose-300 to-pink-400" />
-          <CardContent className="pt-4 pb-5 px-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-rose-500 dark:text-rose-400 uppercase tracking-wider">Offline</p>
-              <div className="h-9 w-9 rounded-xl bg-rose-50 dark:bg-rose-900/40 flex items-center justify-center">
-                <WifiOff className="h-4 w-4 text-rose-500 dark:text-rose-400" />
+        <Card className="border-slate-200 dark:border-slate-700/60 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
+          <div className="h-0.5 bg-gradient-to-r from-red-400 to-rose-500" />
+          <CardContent className="pt-5 pb-5 px-5">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Offline</p>
+              </div>
+              <div className="h-9 w-9 rounded-lg bg-red-50 dark:bg-red-900/30 flex items-center justify-center border border-red-100 dark:border-red-800/40 group-hover:bg-red-100 dark:group-hover:bg-red-900/50 transition-colors">
+                <WifiOff className="h-4 w-4 text-red-500 dark:text-red-400" />
               </div>
             </div>
             {statsLoading ? <Skeleton className="h-9 w-20" /> : (
-              <p className="text-3xl font-extrabold text-rose-500 dark:text-rose-400">{offline.toLocaleString()}</p>
+              <p className="text-3xl font-extrabold text-red-500 dark:text-red-400 tracking-tight">{offline.toLocaleString()}</p>
             )}
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">
+              {total > 0 && !statsLoading ? `${((offline / total) * 100).toFixed(1)}% of total` : "Requires attention"}
+            </p>
           </CardContent>
         </Card>
 
         {/* Unknown */}
-        <Card className="border-amber-200 dark:border-amber-800/50 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-          <div className="h-1 bg-gradient-to-r from-amber-300 to-orange-400" />
-          <CardContent className="pt-4 pb-5 px-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Unknown</p>
-              <div className="h-9 w-9 rounded-xl bg-amber-50 dark:bg-amber-900/40 flex items-center justify-center">
+        <Card className="border-slate-200 dark:border-slate-700/60 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
+          <div className="h-0.5 bg-gradient-to-r from-amber-400 to-yellow-500" />
+          <CardContent className="pt-5 pb-5 px-5">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Unknown</p>
+              </div>
+              <div className="h-9 w-9 rounded-lg bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center border border-amber-100 dark:border-amber-800/40 group-hover:bg-amber-100 dark:group-hover:bg-amber-900/50 transition-colors">
                 <HelpCircle className="h-4 w-4 text-amber-500 dark:text-amber-400" />
               </div>
             </div>
             {statsLoading ? <Skeleton className="h-9 w-20" /> : (
-              <p className="text-3xl font-extrabold text-amber-600 dark:text-amber-400">{unknown.toLocaleString()}</p>
+              <p className="text-3xl font-extrabold text-amber-500 dark:text-amber-400 tracking-tight">{unknown.toLocaleString()}</p>
             )}
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">
+              {total > 0 && !statsLoading ? `${((unknown / total) * 100).toFixed(1)}% of total` : "Status pending"}
+            </p>
           </CardContent>
         </Card>
       </div>
 
       {/* ── Donut Chart + Summary ── */}
       <div className="grid gap-6 lg:grid-cols-5">
-        <Card className="lg:col-span-3 shadow-sm border-amber-100 dark:border-amber-900/30">
-          <CardHeader className="border-b border-amber-100 dark:border-amber-900/30 pb-4">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                <MonitorX className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+        <Card className="lg:col-span-3 shadow-sm border-slate-200 dark:border-slate-700/60">
+          <CardHeader className="border-b border-slate-100 dark:border-slate-700/50 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center border border-slate-200 dark:border-slate-700">
+                <MonitorX className="h-4 w-4 text-slate-600 dark:text-slate-400" />
               </div>
               <div>
-                <CardTitle className="text-base">Device Status Distribution</CardTitle>
-                <CardDescription>Network health across all {total} branches</CardDescription>
+                <CardTitle className="text-base font-semibold text-slate-800 dark:text-slate-100">Device Status Distribution</CardTitle>
+                <CardDescription className="text-xs">Network health across all {total} branches</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -263,15 +289,15 @@ export default function Dashboard() {
                     data={chartData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={70}
+                    innerRadius={72}
                     outerRadius={120}
-                    paddingAngle={2}
+                    paddingAngle={3}
                     dataKey="value"
                     labelLine={false}
                     label={CustomLabel}
                   >
                     {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                      <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
                     ))}
                   </Pie>
                   <Tooltip
@@ -279,12 +305,18 @@ export default function Dashboard() {
                       `${val} devices (${total > 0 ? ((val / total) * 100).toFixed(1) : 0}%)`,
                       name,
                     ]}
-                    contentStyle={{ borderRadius: 8, fontSize: 13 }}
+                    contentStyle={{
+                      borderRadius: 8,
+                      fontSize: 13,
+                      border: "1px solid rgba(0,0,0,0.08)",
+                      boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+                    }}
                   />
                   <Legend
                     iconType="circle"
+                    iconSize={8}
                     formatter={(value) => (
-                      <span style={{ fontSize: 13, color: "inherit" }}>{value}</span>
+                      <span style={{ fontSize: 12, color: "inherit", fontWeight: 500 }}>{value}</span>
                     )}
                   />
                 </PieChart>
@@ -294,61 +326,61 @@ export default function Dashboard() {
         </Card>
 
         {/* Summary Panel */}
-        <Card className="lg:col-span-2 flex flex-col shadow-sm border-amber-100 dark:border-amber-900/30">
-          <CardHeader className="border-b border-amber-100 dark:border-amber-900/30 pb-4">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                <Activity className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+        <Card className="lg:col-span-2 flex flex-col shadow-sm border-slate-200 dark:border-slate-700/60">
+          <CardHeader className="border-b border-slate-100 dark:border-slate-700/50 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center border border-slate-200 dark:border-slate-700">
+                <TrendingUp className="h-4 w-4 text-slate-600 dark:text-slate-400" />
               </div>
               <div>
-                <CardTitle className="text-base">Network Summary</CardTitle>
-                <CardDescription>Status breakdown &amp; quick actions</CardDescription>
+                <CardTitle className="text-base font-semibold text-slate-800 dark:text-slate-100">Network Summary</CardTitle>
+                <CardDescription className="text-xs">Status breakdown &amp; quick actions</CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="flex-1 flex flex-col gap-4 pt-4">
+          <CardContent className="flex-1 flex flex-col gap-5 pt-5">
             {/* Uptime */}
-            <div
-              className="flex items-center justify-between p-4 rounded-xl border border-amber-200 dark:border-amber-800/50"
-              style={{ background: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)" }}
-            >
+            <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/50">
               <div>
-                <p className="text-xs font-semibold text-amber-800 uppercase tracking-wider">Network Uptime</p>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Network Uptime</p>
                 {!statsLoading && stats?.lastRefreshedAt && (
-                  <p className="text-[10px] text-amber-700/70 mt-0.5">
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
                     As of {formatDistanceToNow(new Date(stats.lastRefreshedAt), { addSuffix: true })}
                   </p>
                 )}
               </div>
-              <span className="text-3xl font-extrabold text-amber-800">{uptime}%</span>
+              <div className="text-right">
+                <span className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 tracking-tight">{uptime}%</span>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500">uptime</p>
+              </div>
             </div>
 
             {/* Status rows */}
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {[
-                { label: "Online Branches", value: online, barColor: "bg-emerald-400", textColor: "text-emerald-600 dark:text-emerald-400" },
-                { label: "Offline Branches", value: offline, barColor: "bg-rose-400", textColor: "text-rose-500 dark:text-rose-400" },
-                { label: "Unknown State", value: unknown, barColor: "bg-amber-400", textColor: "text-amber-600 dark:text-amber-400" },
+                { label: "Online Branches", value: online, barColor: "bg-emerald-500", textColor: "text-emerald-600 dark:text-emerald-400", trackColor: "bg-emerald-100 dark:bg-emerald-900/30" },
+                { label: "Offline Branches", value: offline, barColor: "bg-red-500", textColor: "text-red-500 dark:text-red-400", trackColor: "bg-red-100 dark:bg-red-900/30" },
+                { label: "Unknown State", value: unknown, barColor: "bg-amber-400", textColor: "text-amber-500 dark:text-amber-400", trackColor: "bg-amber-100 dark:bg-amber-900/30" },
               ].map((row) => (
                 <div key={row.label}>
-                  <div className="flex items-center justify-between text-sm mb-1">
+                  <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-2">
                       <div className={`h-2 w-2 rounded-full ${row.barColor}`} />
-                      <span className="text-muted-foreground text-xs">{row.label}</span>
+                      <span className="text-slate-500 dark:text-slate-400 text-xs font-medium">{row.label}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`font-bold text-sm ${row.textColor}`}>{statsLoading ? "—" : row.value}</span>
                       {total > 0 && !statsLoading && (
-                        <span className="text-xs text-muted-foreground/60 w-10 text-right">
+                        <span className="text-[11px] text-slate-400 dark:text-slate-500 w-10 text-right">
                           {((row.value / total) * 100).toFixed(1)}%
                         </span>
                       )}
                     </div>
                   </div>
                   {!statsLoading && total > 0 && (
-                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div className={`h-1.5 w-full rounded-full ${row.trackColor} overflow-hidden`}>
                       <div
-                        className={`h-full ${row.barColor} rounded-full transition-all`}
+                        className={`h-full ${row.barColor} rounded-full transition-all duration-700`}
                         style={{ width: `${(row.value / total) * 100}%` }}
                       />
                     </div>
@@ -361,7 +393,10 @@ export default function Dashboard() {
             <div className="mt-auto space-y-2 pt-2">
               {offline > 0 && (
                 <Link href="/offline-report">
-                  <Button size="sm" className="w-full gap-2 justify-between h-9 bg-rose-400 hover:bg-rose-500 text-white border-0">
+                  <Button
+                    size="sm"
+                    className="w-full gap-2 justify-between h-9 bg-red-500 hover:bg-red-600 text-white border-0 shadow-sm shadow-red-200 dark:shadow-red-900/30"
+                  >
                     <span>View {offline} Offline Devices</span>
                     <ArrowRight className="h-4 w-4" />
                   </Button>
@@ -371,7 +406,7 @@ export default function Dashboard() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="w-full gap-2 justify-between h-9 border-amber-200 text-amber-800 hover:bg-amber-50 dark:border-amber-800/50 dark:text-amber-400 dark:hover:bg-amber-950/30"
+                  className="w-full gap-2 justify-between h-9 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
                 >
                   <span>Manage All Devices</span>
                   <ArrowRight className="h-4 w-4" />

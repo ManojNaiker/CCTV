@@ -78,14 +78,14 @@
   --elevate-1: rgba(0,0,0, .025);
   --elevate-2: rgba(0,0,0, .06);
 
-  /* Clean white-grey background — Outlook/Office style */
-  --background: 0 0% 94%;
-  --foreground: 0 0% 13%;
+  /* Clean off-white background — crisp, professional */
+  --background: 210 20% 96%;
+  --foreground: 215 25% 12%;
 
-  --border: 0 0% 84%;
+  --border: 214 20% 88%;
   --card: 0 0% 100%;
-  --card-foreground: 0 0% 13%;
-  --card-border: 0 0% 87%;
+  --card-foreground: 215 25% 12%;
+  --card-border: 214 20% 90%;
 
   /* Medium slate sidebar — not too dark, like Teams/Outlook */
   --sidebar: 220 20% 21%;
@@ -127,8 +127,8 @@
   --chart-4: 262 55% 56%;
   --chart-5: 4 68% 50%;
 
-  /* Segoe UI style — clear, Office-like font stack */
-  --app-font-sans: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
+  /* Inter-first — clean, modern, cross-platform */
+  --app-font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   --app-font-serif: Georgia, 'Times New Roman', serif;
   --app-font-mono: 'JetBrains Mono', 'Cascadia Code', monospace;
 

@@ -85,11 +85,10 @@ function EditableCell({
       onChange={(e) => setLocalVal(e.target.value)}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
-      className={`w-full bg-transparent border border-transparent rounded px-1.5 py-0.5 text-xs
-        focus:bg-background focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary
-        hover:bg-muted/40 transition-colors cursor-text
+      className={`w-full bg-white dark:bg-muted/20 border border-border rounded px-2 py-1 text-xs
+        focus:bg-background focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30
+        hover:border-primary/50 transition-colors cursor-text
         ${align === "center" ? "text-center" : "text-left"}
-        ${localVal === "" ? "text-muted-foreground/40" : ""}
       `}
       placeholder="—"
       style={{ minWidth: 60 }}
@@ -131,7 +130,7 @@ function generateDvrPDF(records: DvrRecord[], date: string) {
 
   autoTable(doc, {
     startY: 26,
-    head: [["#", "State", "Branch", "Camera Count", "Recording Cameras", "Not Working", "Last Recording", "Activity Date", "Total Days", "Remark", "Status"]],
+    head: [["#", "State", "Branch", "Branch Camera Count", "No Of Recording Camera", "No Of Not Working Camera", "Last Recording", "Activity Date", "Total Recording Day", "Remark", "Status"]],
     body: rows,
     styles: { fontSize: 7, cellPadding: 2 },
     headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: "bold", fontSize: 7 },
@@ -273,13 +272,13 @@ export default function DvrStorage() {
             <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">#</th>
             <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">State</th>
             <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[130px]">Branch</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[90px]">Camera Count</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[100px]">Recording</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[90px]">Not Working</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[110px]">Last Recording</th>
+            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[110px]">Branch Camera Count</th>
+            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[130px]">No Of Recording Camera</th>
+            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[140px]">No Of Not Working Camera</th>
+            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[120px]">Last Recording</th>
             <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Activity Date</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[80px]">Total Days</th>
-            <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[120px]">Remark</th>
+            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[120px]">Total Recording Day</th>
+            <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[140px]">Remark</th>
             <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Status</th>
           </tr>
         </thead>

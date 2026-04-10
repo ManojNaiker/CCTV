@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   HardDrive,
@@ -9,6 +9,8 @@ import {
   RefreshCw,
   AlertTriangle,
   PlusCircle,
+  Search,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -49,77 +51,49 @@ function EditableCell({
   value,
   onSave,
   type = "text",
-  placeholder = "—",
+  align = "left",
 }: {
   value: string | number | null;
   onSave: (val: string) => void;
   type?: "text" | "number" | "date";
-  placeholder?: string;
+  align?: "left" | "center";
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value != null ? String(value) : "");
-  const inputRef = useRef<HTMLInputElement>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const savedRef = useRef(value != null ? String(value) : "");
+  const [localVal, setLocalVal] = useState(value != null ? String(value) : "");
 
-  const startEdit = () => {
-    setDraft(value != null ? String(value) : "");
-    setEditing(true);
-    setTimeout(() => inputRef.current?.focus(), 0);
-  };
+  const handleBlur = useCallback(() => {
+    if (localVal !== savedRef.current) {
+      savedRef.current = localVal;
+      onSave(localVal);
+    }
+  }, [localVal, onSave]);
 
-  const commit = () => {
-    setEditing(false);
-    onSave(draft);
-  };
-
-  const focusNext = () => {
-    const cells = Array.from(
-      document.querySelectorAll<HTMLElement>('[data-editable-cell]')
-    );
-    const idx = cells.indexOf(wrapperRef.current!);
-    const next = cells[idx + 1];
-    if (next) next.focus();
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.currentTarget.blur();
+    }
+    if (e.key === "Escape") {
+      setLocalVal(savedRef.current);
+      e.currentTarget.blur();
+    }
   };
 
   return (
-    <div
-      ref={wrapperRef}
-      data-editable-cell
-      tabIndex={editing ? -1 : 0}
-      onFocus={() => { if (!editing) startEdit(); }}
-      className="outline-none"
-    >
-      {editing ? (
-        <input
-          ref={inputRef}
-          type={type}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") { commit(); }
-            if (e.key === "Escape") { setEditing(false); }
-            if (e.key === "Tab") {
-              e.preventDefault();
-              commit();
-              setTimeout(focusNext, 0);
-            }
-          }}
-          className="w-full px-1.5 py-0.5 text-xs border border-primary rounded focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-          style={{ minWidth: 60 }}
-        />
-      ) : (
-        <span
-          onClick={startEdit}
-          className={`cursor-pointer hover:bg-muted/60 px-1.5 py-0.5 rounded text-xs block truncate ${
-            value == null || value === "" ? "text-muted-foreground/40 italic" : ""
-          }`}
-          title={value != null && value !== "" ? String(value) : "Click to edit"}
-        >
-          {value != null && value !== "" ? String(value) : placeholder}
-        </span>
-      )}
-    </div>
+    <input
+      type={type}
+      value={localVal}
+      onChange={(e) => setLocalVal(e.target.value)}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      className={`w-full bg-transparent border border-transparent rounded px-1.5 py-0.5 text-xs
+        focus:bg-background focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary
+        hover:bg-muted/40 transition-colors cursor-text
+        ${align === "center" ? "text-center" : "text-left"}
+        ${localVal === "" ? "text-muted-foreground/40" : ""}
+      `}
+      placeholder="—"
+      style={{ minWidth: 60 }}
+    />
   );
 }
 
@@ -208,6 +182,8 @@ export default function DvrStorage() {
   const [exportingPDF, setExportingPDF] = useState(false);
   const [showInitDialog, setShowInitDialog] = useState(false);
   const [initializing, setInitializing] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "completed">("all");
 
   const { data: records = [], isLoading } = useQuery<DvrRecord[]>({
     queryKey: ["dvr-storage", date],
@@ -276,6 +252,19 @@ export default function DvrStorage() {
   const pending = records.filter((r) => r.status === "pending");
   const completed = records.filter((r) => r.status === "completed");
 
+  const q = search.trim().toLowerCase();
+  const filteredRecords = records.filter((r) => {
+    const matchesSearch = q === "" ||
+      r.branch.toLowerCase().includes(q) ||
+      r.state.toLowerCase().includes(q);
+    const matchesStatus =
+      statusFilter === "all" ||
+      r.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+  const filteredPending = filteredRecords.filter((r) => r.status === "pending");
+  const filteredCompleted = filteredRecords.filter((r) => r.status === "completed");
+
   const RecordTable = ({ rows }: { rows: DvrRecord[] }) => (
     <div className="overflow-x-auto">
       <table className="w-full text-xs border-collapse">
@@ -304,7 +293,7 @@ export default function DvrStorage() {
                 <EditableCell
                   value={r.branchCameraCount}
                   type="number"
-                  placeholder="Click to edit"
+                  align="center"
                   onSave={(v) => updateMutation.mutate({ id: r.id, field: "branchCameraCount", value: v })}
                 />
               </td>
@@ -312,7 +301,7 @@ export default function DvrStorage() {
                 <EditableCell
                   value={r.noOfRecordingCamera}
                   type="number"
-                  placeholder="Click to edit"
+                  align="center"
                   onSave={(v) => updateMutation.mutate({ id: r.id, field: "noOfRecordingCamera", value: v })}
                 />
               </td>
@@ -320,7 +309,7 @@ export default function DvrStorage() {
                 <EditableCell
                   value={r.noOfNotWorkingCamera}
                   type="number"
-                  placeholder="Click to edit"
+                  align="center"
                   onSave={(v) => updateMutation.mutate({ id: r.id, field: "noOfNotWorkingCamera", value: v })}
                 />
               </td>
@@ -328,7 +317,7 @@ export default function DvrStorage() {
                 <EditableCell
                   value={r.lastRecording}
                   type="date"
-                  placeholder="Click to edit"
+                  align="center"
                   onSave={(v) => updateMutation.mutate({ id: r.id, field: "lastRecording", value: v })}
                 />
               </td>
@@ -337,14 +326,13 @@ export default function DvrStorage() {
                 <EditableCell
                   value={r.totalRecordingDay}
                   type="number"
-                  placeholder="Click to edit"
+                  align="center"
                   onSave={(v) => updateMutation.mutate({ id: r.id, field: "totalRecordingDay", value: v })}
                 />
               </td>
               <td className="px-2 py-2">
                 <EditableCell
                   value={r.remark}
-                  placeholder="Click to edit"
                   onSave={(v) => updateMutation.mutate({ id: r.id, field: "remark", value: v })}
                 />
               </td>
@@ -493,7 +481,7 @@ export default function DvrStorage() {
         </div>
       </div>
 
-      {/* Date selector */}
+      {/* Date selector + Search/Filter */}
       <Card className="shadow-sm">
         <CardContent className="pt-4 pb-4 px-5">
           <div className="flex items-center gap-3 flex-wrap">
@@ -508,8 +496,48 @@ export default function DvrStorage() {
             <Button size="sm" variant="outline" className="h-8" onClick={() => setDate(today)}>
               Today
             </Button>
-            <span className="text-xs text-muted-foreground/60 ml-2">
-              Click any cell to edit. All fields filled → auto-moves to Completed.
+
+            <div className="h-4 w-px bg-border mx-1 hidden sm:block" />
+
+            {/* Search box */}
+            <div className="relative flex items-center">
+              <Search className="absolute left-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search branch or state…"
+                className="pl-7 pr-7 py-1 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary h-8 w-52"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Status filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "all" | "pending" | "completed")}
+              className="px-2 py-1 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary h-8 cursor-pointer"
+            >
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+            </select>
+
+            {(search || statusFilter !== "all") && (
+              <span className="text-xs text-muted-foreground">
+                {filteredRecords.length} of {records.length} shown
+              </span>
+            )}
+
+            <span className="text-xs text-muted-foreground/60 ml-auto hidden lg:block">
+              Tab key se next field mein jayein. All fields filled → auto Completed.
             </span>
           </div>
         </CardContent>
@@ -540,7 +568,11 @@ export default function DvrStorage() {
               <div>
                 <CardTitle className="text-base font-semibold">DVR Storage Records</CardTitle>
                 <CardDescription className="text-xs mt-0.5">
-                  {isLoading ? "Loading..." : `${records.length} branch${records.length !== 1 ? "es" : ""} · ${date}`}
+                  {isLoading
+                    ? "Loading..."
+                    : filteredRecords.length < records.length
+                      ? `${filteredRecords.length} of ${records.length} branches · ${date}`
+                      : `${records.length} branch${records.length !== 1 ? "es" : ""} · ${date}`}
                 </CardDescription>
               </div>
             </div>
@@ -560,16 +592,20 @@ export default function DvrStorage() {
                 <p className="text-base font-semibold text-blue-700 dark:text-blue-400">No records for this date</p>
                 <p className="text-sm text-muted-foreground">Click <strong>Initialize</strong> to create records for all branches.</p>
               </div>
+            ) : filteredRecords.length === 0 ? (
+              <div className="py-12 text-center text-muted-foreground text-sm">
+                Koi result nahi mila — search ya filter change karein.
+              </div>
             ) : (
               <>
                 <TabsContent value="pending" className="mt-0">
-                  <RecordTable rows={pending} />
+                  <RecordTable rows={filteredPending} />
                 </TabsContent>
                 <TabsContent value="completed" className="mt-0">
-                  <RecordTable rows={completed} />
+                  <RecordTable rows={filteredCompleted} />
                 </TabsContent>
                 <TabsContent value="all" className="mt-0">
-                  <RecordTable rows={records} />
+                  <RecordTable rows={filteredRecords} />
                 </TabsContent>
               </>
             )}

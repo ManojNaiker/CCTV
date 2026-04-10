@@ -26,6 +26,26 @@ type HistoryRecord = {
   status: string;
 };
 
+type TimelineEvent = {
+  minuteOfDay: number;
+  status: string;
+};
+
+type TimelineRecord = {
+  deviceId: number;
+  serialNumber: string;
+  branchName: string;
+  stateName: string;
+  date: string;
+  events: TimelineEvent[];
+};
+
+type Segment = {
+  startMinute: number;
+  endMinute: number;
+  status: string;
+};
+
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function getISTDateStr(d: Date): string {
@@ -52,6 +72,66 @@ function generateDateRange(from: string, to: string): string[] {
   return dates;
 }
 
+function minutesToTimeLabel(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  const period = h < 12 ? "AM" : "PM";
+  const hour = h % 12 === 0 ? 12 : h % 12;
+  return `${hour}:${m.toString().padStart(2, "0")} ${period}`;
+}
+
+function eventsToSegments(events: TimelineEvent[]): Segment[] {
+  if (events.length === 0) return [];
+  const sorted = [...events].sort((a, b) => a.minuteOfDay - b.minuteOfDay);
+  const segments: Segment[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    const start = sorted[i].minuteOfDay;
+    const end = i + 1 < sorted.length ? sorted[i + 1].minuteOfDay : 1440;
+    segments.push({ startMinute: start, endMinute: end, status: sorted[i].status });
+  }
+  // If first event doesn't start at 0, prepend an "unknown" from 0 to first event
+  if (sorted[0].minuteOfDay > 0) {
+    segments.unshift({ startMinute: 0, endMinute: sorted[0].minuteOfDay, status: "unknown" });
+  }
+  return segments;
+}
+
+const STATUS_COLOR: Record<string, { bg: string; label: string }> = {
+  online:  { bg: "#22c55e", label: "Online"  },
+  offline: { bg: "#ef4444", label: "Offline" },
+  unknown: { bg: "#f59e0b", label: "Unknown" },
+};
+
+function TimelineBar({ events }: { events: TimelineEvent[] | undefined }) {
+  if (!events || events.length === 0) {
+    return (
+      <div className="w-full h-5 rounded flex overflow-hidden" title="No data recorded">
+        <div className="w-full h-full rounded" style={{ background: "rgba(0,0,0,0.07)" }} />
+      </div>
+    );
+  }
+
+  const segments = eventsToSegments(events);
+
+  return (
+    <div className="w-full h-5 rounded overflow-hidden flex" style={{ minWidth: 32 }}>
+      {segments.map((seg, i) => {
+        const widthPct = ((seg.endMinute - seg.startMinute) / 1440) * 100;
+        const color = STATUS_COLOR[seg.status]?.bg ?? "#9ca3af";
+        const label = STATUS_COLOR[seg.status]?.label ?? seg.status;
+        const title = `${label}: ${minutesToTimeLabel(seg.startMinute)} – ${minutesToTimeLabel(seg.endMinute)}`;
+        return (
+          <div
+            key={i}
+            title={title}
+            style={{ width: `${widthPct}%`, background: color, minWidth: widthPct < 5 ? 2 : undefined }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 const PRESETS = [
   { label: "Today", days: 0 },
   { label: "Last 7 Days", days: 6 },
@@ -66,33 +146,11 @@ function getPresetRange(days: number): { from: string; to: string } {
   return { from: getISTDateStr(from), to: getISTDateStr(to) };
 }
 
-function StatusCell({ status }: { status: string | undefined }) {
-  if (!status) {
-    return (
-      <div className="w-full h-full flex items-center justify-center px-1" title="No data">
-        <div className="w-full h-1.5 rounded-full bg-muted-foreground/15" />
-      </div>
-    );
-  }
-  const cfg: Record<string, { bar: string; label: string }> = {
-    online:  { bar: "bg-green-500", label: "Online"  },
-    offline: { bar: "bg-red-500",   label: "Offline" },
-    unknown: { bar: "bg-orange-400", label: "Unknown" },
-  };
-  const { bar, label } = cfg[status] ?? { bar: "bg-gray-400", label: status };
-  return (
-    <div className="w-full h-full flex items-center justify-center px-1" title={label}>
-      <div className={`w-full h-1.5 rounded-full ${bar}`} />
-    </div>
-  );
-}
-
 const MAX_DATES = 14;
 
 export default function StatusReport() {
   const today = getISTDateStr(new Date());
 
-  // Default: Today (preset index 0)
   const [activePreset, setActivePreset] = useState<number>(0);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -105,11 +163,23 @@ export default function StatusReport() {
     return getPresetRange(PRESETS[activePreset].days);
   }, [activePreset, isCustom, customFrom, customTo]);
 
+  // Legacy per-day records for summary stats and PDF
   const { data: records = [], isLoading } = useQuery<HistoryRecord[]>({
     queryKey: ["status-history", from, to],
     queryFn: async () => {
       const res = await fetch(`${BASE}/api/devices/status-history?from=${from}&to=${to}`);
       if (!res.ok) throw new Error("Failed to load status history");
+      return res.json();
+    },
+    enabled: !!(from && to),
+  });
+
+  // Timeline data for the segmented bars
+  const { data: timelineData = [] } = useQuery<TimelineRecord[]>({
+    queryKey: ["status-timeline", from, to],
+    queryFn: async () => {
+      const res = await fetch(`${BASE}/api/devices/status-timeline?from=${from}&to=${to}`);
+      if (!res.ok) throw new Error("Failed to load status timeline");
       return res.json();
     },
     enabled: !!(from && to),
@@ -126,6 +196,16 @@ export default function StatusReport() {
     return Array.from(map.values()).sort((a, b) => a.branchName.localeCompare(b.branchName));
   }, [records]);
 
+  // Timeline lookup: serialNumber::date -> events[]
+  const timelineMap = useMemo(() => {
+    const m = new Map<string, TimelineEvent[]>();
+    for (const t of timelineData) {
+      m.set(`${t.serialNumber}::${t.date}`, t.events);
+    }
+    return m;
+  }, [timelineData]);
+
+  // Day-level status map (for summary % row)
   const statusMap = useMemo(() => {
     const m = new Map<string, string>();
     for (const r of records) m.set(`${r.serialNumber}::${r.date}`, r.status);
@@ -197,41 +277,44 @@ export default function StatusReport() {
 
       {/* ── Header Banner ── */}
       <div
-        className="rounded-2xl overflow-hidden shadow-lg relative"
-        style={{ background: "linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 55%, #2563eb 100%)" }}
+        className="rounded-2xl overflow-hidden relative"
+        style={{
+          background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #1e40af 100%)",
+          boxShadow: "0 4px 24px rgba(30, 64, 175, 0.25)",
+        }}
       >
-        <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/5" />
-        <div className="absolute right-24 -bottom-8 h-32 w-32 rounded-full bg-white/5" />
-        <div className="absolute -left-6 -bottom-6 h-24 w-24 rounded-full bg-white/5" />
+        <div className="h-0.5 w-full bg-gradient-to-r from-blue-500/0 via-blue-400/60 to-blue-500/0" />
+        <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/5 pointer-events-none" />
+        <div className="absolute right-24 -bottom-8 h-32 w-32 rounded-full bg-white/5 pointer-events-none" />
 
         <div className="relative p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
-              <CalendarDays className="h-6 w-6 text-white" />
+            <div className="h-12 w-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/15">
+              <CalendarDays className="h-6 w-6 text-blue-200" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white tracking-tight">Status Report</h1>
-              <p className="text-blue-100 text-sm mt-0.5">
-                Day-wise device online / offline history — {rangeLabel}
+              <p className="text-blue-200/70 text-sm mt-0.5">
+                Timeline view of device online / offline history — {rangeLabel}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3 shrink-0 flex-wrap">
-            <div className="text-center px-4 py-2.5 rounded-xl bg-white/15 border border-white/20 min-w-[72px]">
+            <div className="text-center px-4 py-2.5 rounded-xl bg-white/8 border border-white/12 min-w-[72px]">
               {isLoading
                 ? <div className="h-7 w-10 bg-white/20 animate-pulse rounded mx-auto mb-1" />
                 : <p className="text-2xl font-extrabold text-white">{devices.length}</p>}
               <p className="text-[10px] text-blue-200 uppercase tracking-widest font-semibold">Devices</p>
             </div>
-            <div className="text-center px-4 py-2.5 rounded-xl bg-white/10 border border-white/15 min-w-[72px]">
+            <div className="text-center px-4 py-2.5 rounded-xl bg-white/8 border border-white/12 min-w-[72px]">
               {isLoading
                 ? <div className="h-7 w-10 bg-white/20 animate-pulse rounded mx-auto mb-1" />
                 : <p className="text-2xl font-extrabold text-white">{uptimePct !== null ? `${uptimePct}%` : "—"}</p>}
               <p className="text-[10px] text-blue-200 uppercase tracking-widest font-semibold">Uptime</p>
             </div>
             <Button
-              className="gap-2 bg-white text-blue-700 hover:bg-blue-50 border-0 font-semibold h-10"
+              className="gap-2 bg-white/90 text-blue-900 hover:bg-white border-0 font-semibold h-10"
               onClick={handleExportPDF}
               disabled={exportingPDF || records.length === 0 || isLoading}
             >
@@ -293,76 +376,89 @@ export default function StatusReport() {
 
       {/* ── Summary Cards ── */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="overflow-hidden shadow-sm">
-          <div className="h-1 bg-gradient-to-r from-green-400 to-emerald-500" />
+        <Card className="overflow-hidden shadow-sm border-slate-200 dark:border-slate-700/60">
+          <div className="h-0.5 bg-gradient-to-r from-green-400 to-emerald-500" />
           <CardContent className="pt-4 pb-5 px-5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-green-600 dark:text-green-400 uppercase tracking-wider">Online</p>
-              <div className="h-9 w-9 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Online</p>
+              <div className="h-9 w-9 rounded-lg bg-green-50 dark:bg-green-900/30 flex items-center justify-center border border-green-100 dark:border-green-800/40">
                 <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
               </div>
             </div>
             {isLoading
               ? <Skeleton className="h-9 w-16 mb-1" />
-              : <p className="text-3xl font-extrabold text-green-700 dark:text-green-400">{overallStats.online}</p>}
-            <p className="text-xs text-muted-foreground mt-1">device-day readings online</p>
+              : <p className="text-3xl font-extrabold text-green-600 dark:text-green-400 tracking-tight">{overallStats.online}</p>}
+            <p className="text-xs text-muted-foreground mt-1.5">device-day readings online</p>
           </CardContent>
         </Card>
 
-        <Card className="border-red-200 dark:border-red-800/50 overflow-hidden shadow-sm">
-          <div className="h-1 bg-gradient-to-r from-red-500 to-rose-600" />
+        <Card className="overflow-hidden shadow-sm border-slate-200 dark:border-slate-700/60">
+          <div className="h-0.5 bg-gradient-to-r from-red-500 to-rose-600" />
           <CardContent className="pt-4 pb-5 px-5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">Offline</p>
-              <div className="h-9 w-9 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Offline</p>
+              <div className="h-9 w-9 rounded-lg bg-red-50 dark:bg-red-900/30 flex items-center justify-center border border-red-100 dark:border-red-800/40">
                 <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
               </div>
             </div>
             {isLoading
               ? <Skeleton className="h-9 w-16 mb-1" />
-              : <p className="text-3xl font-extrabold text-red-700 dark:text-red-400">{overallStats.offline}</p>}
-            <p className="text-xs text-muted-foreground mt-1">device-day readings offline</p>
+              : <p className="text-3xl font-extrabold text-red-500 dark:text-red-400 tracking-tight">{overallStats.offline}</p>}
+            <p className="text-xs text-muted-foreground mt-1.5">device-day readings offline</p>
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden shadow-sm">
-          <div className="h-1 bg-gradient-to-r from-blue-400 to-indigo-500" />
+        <Card className="overflow-hidden shadow-sm border-slate-200 dark:border-slate-700/60">
+          <div className="h-0.5 bg-gradient-to-r from-blue-400 to-indigo-500" />
           <CardContent className="pt-4 pb-5 px-5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Overall Uptime</p>
-              <div className="h-9 w-9 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Overall Uptime</p>
+              <div className="h-9 w-9 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center border border-blue-100 dark:border-blue-800/40">
                 <Activity className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               </div>
             </div>
             {isLoading
               ? <Skeleton className="h-9 w-16 mb-1" />
-              : <p className="text-3xl font-extrabold text-blue-700 dark:text-blue-400">
+              : <p className="text-3xl font-extrabold text-blue-600 dark:text-blue-400 tracking-tight">
                   {uptimePct !== null ? `${uptimePct}%` : "—"}
                 </p>}
-            <p className="text-xs text-muted-foreground mt-1">across {dateRange.length} day{dateRange.length !== 1 ? "s" : ""}, {devices.length} device{devices.length !== 1 ? "s" : ""}</p>
+            <p className="text-xs text-muted-foreground mt-1.5">across {dateRange.length} day{dateRange.length !== 1 ? "s" : ""}, {devices.length} device{devices.length !== 1 ? "s" : ""}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* ── Legend ── */}
       <div className="flex items-center gap-5 text-xs text-muted-foreground px-1">
-        <div className="flex items-center gap-2"><div className="w-6 h-1.5 rounded-full bg-green-500" />Online</div>
-        <div className="flex items-center gap-2"><div className="w-6 h-1.5 rounded-full bg-red-500" />Offline</div>
-        <div className="flex items-center gap-2"><div className="w-6 h-1.5 rounded-full bg-orange-400" />Unknown</div>
-        <div className="flex items-center gap-2"><div className="w-6 h-1.5 rounded-full bg-muted-foreground/15" />No Data</div>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-3 rounded" style={{ background: "#22c55e" }} />
+          Online
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-3 rounded" style={{ background: "#ef4444" }} />
+          Offline
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-3 rounded" style={{ background: "#f59e0b" }} />
+          Unknown
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-3 rounded" style={{ background: "rgba(0,0,0,0.07)" }} />
+          No Data
+        </div>
+        <span className="ml-2 text-muted-foreground/60 italic">Hover on bar to see time range</span>
       </div>
 
-      {/* ── Calendar Grid ── */}
+      {/* ── Calendar Grid with Timeline Bars ── */}
       <Card className="shadow-sm overflow-hidden">
         <CardHeader className="border-b border-border/40">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+              <div className="h-9 w-9 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center border border-blue-200 dark:border-blue-800/40">
                 <CalendarDays className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <CardTitle className="text-base text-blue-700 dark:text-blue-400">Calendar View</CardTitle>
-                <CardDescription className="mt-0.5">
+                <CardTitle className="text-base font-semibold">Timeline Calendar</CardTitle>
+                <CardDescription className="mt-0.5 text-xs">
                   {isLoading ? "Loading..." : records.length === 0 ? "No data for this range" : `${devices.length} device${devices.length !== 1 ? "s" : ""} · ${dateRange.length} day${dateRange.length !== 1 ? "s" : ""}`}
                 </CardDescription>
               </div>
@@ -410,7 +506,7 @@ export default function StatusReport() {
                       const { day, weekday, month } = formatDisplayDate(date);
                       const isToday = date === today;
                       return (
-                        <th key={date} className={`px-1 py-2 text-center min-w-[46px] ${isToday ? "bg-blue-50 dark:bg-blue-950/30" : ""}`}>
+                        <th key={date} className={`px-1 py-2 text-center min-w-[80px] ${isToday ? "bg-blue-50 dark:bg-blue-950/30" : ""}`}>
                           <div className={`font-bold text-sm ${isToday ? "text-blue-600 dark:text-blue-400" : "text-foreground"}`}>{day}</div>
                           <div className={`text-[10px] ${isToday ? "text-blue-500/70" : "text-muted-foreground/60"}`}>{weekday}</div>
                           <div className={`text-[10px] ${isToday ? "text-blue-400/60" : "text-muted-foreground/40"}`}>{month}</div>
@@ -418,10 +514,10 @@ export default function StatusReport() {
                       );
                     })}
                   </tr>
-                  {/* Day uptime % row */}
+                  {/* Day uptime % summary row */}
                   <tr className="border-b bg-muted/20">
                     <td className="sticky left-0 bg-muted/30 z-10 px-4 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                      Day Summary
+                      Day Uptime
                     </td>
                     {visibleDates.map((date) => {
                       const s = daySummaries.find((d) => d.date === date);
@@ -445,7 +541,10 @@ export default function StatusReport() {
                 </thead>
                 <tbody className="divide-y divide-border/30">
                   {devices.map((device, idx) => (
-                    <tr key={device.serialNumber} className={`hover:bg-blue-50/30 dark:hover:bg-blue-950/10 transition-colors ${idx % 2 === 0 ? "" : "bg-muted/5"}`}>
+                    <tr
+                      key={device.serialNumber}
+                      className={`hover:bg-blue-50/30 dark:hover:bg-blue-950/10 transition-colors ${idx % 2 === 0 ? "" : "bg-muted/5"}`}
+                    >
                       <td className="sticky left-0 bg-card z-10 px-4 py-3 border-r border-border/30">
                         <div className="font-semibold text-foreground truncate max-w-[170px]" title={device.branchName}>
                           {device.branchName}
@@ -454,11 +553,14 @@ export default function StatusReport() {
                         <div className="text-[10px] text-muted-foreground/50 font-mono">{device.serialNumber}</div>
                       </td>
                       {visibleDates.map((date) => {
-                        const status = statusMap.get(`${device.serialNumber}::${date}`);
+                        const events = timelineMap.get(`${device.serialNumber}::${date}`);
                         const isToday = date === today;
                         return (
-                          <td key={date} className={`px-1 py-3 text-center h-14 ${isToday ? "bg-blue-50/40 dark:bg-blue-950/10" : ""}`}>
-                            <StatusCell status={status} />
+                          <td
+                            key={date}
+                            className={`px-2 py-3 ${isToday ? "bg-blue-50/40 dark:bg-blue-950/10" : ""}`}
+                          >
+                            <TimelineBar events={events} />
                           </td>
                         );
                       })}
@@ -473,15 +575,15 @@ export default function StatusReport() {
 
       {/* ── Device Uptime Summary Table ── */}
       {devices.length > 0 && records.length > 0 && (
-        <Card className="shadow-sm overflow-hidden">
+        <Card className="shadow-sm overflow-hidden border-slate-200 dark:border-slate-700/60">
           <CardHeader className="border-b border-border/40">
             <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+              <div className="h-9 w-9 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center border border-indigo-200 dark:border-indigo-800/40">
                 <BarChart2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
               </div>
               <div>
-                <CardTitle className="text-base text-indigo-700 dark:text-indigo-400">Device Uptime Summary</CardTitle>
-                <CardDescription className="mt-0.5">{rangeLabel}</CardDescription>
+                <CardTitle className="text-base font-semibold">Device Uptime Summary</CardTitle>
+                <CardDescription className="mt-0.5 text-xs">{rangeLabel}</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -494,8 +596,8 @@ export default function StatusReport() {
                     <th className="text-left font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">Branch</th>
                     <th className="text-left font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">State</th>
                     <th className="text-left font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">Serial</th>
-                    <th className="text-center font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">Online</th>
-                    <th className="text-center font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">Offline</th>
+                    <th className="text-center font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">Online Days</th>
+                    <th className="text-center font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">Offline Days</th>
                     <th className="text-center font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">No Data</th>
                     <th className="text-center font-semibold text-muted-foreground px-4 py-3 text-xs uppercase tracking-wider">Uptime %</th>
                   </tr>
@@ -524,7 +626,7 @@ export default function StatusReport() {
                         </td>
                         <td className="px-4 py-3.5 text-center">
                           {offlineD > 0
-                            ? <span className="font-bold text-red-600 dark:text-red-400">{offlineD}</span>
+                            ? <span className="font-bold text-red-500 dark:text-red-400">{offlineD}</span>
                             : <span className="text-muted-foreground/40">0</span>}
                         </td>
                         <td className="px-4 py-3.5 text-center text-muted-foreground">{noDataD || "—"}</td>

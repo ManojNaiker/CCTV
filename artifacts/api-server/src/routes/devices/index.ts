@@ -183,6 +183,69 @@ router.get("/devices/offline-streak", async (req, res): Promise<void> => {
   })));
 });
 
+router.get("/devices/status-timeline", async (req, res): Promise<void> => {
+  const { from, to } = req.query as { from?: string; to?: string };
+
+  if (!from || !to) {
+    res.status(400).json({ error: "from and to query params are required (YYYY-MM-DD)" });
+    return;
+  }
+
+  const fromDate = new Date(`${from}T00:00:00+05:30`);
+  const toDate = new Date(`${to}T23:59:59+05:30`);
+
+  if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+    res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD" });
+    return;
+  }
+
+  const records = await db.select().from(deviceStatusHistoryTable)
+    .where(and(
+      gte(deviceStatusHistoryTable.recordedAt, fromDate),
+      lte(deviceStatusHistoryTable.recordedAt, toDate)
+    ))
+    .orderBy(deviceStatusHistoryTable.recordedAt);
+
+  // Group by device+date, accumulate events with minuteOfDay
+  const groupMap = new Map<string, {
+    deviceId: number;
+    serialNumber: string;
+    branchName: string;
+    stateName: string;
+    date: string;
+    events: { minuteOfDay: number; status: string }[];
+  }>();
+
+  for (const r of records) {
+    const dateIST = r.recordedAt.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    const key = `${r.serialNumber}::${dateIST}`;
+
+    if (!groupMap.has(key)) {
+      groupMap.set(key, {
+        deviceId: r.deviceId,
+        serialNumber: r.serialNumber,
+        branchName: r.branchName,
+        stateName: r.stateName,
+        date: dateIST,
+        events: [],
+      });
+    }
+
+    // Compute minute-of-day in IST
+    const istMs = r.recordedAt.getTime() + (5.5 * 60 * 60 * 1000);
+    const minuteOfDay = Math.floor((istMs % (24 * 60 * 60 * 1000)) / (60 * 1000));
+
+    const entry = groupMap.get(key)!;
+    const lastEvent = entry.events[entry.events.length - 1];
+    // Only add if status changed (avoids duplicates)
+    if (!lastEvent || lastEvent.status !== r.status) {
+      entry.events.push({ minuteOfDay, status: r.status });
+    }
+  }
+
+  res.json(Array.from(groupMap.values()));
+});
+
 router.get("/devices/status-history", async (req, res): Promise<void> => {
   const { from, to } = req.query as { from?: string; to?: string };
 

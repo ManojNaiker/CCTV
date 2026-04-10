@@ -127,12 +127,14 @@ function TimelineBar({ events }: { events: TimelineEvent[] | undefined }) {
 
   return (
     <div className="w-full" style={{ minWidth: 80 }}>
-      {/* Bar track */}
-      <div
-        className="relative w-full rounded overflow-hidden"
-        style={{ height: 18, background: "rgba(0,0,0,0.07)" }}
-      >
-        {/* Online / Offline segments only — no orange for unknown */}
+      {/* Outer rounded wrapper — clips nothing, just for visual rounding */}
+      <div className="relative w-full" style={{ height: 18 }}>
+        {/* Gray background track — no border-radius so segments start exactly at 0% */}
+        <div
+          className="absolute inset-0"
+          style={{ background: "rgba(0,0,0,0.07)" }}
+        />
+        {/* Online / Offline segments — no orange for unknown */}
         {segments
           .filter((seg) => seg.status === "online" || seg.status === "offline")
           .map((seg, i) => {
@@ -146,11 +148,15 @@ function TimelineBar({ events }: { events: TimelineEvent[] | undefined }) {
                 key={i}
                 title={title}
                 className="absolute top-0 h-full"
-                style={{ left: `${leftPct}%`, width: `${Math.max(widthPct, 0.3)}%`, background: color }}
+                style={{
+                  left: `${leftPct}%`,
+                  width: `${Math.max(widthPct, 0.3)}%`,
+                  background: color,
+                }}
               />
             );
           })}
-        {/* Hour tick marks at 6AM, 12PM, 6PM */}
+        {/* Hour tick marks at 6AM, 12PM, 6PM — exact pixel alignment with labels */}
         {[360, 720, 1080].map((min) => (
           <div
             key={min}
@@ -158,21 +164,22 @@ function TimelineBar({ events }: { events: TimelineEvent[] | undefined }) {
             style={{
               left: `${(min / 1440) * 100}%`,
               width: 1,
-              background: "rgba(255,255,255,0.55)",
+              background: "rgba(255,255,255,0.6)",
               zIndex: 2,
+              transform: "translateX(-0.5px)",
             }}
           />
         ))}
       </div>
-      {/* Time ruler labels */}
-      <div className="relative w-full" style={{ height: 12 }}>
+      {/* Time ruler — same percentage positions as segments above */}
+      <div className="relative w-full" style={{ height: 13 }}>
         {DAY_TICKS.map((t) => (
           <span
             key={t.minute}
-            className="absolute text-[8px] text-muted-foreground/50 leading-none"
+            className="absolute text-[8px] text-muted-foreground/50 leading-none select-none"
             style={{
               left: `${(t.minute / 1440) * 100}%`,
-              top: 1,
+              top: 2,
               transform:
                 t.minute === 0
                   ? "none"

@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, dvrStorageTable, devicesTable } from "@workspace/db";
 import { logger } from "../../lib/logger";
+import { sendDvrReportManual } from "../../lib/emailService";
 
 const router: IRouter = Router();
 
@@ -203,6 +204,33 @@ router.delete("/dvr-storage/:id", async (req, res): Promise<void> => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Failed to delete DVR storage record" });
+  }
+});
+
+// POST /api/dvr-storage/send-email
+// body: { date: string, to: string[], cc?: string[] }
+router.post("/dvr-storage/send-email", async (req, res): Promise<void> => {
+  try {
+    const date: string = req.body?.date || getISTDate();
+    const to: string[] = (req.body?.to ?? []).map((e: string) => e.trim()).filter(Boolean);
+    const cc: string[] = (req.body?.cc ?? []).map((e: string) => e.trim()).filter(Boolean);
+
+    if (to.length === 0) {
+      res.status(400).json({ error: "At least one To recipient is required" });
+      return;
+    }
+
+    const result = await sendDvrReportManual({ date, to, cc });
+
+    if (!result.sent) {
+      res.status(422).json({ error: result.reason });
+      return;
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, "Failed to send DVR report email");
+    res.status(500).json({ error: "Failed to send email" });
   }
 });
 

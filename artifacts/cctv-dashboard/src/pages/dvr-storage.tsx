@@ -13,9 +13,9 @@ import {
   X,
   Upload,
   Download,
-  Table2,
   MessageSquare,
   Pencil,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -298,6 +298,10 @@ export default function DvrStorage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [remarkDialog, setRemarkDialog] = useState<{ record: DvrRecord; text: string } | null>(null);
   const [savingRemark, setSavingRemark] = useState(false);
+  const [emailDialog, setEmailDialog] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailCc, setEmailCc] = useState("");
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   const { data: records = [], isLoading } = useQuery<DvrRecord[]>({
     queryKey: ["dvr-storage", date],
@@ -386,22 +390,6 @@ export default function DvrStorage() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "DVR Storage");
     XLSX.writeFile(wb, `DVR_Storage_${date}.xlsx`);
-  };
-
-  const handleDownloadTemplate = () => {
-    const templateRow = {
-      Branch: "BRANCH NAME (must match exactly)",
-      "Branch Camera Count": "",
-      "No Of Recording Camera": "",
-      "No Of Not Working Camera": "",
-      "Last Recording": "YYYY-MM-DD",
-      Remark: "",
-    };
-    const ws = XLSX.utils.json_to_sheet([templateRow]);
-    ws["!cols"] = [{ wch: 36 }, { wch: 20 }, { wch: 22 }, { wch: 22 }, { wch: 16 }, { wch: 24 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Template");
-    XLSX.writeFile(wb, `DVR_BulkUpdate_Template.xlsx`);
   };
 
   const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -499,6 +487,33 @@ export default function DvrStorage() {
       toast({ title: "Failed to save remark", variant: "destructive" });
     } finally {
       setSavingRemark(false);
+    }
+  };
+
+  const handleSendEmail = async () => {
+    const toList = emailTo.split(",").map((e) => e.trim()).filter(Boolean);
+    const ccList = emailCc.split(",").map((e) => e.trim()).filter(Boolean);
+    if (toList.length === 0) {
+      toast({ title: "Please enter at least one To email address", variant: "destructive" });
+      return;
+    }
+    setSendingEmail(true);
+    try {
+      const res = await fetch(`${BASE}/api/dvr-storage/send-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, to: toList, cc: ccList }),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+      setEmailDialog(false);
+      setEmailTo("");
+      setEmailCc("");
+      toast({ title: "DVR report email sent successfully" });
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : "Failed to send email", variant: "destructive" });
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -616,6 +631,57 @@ export default function DvrStorage() {
         </DialogContent>
       </Dialog>
 
+      {/* Send Email Dialog */}
+      <Dialog open={emailDialog} onOpenChange={(open) => { if (!open) { setEmailDialog(false); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Mail className="h-5 w-5 text-blue-600" />
+              Send DVR Activity Report
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground pt-0.5">
+              A PDF report for <strong>{date}</strong> will be sent. Auto email is also sent on the 15th and last day of each month.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="pt-1 space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">To *</label>
+              <input
+                type="text"
+                value={emailTo}
+                onChange={(e) => setEmailTo(e.target.value)}
+                placeholder="email1@example.com, email2@example.com"
+                className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-muted-foreground/50"
+              />
+              <p className="text-[11px] text-muted-foreground/50">Multiple emails separated by commas</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">CC <span className="font-normal normal-case text-muted-foreground/60">(optional)</span></label>
+              <input
+                type="text"
+                value={emailCc}
+                onChange={(e) => setEmailCc(e.target.value)}
+                placeholder="cc@example.com, another@example.com"
+                className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-muted-foreground/50"
+                onKeyDown={(e) => { if (e.key === "Enter") handleSendEmail(); }}
+              />
+            </div>
+
+            <div className="flex gap-2 justify-end pt-1">
+              <Button variant="ghost" size="sm" onClick={() => setEmailDialog(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSendEmail} disabled={sendingEmail || !emailTo.trim()} className="gap-2 min-w-[100px]">
+                {sendingEmail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+                Send Email
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Header Banner */}
       <div
         className="rounded-2xl overflow-hidden relative"
@@ -693,14 +759,15 @@ export default function DvrStorage() {
               Excel
             </Button>
 
-            {/* Download Template */}
+            {/* Send Email */}
             <Button
               className="gap-2 bg-white/15 text-white hover:bg-white/25 border border-white/20 h-10"
-              onClick={handleDownloadTemplate}
-              title="Download blank Excel template for bulk update"
+              onClick={() => setEmailDialog(true)}
+              disabled={records.length === 0}
+              title="Send DVR report via email with PDF attachment"
             >
-              <Table2 className="h-4 w-4" />
-              Template
+              <Mail className="h-4 w-4" />
+              Send Email
             </Button>
 
             <Button

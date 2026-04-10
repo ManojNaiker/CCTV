@@ -343,80 +343,73 @@ export async function sendBulkOfflineAlert(devices: OfflineDevice[]): Promise<vo
   ]);
 }
 
-function buildDvrReportPDF(
-  records: { state: string; branch: string; branchCameraCount: number | null; noOfRecordingCamera: number | null; noOfNotWorkingCamera: number | null; lastRecording: string | null; activityDate: string; totalRecordingDay: number | null; remark: string | null; status: string }[],
-  dateStr: string,
-  periodLabel: string
-): Buffer {
+type DvrRecord = { state: string; branch: string; branchCameraCount: number | null; noOfRecordingCamera: number | null; noOfNotWorkingCamera: number | null; lastRecording: string | null; activityDate: string; totalRecordingDay: number | null; remark: string | null; status: string };
+
+function buildDvrReportPDF(records: DvrRecord[], dateStr: string, periodLabel: string): Buffer {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
 
-  doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, pageW, 22, "F");
-  doc.setFontSize(13);
-  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
-  doc.text("Light Finance — DVR Storage Activity Report", 14, 9);
-  doc.setFontSize(8);
+  doc.setTextColor(0, 0, 0);
+  doc.text("Light Finance — DVR Storage Activity Report", pageW / 2, 14, { align: "center" });
+  doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
-  doc.setTextColor(148, 163, 184);
-  doc.text(`Period: ${periodLabel}   |   Activity Date: ${dateStr}   |   Generated: ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`, 14, 16);
+  doc.text(`Period: ${periodLabel}   |   Date: ${dateStr}`, pageW / 2, 21, { align: "center" });
 
   const completed = records.filter((r) => r.status === "completed");
   const pending = records.filter((r) => r.status === "pending");
 
   autoTable(doc, {
-    startY: 26,
+    startY: 27,
     head: [["#", "State", "Branch", "Branch Camera Count", "Recording Cameras", "Not Working", "Last Recording", "Activity Date", "Recording Days", "Remark", "Status"]],
     body: records.map((r, i) => [
-      i + 1,
+      String(i + 1),
       r.state,
       r.branch,
-      r.branchCameraCount ?? "—",
-      r.noOfRecordingCamera ?? "—",
-      r.noOfNotWorkingCamera ?? "—",
+      r.branchCameraCount != null ? String(r.branchCameraCount) : "—",
+      r.noOfRecordingCamera != null ? String(r.noOfRecordingCamera) : "—",
+      r.noOfNotWorkingCamera != null ? String(r.noOfNotWorkingCamera) : "—",
       r.lastRecording || "—",
       r.activityDate,
-      r.totalRecordingDay ?? "—",
+      r.totalRecordingDay != null ? String(r.totalRecordingDay) : "—",
       r.remark || "—",
-      r.status === "completed" ? "✓ Done" : "Pending",
+      r.status === "completed" ? "Done" : "Pending",
     ]),
-    styles: { fontSize: 7, cellPadding: 2 },
-    headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: "bold", fontSize: 7 },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
+    styles: { fontSize: 8, cellPadding: 3, textColor: [0, 0, 0] },
+    headStyles: { fillColor: [255, 192, 0], textColor: [0, 0, 0], fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [255, 250, 235] },
     columnStyles: {
-      0: { cellWidth: 8 },
-      1: { cellWidth: 20 },
-      2: { cellWidth: 32 },
-      3: { cellWidth: 20 },
-      4: { cellWidth: 22 },
-      5: { cellWidth: 20 },
-      6: { cellWidth: 26 },
-      7: { cellWidth: 22 },
-      8: { cellWidth: 18 },
+      0: { halign: "center", cellWidth: 10 },
+      1: { cellWidth: 22 },
+      2: { cellWidth: 34 },
+      3: { halign: "center", cellWidth: 22 },
+      4: { halign: "center", cellWidth: 22 },
+      5: { halign: "center", cellWidth: 20 },
+      6: { halign: "center", cellWidth: 26 },
+      7: { halign: "center", cellWidth: 22 },
+      8: { halign: "center", cellWidth: 20 },
       9: { cellWidth: 28 },
-      10: { cellWidth: 20 },
+      10: { halign: "center", cellWidth: 20 },
     },
     didParseCell: (data) => {
       if (data.column.index === 10 && data.section === "body") {
         const val = String(data.cell.raw);
-        if (val.includes("Done")) {
-          data.cell.styles.textColor = [22, 163, 74];
-          data.cell.styles.fontStyle = "bold";
-        } else {
-          data.cell.styles.textColor = [239, 68, 68];
-        }
+        data.cell.styles.fontStyle = "bold";
+        data.cell.styles.textColor = val === "Done" ? [22, 163, 74] : [220, 38, 38];
       }
     },
   });
 
-  const finalY = (doc as any).lastAutoTable?.finalY ?? 26;
-  doc.setFontSize(8);
-  doc.setTextColor(100, 116, 139);
+  const finalY = (doc as any).lastAutoTable?.finalY ?? 27;
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(0, 0, 0);
   doc.text(
-    `Total Branches: ${records.length}  |  Completed: ${completed.length}  |  Pending: ${pending.length}`,
-    14,
-    finalY + 8
+    `Total: ${records.length}  |  Completed: ${completed.length}  |  Pending: ${pending.length}`,
+    pageW / 2,
+    finalY + 8,
+    { align: "center" }
   );
 
   return Buffer.from(doc.output("arraybuffer"));
@@ -518,6 +511,40 @@ export async function sendDvrActivityReport(label: "mid-month" | "end-of-month")
 
   await sendEmail(subject, html, undefined, toPrimary, ccRecipients, [
     { filename: `DVR_Activity_Report_${istDateStr}.pdf`, content: pdfBuffer, contentType: "application/pdf" },
+  ]);
+
+  return { sent: true };
+}
+
+export async function sendDvrReportManual(opts: {
+  date: string;
+  to: string[];
+  cc: string[];
+}): Promise<{ sent: boolean; reason?: string }> {
+  const records = await db.select().from(dvrStorageTable).where(eq(dvrStorageTable.activityDate, opts.date));
+
+  if (records.length === 0) {
+    return { sent: false, reason: `No DVR records found for ${opts.date}` };
+  }
+
+  if (opts.to.length === 0) {
+    return { sent: false, reason: "No recipients provided" };
+  }
+
+  const dateObj = new Date(opts.date + "T00:00:00+05:30");
+  const dateStr = dateObj.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const monthStr = dateObj.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+  const day = dateObj.getDate();
+  const periodLabel = day <= 15
+    ? `1–15 ${monthStr} (First Half)`
+    : `16–End of ${monthStr} (Second Half)`;
+
+  const subject = `DVR Activity Report — ${periodLabel} | ${dateStr}`;
+  const html = buildDvrReportHtml(records, dateStr, periodLabel);
+  const pdfBuffer = buildDvrReportPDF(records, dateStr, periodLabel);
+
+  await sendEmail(subject, html, undefined, opts.to, opts.cc, [
+    { filename: `DVR_Activity_Report_${opts.date}.pdf`, content: pdfBuffer, contentType: "application/pdf" },
   ]);
 
   return { sent: true };

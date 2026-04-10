@@ -34,9 +34,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 
 const COLORS = {
-  online: "#22c55e",
-  offline: "#ef4444",
-  unknown: "#f97316",
+  online: "#16a34a",
+  offline: "#dc2626",
+  unknown: "#d97706",
 };
 
 interface CustomLabelProps {
@@ -116,9 +116,11 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* ── Header Banner ── */}
-      <div className="rounded-2xl overflow-hidden shadow-lg relative"
-        style={{ background: "linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #2563eb 100%)" }}>
+      {/* ── Header Banner — warm amber/orange gradient ── */}
+      <div
+        className="rounded-2xl overflow-hidden shadow-lg relative"
+        style={{ background: "linear-gradient(135deg, #78350f 0%, #b45309 45%, #d97706 100%)" }}
+      >
         <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/5" />
         <div className="absolute right-24 -bottom-8 h-32 w-32 rounded-full bg-white/5" />
         <div className="absolute -left-6 -bottom-6 h-24 w-24 rounded-full bg-white/5" />
@@ -130,7 +132,7 @@ export default function Dashboard() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white tracking-tight">CCTV Operations Dashboard</h1>
-              <p className="text-blue-100 text-sm mt-0.5">
+              <p className="text-amber-100 text-sm mt-0.5">
                 Real-time monitoring of nationwide branch cameras.
               </p>
             </div>
@@ -138,14 +140,14 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-3 shrink-0">
             {/* Timer */}
-            <div className="text-center px-4 py-2.5 rounded-xl bg-white/15 border border-white/20 min-w-[100px]">
+            <div className="text-center px-4 py-2.5 rounded-xl bg-white/15 border border-white/20 min-w-[110px]">
               <div className="flex items-center gap-1.5 justify-center mb-0.5">
-                <Clock className="h-3 w-3 text-blue-200" />
-                <span className="text-[10px] text-blue-200 uppercase tracking-widest font-semibold">Next Refresh</span>
+                <Clock className="h-3 w-3 text-amber-200" />
+                <span className="text-[10px] text-amber-200 uppercase tracking-widest font-semibold">Next Refresh</span>
               </div>
               <p className="text-xl font-bold text-white font-mono">{timerDisplay}</p>
               {stats?.lastRefreshedAt && (
-                <p className="text-[10px] text-blue-200/60 mt-0.5">
+                <p className="text-[10px] text-amber-200/60 mt-0.5">
                   Last: {formatDistanceToNow(new Date(stats.lastRefreshedAt), { addSuffix: true })}
                 </p>
               )}
@@ -154,7 +156,7 @@ export default function Dashboard() {
             <Button
               onClick={() => refreshMutation.mutate(undefined)}
               disabled={refreshMutation.isPending}
-              className="gap-2 bg-white text-blue-700 hover:bg-blue-50 border-0 font-semibold h-10"
+              className="gap-2 bg-white text-amber-800 hover:bg-amber-50 border-0 font-semibold h-10"
             >
               <RefreshCw className={`h-4 w-4 ${refreshMutation.isPending ? "animate-spin" : ""}`} />
               Refresh Now
@@ -165,18 +167,18 @@ export default function Dashboard() {
 
       {/* ── Stat Cards ── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Total */}
-        <Card className="border-border/60 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-          <div className="h-1 bg-gradient-to-r from-slate-400 to-slate-500" />
+        {/* Total — warm amber/gold */}
+        <Card className="border-amber-200 dark:border-amber-800/40 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-amber-400 to-yellow-500" />
           <CardContent className="pt-4 pb-5 px-5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Devices</p>
-              <div className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                <MonitorCheck className="h-4.5 w-4.5 text-slate-600 dark:text-slate-300" />
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Total Devices</p>
+              <div className="h-9 w-9 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
+                <MonitorCheck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
               </div>
             </div>
             {statsLoading ? <Skeleton className="h-9 w-20" /> : (
-              <p className="text-3xl font-extrabold text-foreground">{total.toLocaleString()}</p>
+              <p className="text-3xl font-extrabold text-amber-800 dark:text-amber-300">{total.toLocaleString()}</p>
             )}
           </CardContent>
         </Card>
@@ -232,11 +234,11 @@ export default function Dashboard() {
 
       {/* ── Donut Chart + Summary ── */}
       <div className="grid gap-6 lg:grid-cols-5">
-        <Card className="lg:col-span-3 shadow-sm">
-          <CardHeader className="border-b border-border/40 pb-4">
+        <Card className="lg:col-span-3 shadow-sm border-amber-100 dark:border-amber-900/30">
+          <CardHeader className="border-b border-amber-100 dark:border-amber-900/30 pb-4">
             <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <MonitorX className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                <MonitorX className="h-4 w-4 text-amber-700 dark:text-amber-400" />
               </div>
               <div>
                 <CardTitle className="text-base">Device Status Distribution</CardTitle>
@@ -292,30 +294,33 @@ export default function Dashboard() {
         </Card>
 
         {/* Summary Panel */}
-        <Card className="lg:col-span-2 flex flex-col shadow-sm">
-          <CardHeader className="border-b border-border/40 pb-4">
+        <Card className="lg:col-span-2 flex flex-col shadow-sm border-amber-100 dark:border-amber-900/30">
+          <CardHeader className="border-b border-amber-100 dark:border-amber-900/30 pb-4">
             <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <Activity className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                <Activity className="h-4 w-4 text-amber-700 dark:text-amber-400" />
               </div>
               <div>
                 <CardTitle className="text-base">Network Summary</CardTitle>
-                <CardDescription>Status breakdown & quick actions</CardDescription>
+                <CardDescription>Status breakdown &amp; quick actions</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col gap-4 pt-4">
             {/* Uptime */}
-            <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border border-green-200 dark:border-green-800/50">
+            <div
+              className="flex items-center justify-between p-4 rounded-xl border border-amber-200 dark:border-amber-800/50"
+              style={{ background: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)" }}
+            >
               <div>
-                <p className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wider">Network Uptime</p>
+                <p className="text-xs font-semibold text-amber-800 uppercase tracking-wider">Network Uptime</p>
                 {!statsLoading && stats?.lastRefreshedAt && (
-                  <p className="text-[10px] text-green-600/60 mt-0.5">
+                  <p className="text-[10px] text-amber-700/70 mt-0.5">
                     As of {formatDistanceToNow(new Date(stats.lastRefreshedAt), { addSuffix: true })}
                   </p>
                 )}
               </div>
-              <span className="text-3xl font-extrabold text-green-700 dark:text-green-400">{uptime}%</span>
+              <span className="text-3xl font-extrabold text-amber-800">{uptime}%</span>
             </div>
 
             {/* Status rows */}
@@ -363,7 +368,11 @@ export default function Dashboard() {
                 </Link>
               )}
               <Link href="/devices">
-                <Button variant="outline" size="sm" className="w-full gap-2 justify-between h-9">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2 justify-between h-9 border-amber-200 text-amber-800 hover:bg-amber-50 dark:border-amber-800/50 dark:text-amber-400 dark:hover:bg-amber-950/30"
+                >
                   <span>Manage All Devices</span>
                   <ArrowRight className="h-4 w-4" />
                 </Button>

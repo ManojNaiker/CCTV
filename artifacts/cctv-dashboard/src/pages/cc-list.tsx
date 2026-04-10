@@ -13,7 +13,7 @@ const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
 function EmailTag({ email, onRemove }: { email: string; onRemove: () => void }) {
   return (
-    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-medium">
+    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium">
       {email}
       <button
         type="button"
@@ -349,23 +349,23 @@ function BranchRow({ device }: { device: any }) {
   return (
     <div className={`rounded-xl border transition-all duration-200 overflow-hidden ${
       editing
-        ? "border-primary/40 shadow-md ring-1 ring-primary/10 bg-white dark:bg-card"
-        : "border-border/60 bg-white dark:bg-card hover:border-border hover:shadow-sm"
+        ? "border-amber-300/60 shadow-md ring-1 ring-amber-200/40 bg-white dark:bg-card"
+        : "border-border/60 bg-white dark:bg-card hover:border-amber-200 hover:shadow-sm"
     }`}>
       {/* Header row */}
       <div
         className={`flex items-center gap-4 px-5 py-4 cursor-pointer select-none transition-colors ${
-          editing ? "bg-primary/5 border-b border-border/40" : ""
+          editing ? "bg-amber-50/60 border-b border-amber-100 dark:bg-amber-950/20" : ""
         }`}
         onClick={() => !editing && setEditing(true)}
       >
         {/* Mail icon */}
         <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
           emails.length > 0
-            ? "bg-blue-100 border border-blue-200"
+            ? "bg-amber-100 border border-amber-200"
             : "bg-muted border border-border/50"
         }`}>
-          <Mail className={`h-5 w-5 ${emails.length > 0 ? "text-blue-600" : "text-muted-foreground/50"}`} />
+          <Mail className={`h-5 w-5 ${emails.length > 0 ? "text-amber-600" : "text-muted-foreground/50"}`} />
         </div>
 
         {/* Branch name + state */}
@@ -385,7 +385,7 @@ function BranchRow({ device }: { device: any }) {
                 {emails.slice(0, 3).map(e => (
                   <span
                     key={e}
-                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-medium truncate max-w-[220px]"
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium truncate max-w-[220px]"
                   >
                     <Mail className="h-2.5 w-2.5 shrink-0" />
                     {e}
@@ -530,10 +530,13 @@ export default function CcList() {
   return (
     <div className="space-y-6">
       {/* ── Header Card ── */}
-      <div className="rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 text-white p-6 shadow-lg relative overflow-hidden">
-        {/* Decorative circles */}
+      <div
+        className="rounded-2xl text-white p-6 shadow-lg relative overflow-hidden"
+        style={{ background: "linear-gradient(135deg, #78350f 0%, #b45309 45%, #d97706 100%)" }}
+      >
         <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/5" />
         <div className="absolute -right-4 top-12 h-24 w-24 rounded-full bg-white/5" />
+        <div className="absolute -left-6 -bottom-6 h-24 w-24 rounded-full bg-white/5" />
 
         <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start gap-4">
@@ -542,7 +545,7 @@ export default function CcList() {
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Branch CC List</h1>
-              <p className="text-blue-100 text-sm mt-0.5 max-w-md">
+              <p className="text-amber-100 text-sm mt-0.5 max-w-md">
                 Manage per-branch CC email addresses. These will be CC'd on all offline alert emails.
               </p>
             </div>
@@ -555,7 +558,7 @@ export default function CcList() {
                 ? <div className="h-7 w-8 bg-white/20 rounded animate-pulse mx-auto mb-1" />
                 : <p className="text-2xl font-extrabold">{totalBranches}</p>
               }
-              <p className="text-[10px] text-blue-100 uppercase tracking-widest font-semibold mt-0.5 flex items-center gap-1 justify-center">
+              <p className="text-[10px] text-amber-100 uppercase tracking-widest font-semibold mt-0.5 flex items-center gap-1 justify-center">
                 <Users className="h-2.5 w-2.5" /> Branches
               </p>
             </div>
@@ -564,7 +567,7 @@ export default function CcList() {
                 ? <div className="h-7 w-8 bg-white/20 rounded animate-pulse mx-auto mb-1" />
                 : <p className="text-2xl font-extrabold">{totalWithCc}</p>
               }
-              <p className="text-[10px] text-blue-100 uppercase tracking-widest font-semibold mt-0.5 flex items-center gap-1 justify-center">
+              <p className="text-[10px] text-amber-100 uppercase tracking-widest font-semibold mt-0.5 flex items-center gap-1 justify-center">
                 <Mail className="h-2.5 w-2.5" /> With CC
               </p>
             </div>
@@ -618,8 +621,8 @@ export default function CcList() {
               {/* State group header */}
               <div className="flex items-center gap-3 mb-3">
                 <div className="flex items-center gap-2 shrink-0">
-                  <div className="h-5 w-5 rounded-md bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                    <MapPin className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                  <div className="h-5 w-5 rounded-md bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                    <MapPin className="h-3 w-3 text-amber-700 dark:text-amber-400" />
                   </div>
                   <h2 className="text-sm font-bold text-foreground">{state}</h2>
                 </div>

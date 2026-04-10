@@ -231,24 +231,38 @@ export default function Settings() {
 
   return (
     <div className="flex flex-col h-full gap-4 min-h-0">
-      <div className="shrink-0">
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">
-          Configure Hik-Connect integration and email notification preferences.
-        </p>
+      {/* ── Warm Header Banner ── */}
+      <div
+        className="rounded-2xl text-white p-6 shadow-lg relative overflow-hidden shrink-0"
+        style={{ background: "linear-gradient(135deg, #78350f 0%, #b45309 45%, #d97706 100%)" }}
+      >
+        <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/5" />
+        <div className="absolute -right-4 top-12 h-24 w-24 rounded-full bg-white/5" />
+        <div className="absolute -left-6 -bottom-6 h-20 w-20 rounded-full bg-white/5" />
+        <div className="relative flex items-center gap-4">
+          <div className="h-12 w-12 rounded-xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
+            <ShieldCheck className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+            <p className="text-amber-100 text-sm mt-0.5">
+              Configure Hik-Connect integration and email notification preferences.
+            </p>
+          </div>
+        </div>
       </div>
 
       <Tabs defaultValue="hikconnect" className="flex flex-col min-h-0 flex-1">
-        <TabsList className="shrink-0 w-fit">
-          <TabsTrigger value="hikconnect" className="gap-2">
+        <TabsList className="shrink-0 w-fit bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40">
+          <TabsTrigger value="hikconnect" className="gap-2 data-[state=active]:bg-amber-700 data-[state=active]:text-white">
             <ShieldCheck className="h-4 w-4" />
             Hik-Connect
           </TabsTrigger>
-          <TabsTrigger value="email" className="gap-2">
+          <TabsTrigger value="email" className="gap-2 data-[state=active]:bg-amber-700 data-[state=active]:text-white">
             <Mail className="h-4 w-4" />
             Email Settings
           </TabsTrigger>
-          <TabsTrigger value="scheduler" className="gap-2">
+          <TabsTrigger value="scheduler" className="gap-2 data-[state=active]:bg-amber-700 data-[state=active]:text-white">
             <Clock className="h-4 w-4" />
             Email Scheduler
           </TabsTrigger>
@@ -260,7 +274,9 @@ export default function Settings() {
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-primary" />
+                  <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                    <ShieldCheck className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+                  </div>
                   <CardTitle>Hik-Connect Configuration</CardTitle>
                 </div>
                 <CardDescription>
@@ -291,8 +307,8 @@ export default function Settings() {
                       onClick={() => setPasswordType("encrypted")}
                       className={`rounded-lg border-2 p-3 text-left transition-all ${
                         passwordType === "encrypted"
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-muted-foreground/40"
+                          ? "border-amber-500 bg-amber-50 dark:bg-amber-950/30"
+                          : "border-border hover:border-amber-300"
                       }`}
                     >
                       <div className="font-medium text-sm">Encrypted Password</div>
@@ -305,8 +321,8 @@ export default function Settings() {
                       onClick={() => setPasswordType("normal")}
                       className={`rounded-lg border-2 p-3 text-left transition-all ${
                         passwordType === "normal"
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-muted-foreground/40"
+                          ? "border-amber-500 bg-amber-50 dark:bg-amber-950/30"
+                          : "border-border hover:border-amber-300"
                       }`}
                     >
                       <div className="font-medium text-sm">Normal Password</div>
@@ -358,7 +374,7 @@ export default function Settings() {
                   <div
                     className={`flex items-start gap-3 rounded-lg p-3 text-sm ${
                       testStatus === "testing"
-                        ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                        ? "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
                         : testStatus === "success"
                         ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
                         : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
@@ -432,7 +448,9 @@ export default function Settings() {
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Mail className="h-5 w-5 text-primary" />
+                  <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                    <Mail className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+                  </div>
                   <CardTitle>Email / SMTP Configuration</CardTitle>
                 </div>
                 <CardDescription>
@@ -584,7 +602,9 @@ export default function Settings() {
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-primary" />
+                  <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                    <Clock className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+                  </div>
                   <CardTitle>Email Scheduler</CardTitle>
                 </div>
                 <CardDescription>
@@ -645,8 +665,8 @@ export default function Settings() {
                         return (
                           <div key={t} className="flex items-center justify-between px-4 py-3 bg-muted/20 hover:bg-muted/40 transition-colors">
                             <div className="flex items-center gap-3">
-                              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                                <Clock className="h-4 w-4 text-primary" />
+                              <div className="h-8 w-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
+                                <Clock className="h-4 w-4 text-amber-700 dark:text-amber-400" />
                               </div>
                               <div>
                                 <p className="text-sm font-semibold">{label} IST</p>

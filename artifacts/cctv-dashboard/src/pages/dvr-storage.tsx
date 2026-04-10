@@ -7,11 +7,20 @@ import {
   CheckCircle2,
   Clock,
   RefreshCw,
+  AlertTriangle,
+  PlusCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -176,6 +185,7 @@ export default function DvrStorage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [exportingPDF, setExportingPDF] = useState(false);
+  const [showInitDialog, setShowInitDialog] = useState(false);
   const [initializing, setInitializing] = useState(false);
 
   const { data: records = [], isLoading } = useQuery<DvrRecord[]>({
@@ -205,14 +215,27 @@ export default function DvrStorage() {
     },
   });
 
-  const handleInitialize = async () => {
+  const handleInitialize = async (mode: "new" | "update") => {
+    setShowInitDialog(false);
     setInitializing(true);
     try {
-      const res = await fetch(`${BASE}/api/dvr-storage/initialize`, { method: "POST" });
+      const res = await fetch(`${BASE}/api/dvr-storage/initialize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      });
       if (!res.ok) throw new Error();
       const data = await res.json();
       queryClient.invalidateQueries({ queryKey: ["dvr-storage", date] });
-      toast({ title: `${data.created} new branch records created` });
+      if (mode === "new") {
+        toast({ title: `New report initialized — ${data.created} branches added (all fields cleared)` });
+      } else {
+        toast({
+          title: data.created > 0
+            ? `${data.created} new branch(es) added to existing report`
+            : "All branches already present — existing data kept",
+        });
+      }
     } catch {
       toast({ title: "Failed to initialize", variant: "destructive" });
     } finally {
@@ -331,6 +354,64 @@ export default function DvrStorage() {
 
   return (
     <div className="space-y-6">
+      {/* Initialize Confirmation Dialog */}
+      <Dialog open={showInitDialog} onOpenChange={setShowInitDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <RefreshCw className="h-5 w-5 text-blue-600" />
+              Initialize DVR Report
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground pt-1">
+              Aaj ke liye ({today}) record already exist ho sakte hain. Kya karna chahte hain?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 gap-3 pt-2">
+            {/* New initialize option */}
+            <button
+              onClick={() => handleInitialize("new")}
+              className="flex items-start gap-3 p-4 rounded-xl border-2 border-orange-200 bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/20 dark:border-orange-800/50 dark:hover:bg-orange-900/30 text-left transition-colors group"
+            >
+              <div className="h-9 w-9 rounded-lg bg-orange-100 dark:bg-orange-900/40 border border-orange-300 dark:border-orange-700 flex items-center justify-center shrink-0 mt-0.5">
+                <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm text-orange-800 dark:text-orange-300">Naya Initialize Karo</p>
+                <p className="text-xs text-orange-600/80 dark:text-orange-400/70 mt-0.5 leading-relaxed">
+                  Aaj ke sabhi purane records delete ho jayenge. Sabhi branches ke liye fresh blank records banengy — sabhi fields khali rahenge aur Pending mein dikhenge.
+                </p>
+              </div>
+            </button>
+
+            {/* Update existing option */}
+            <button
+              onClick={() => handleInitialize("update")}
+              className="flex items-start gap-3 p-4 rounded-xl border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/20 dark:border-blue-800/50 dark:hover:bg-blue-900/30 text-left transition-colors group"
+            >
+              <div className="h-9 w-9 rounded-lg bg-blue-100 dark:bg-blue-900/40 border border-blue-300 dark:border-blue-700 flex items-center justify-center shrink-0 mt-0.5">
+                <PlusCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm text-blue-800 dark:text-blue-300">Purane mein Update Karo</p>
+                <p className="text-xs text-blue-600/80 dark:text-blue-400/70 mt-0.5 leading-relaxed">
+                  Jo data already fill hai woh safe rahega. Sirf naye branches (jo abhi tak nahi hain) add ho jayenge.
+                </p>
+              </div>
+            </button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-muted-foreground hover:text-foreground"
+              onClick={() => setShowInitDialog(false)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Header Banner */}
       <div
         className="rounded-2xl overflow-hidden relative"
@@ -371,9 +452,9 @@ export default function DvrStorage() {
 
             <Button
               className="gap-2 bg-white/15 text-white hover:bg-white/25 border border-white/20 h-10"
-              onClick={handleInitialize}
+              onClick={() => setShowInitDialog(true)}
               disabled={initializing || date !== today}
-              title={date !== today ? "Initialize only available for today" : "Create records for all branches"}
+              title={date !== today ? "Initialize only available for today" : "Initialize report for today"}
             >
               {initializing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Initialize

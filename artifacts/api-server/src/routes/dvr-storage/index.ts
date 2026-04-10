@@ -40,10 +40,14 @@ router.get("/dvr-storage", async (req, res): Promise<void> => {
   }
 });
 
-// POST /api/dvr-storage/initialize — create rows for all unique branches for today
+// POST /api/dvr-storage/initialize
+// body: { mode: "new" | "update" }
+//   "new"    → delete all existing records for today, insert fresh blank rows for all branches
+//   "update" → keep existing, only insert rows for branches that don't have a record yet
 router.post("/dvr-storage/initialize", async (req, res): Promise<void> => {
   try {
     const today = getISTDate();
+    const mode: "new" | "update" = req.body?.mode === "new" ? "new" : "update";
 
     // Get all unique branches from devices
     const devices = await db
@@ -54,25 +58,50 @@ router.post("/dvr-storage/initialize", async (req, res): Promise<void> => {
       .from(devicesTable)
       .orderBy(devicesTable.branchName);
 
-    // Get existing records for today
-    const existing = await db
-      .select({ branch: dvrStorageTable.branch })
-      .from(dvrStorageTable)
-      .where(eq(dvrStorageTable.activityDate, today));
+    let created = 0;
 
-    const existingBranches = new Set(existing.map((r) => r.branch));
+    if (mode === "new") {
+      // Delete all existing records for today then insert fresh blank rows
+      await db.delete(dvrStorageTable).where(eq(dvrStorageTable.activityDate, today));
 
-    const toInsert = devices.filter((d) => !existingBranches.has(d.branch));
+      if (devices.length > 0) {
+        await db.insert(dvrStorageTable).values(
+          devices.map((d) => ({
+            state: d.state,
+            branch: d.branch,
+            activityDate: today,
+            status: "pending",
+            branchCameraCount: null,
+            noOfRecordingCamera: null,
+            noOfNotWorkingCamera: null,
+            lastRecording: null,
+            totalRecordingDay: null,
+            remark: null,
+          }))
+        );
+        created = devices.length;
+      }
+    } else {
+      // Update mode: only add branches not yet present for today
+      const existing = await db
+        .select({ branch: dvrStorageTable.branch })
+        .from(dvrStorageTable)
+        .where(eq(dvrStorageTable.activityDate, today));
 
-    if (toInsert.length > 0) {
-      await db.insert(dvrStorageTable).values(
-        toInsert.map((d) => ({
-          state: d.state,
-          branch: d.branch,
-          activityDate: today,
-          status: "pending",
-        }))
-      );
+      const existingBranches = new Set(existing.map((r) => r.branch));
+      const toInsert = devices.filter((d) => !existingBranches.has(d.branch));
+
+      if (toInsert.length > 0) {
+        await db.insert(dvrStorageTable).values(
+          toInsert.map((d) => ({
+            state: d.state,
+            branch: d.branch,
+            activityDate: today,
+            status: "pending",
+          }))
+        );
+        created = toInsert.length;
+      }
     }
 
     const records = await db
@@ -81,7 +110,7 @@ router.post("/dvr-storage/initialize", async (req, res): Promise<void> => {
       .where(eq(dvrStorageTable.activityDate, today))
       .orderBy(dvrStorageTable.state, dvrStorageTable.branch);
 
-    res.json({ created: toInsert.length, records });
+    res.json({ created, mode, records });
   } catch (err) {
     res.status(500).json({ error: "Failed to initialize DVR storage records" });
   }
@@ -113,7 +142,6 @@ router.patch("/dvr-storage/:id", async (req, res): Promise<void> => {
     if (totalRecordingDay !== undefined) updateData["totalRecordingDay"] = totalRecordingDay === "" ? null : Number(totalRecordingDay);
     if (remark !== undefined) updateData["remark"] = remark || null;
 
-    // Auto-determine status
     const [existing] = await db.select().from(dvrStorageTable).where(eq(dvrStorageTable.id, id));
     if (!existing) {
       res.status(404).json({ error: "Record not found" });

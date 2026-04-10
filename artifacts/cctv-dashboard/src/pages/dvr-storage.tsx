@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, memo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   HardDrive,
@@ -47,17 +47,14 @@ function getISTDateStr(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 }
 
-function EditableCell({
-  value,
-  onSave,
-  type = "text",
-  align = "left",
-}: {
+type EditableCellProps = {
   value: string | number | null;
   onSave: (val: string) => void;
   type?: "text" | "number" | "date";
   align?: "left" | "center";
-}) {
+};
+
+function EditableCellInner({ value, onSave, type = "text", align = "left" }: EditableCellProps) {
   const savedRef = useRef(value != null ? String(value) : "");
   const [localVal, setLocalVal] = useState(value != null ? String(value) : "");
 
@@ -69,13 +66,8 @@ function EditableCell({
   }, [localVal, onSave]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.currentTarget.blur();
-    }
-    if (e.key === "Escape") {
-      setLocalVal(savedRef.current);
-      e.currentTarget.blur();
-    }
+    if (e.key === "Enter") e.currentTarget.blur();
+    if (e.key === "Escape") { setLocalVal(savedRef.current); e.currentTarget.blur(); }
   };
 
   return (
@@ -85,16 +77,18 @@ function EditableCell({
       onChange={(e) => setLocalVal(e.target.value)}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
-      className={`w-full bg-white dark:bg-muted/20 border border-border rounded px-2 py-1 text-xs
-        focus:bg-background focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30
-        hover:border-primary/50 transition-colors cursor-text
-        ${align === "center" ? "text-center" : "text-left"}
-      `}
+      className={[
+        "w-full bg-white dark:bg-muted/20 border border-border rounded px-2 py-1 text-xs",
+        "focus:bg-background focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30",
+        "hover:border-primary/50 transition-colors cursor-text",
+        align === "center" ? "text-center" : "text-left",
+      ].join(" ")}
       placeholder="—"
       style={{ minWidth: 60 }}
     />
   );
 }
+const EditableCell = memo(EditableCellInner);
 
 function generateDvrPDF(records: DvrRecord[], date: string) {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -172,6 +166,88 @@ function generateDvrPDF(records: DvrRecord[], date: string) {
 
   doc.save(`DVR_Storage_Report_${date}.pdf`);
 }
+
+type RecordTableProps = {
+  rows: DvrRecord[];
+  onSave: (id: number, field: string, value: string) => void;
+};
+
+function RecordTableInner({ rows, onSave }: RecordTableProps) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr className="border-b bg-muted/40">
+            <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">#</th>
+            <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">State</th>
+            <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[130px]">Branch</th>
+            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[110px]">Branch Camera Count</th>
+            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[130px]">No Of Recording Camera</th>
+            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[140px]">No Of Not Working Camera</th>
+            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[120px]">Last Recording</th>
+            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Activity Date</th>
+            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[120px]">Total Recording Day</th>
+            <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[140px]">Remark</th>
+            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Status</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border/30">
+          {rows.map((r, idx) => (
+            <tr key={r.id} className={`hover:bg-blue-50/30 dark:hover:bg-blue-950/10 transition-colors ${idx % 2 === 0 ? "" : "bg-muted/5"}`}>
+              <td className="px-3 py-2 text-muted-foreground/50 font-mono">{idx + 1}</td>
+              <td className="px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">{r.state}</td>
+              <td className="px-3 py-2 font-semibold whitespace-nowrap">{r.branch}</td>
+              <td className="px-2 py-2 text-center">
+                <EditableCell value={r.branchCameraCount} type="number" align="center"
+                  onSave={(v) => onSave(r.id, "branchCameraCount", v)} />
+              </td>
+              <td className="px-2 py-2 text-center">
+                <EditableCell value={r.noOfRecordingCamera} type="number" align="center"
+                  onSave={(v) => onSave(r.id, "noOfRecordingCamera", v)} />
+              </td>
+              <td className="px-2 py-2 text-center">
+                <EditableCell value={r.noOfNotWorkingCamera} type="number" align="center"
+                  onSave={(v) => onSave(r.id, "noOfNotWorkingCamera", v)} />
+              </td>
+              <td className="px-2 py-2 text-center">
+                <EditableCell value={r.lastRecording} type="date" align="center"
+                  onSave={(v) => onSave(r.id, "lastRecording", v)} />
+              </td>
+              <td className="px-3 py-2 text-center text-muted-foreground">{r.activityDate}</td>
+              <td className="px-2 py-2 text-center">
+                <EditableCell value={r.totalRecordingDay} type="number" align="center"
+                  onSave={(v) => onSave(r.id, "totalRecordingDay", v)} />
+              </td>
+              <td className="px-2 py-2">
+                <EditableCell value={r.remark}
+                  onSave={(v) => onSave(r.id, "remark", v)} />
+              </td>
+              <td className="px-3 py-2 text-center">
+                {r.status === "completed" ? (
+                  <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 text-[10px] gap-1">
+                    <CheckCircle2 className="h-3 w-3" /> Done
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50 dark:bg-orange-900/20 dark:text-orange-400 text-[10px] gap-1">
+                    <Clock className="h-3 w-3" /> Pending
+                  </Badge>
+                )}
+              </td>
+            </tr>
+          ))}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={11} className="py-12 text-center text-muted-foreground text-sm">
+                No records found
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+const RecordTable = memo(RecordTableInner);
 
 export default function DvrStorage() {
   const today = getISTDateStr();
@@ -264,100 +340,11 @@ export default function DvrStorage() {
   const filteredPending = filteredRecords.filter((r) => r.status === "pending");
   const filteredCompleted = filteredRecords.filter((r) => r.status === "completed");
 
-  const RecordTable = ({ rows }: { rows: DvrRecord[] }) => (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs border-collapse">
-        <thead>
-          <tr className="border-b bg-muted/40">
-            <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">#</th>
-            <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">State</th>
-            <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[130px]">Branch</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[110px]">Branch Camera Count</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[130px]">No Of Recording Camera</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[140px]">No Of Not Working Camera</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[120px]">Last Recording</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Activity Date</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[120px]">Total Recording Day</th>
-            <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[140px]">Remark</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Status</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border/30">
-          {rows.map((r, idx) => (
-            <tr key={r.id} className={`hover:bg-blue-50/30 dark:hover:bg-blue-950/10 transition-colors ${idx % 2 === 0 ? "" : "bg-muted/5"}`}>
-              <td className="px-3 py-2 text-muted-foreground/50 font-mono">{idx + 1}</td>
-              <td className="px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">{r.state}</td>
-              <td className="px-3 py-2 font-semibold whitespace-nowrap">{r.branch}</td>
-              <td className="px-2 py-2 text-center">
-                <EditableCell
-                  value={r.branchCameraCount}
-                  type="number"
-                  align="center"
-                  onSave={(v) => updateMutation.mutate({ id: r.id, field: "branchCameraCount", value: v })}
-                />
-              </td>
-              <td className="px-2 py-2 text-center">
-                <EditableCell
-                  value={r.noOfRecordingCamera}
-                  type="number"
-                  align="center"
-                  onSave={(v) => updateMutation.mutate({ id: r.id, field: "noOfRecordingCamera", value: v })}
-                />
-              </td>
-              <td className="px-2 py-2 text-center">
-                <EditableCell
-                  value={r.noOfNotWorkingCamera}
-                  type="number"
-                  align="center"
-                  onSave={(v) => updateMutation.mutate({ id: r.id, field: "noOfNotWorkingCamera", value: v })}
-                />
-              </td>
-              <td className="px-2 py-2 text-center">
-                <EditableCell
-                  value={r.lastRecording}
-                  type="date"
-                  align="center"
-                  onSave={(v) => updateMutation.mutate({ id: r.id, field: "lastRecording", value: v })}
-                />
-              </td>
-              <td className="px-3 py-2 text-center text-muted-foreground">{r.activityDate}</td>
-              <td className="px-2 py-2 text-center">
-                <EditableCell
-                  value={r.totalRecordingDay}
-                  type="number"
-                  align="center"
-                  onSave={(v) => updateMutation.mutate({ id: r.id, field: "totalRecordingDay", value: v })}
-                />
-              </td>
-              <td className="px-2 py-2">
-                <EditableCell
-                  value={r.remark}
-                  onSave={(v) => updateMutation.mutate({ id: r.id, field: "remark", value: v })}
-                />
-              </td>
-              <td className="px-3 py-2 text-center">
-                {r.status === "completed" ? (
-                  <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 text-[10px] gap-1">
-                    <CheckCircle2 className="h-3 w-3" /> Done
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50 dark:bg-orange-900/20 dark:text-orange-400 text-[10px] gap-1">
-                    <Clock className="h-3 w-3" /> Pending
-                  </Badge>
-                )}
-              </td>
-            </tr>
-          ))}
-          {rows.length === 0 && (
-            <tr>
-              <td colSpan={11} className="py-12 text-center text-muted-foreground text-sm">
-                No records found
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
+  const handleSave = useCallback(
+    (id: number, field: string, value: string) => {
+      updateMutation.mutate({ id, field, value });
+    },
+    [updateMutation]
   );
 
   return (
@@ -598,13 +585,13 @@ export default function DvrStorage() {
             ) : (
               <>
                 <TabsContent value="pending" className="mt-0">
-                  <RecordTable rows={filteredPending} />
+                  <RecordTable rows={filteredPending} onSave={handleSave} />
                 </TabsContent>
                 <TabsContent value="completed" className="mt-0">
-                  <RecordTable rows={filteredCompleted} />
+                  <RecordTable rows={filteredCompleted} onSave={handleSave} />
                 </TabsContent>
                 <TabsContent value="all" className="mt-0">
-                  <RecordTable rows={filteredRecords} />
+                  <RecordTable rows={filteredRecords} onSave={handleSave} />
                 </TabsContent>
               </>
             )}

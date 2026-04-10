@@ -102,6 +102,8 @@ export const UpdateDeviceParams = zod.object({
 export const UpdateDeviceBody = zod.object({
   branchName: zod.string().optional(),
   stateName: zod.string().optional(),
+  serialNumber: zod.string().optional(),
+  email: zod.string().nullish(),
   status: zod.enum(["online", "offline", "unknown"]).optional(),
   remark: zod.string().nullish(),
 });

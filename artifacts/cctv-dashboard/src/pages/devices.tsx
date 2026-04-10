@@ -154,7 +154,7 @@ export default function Devices() {
   const [createData, setCreateData] = useState({ serialNumber: "", branchName: "", stateName: "", remark: "" });
 
   const [editDevice, setEditDevice] = useState<any>(null);
-  const [editData, setEditData] = useState({ branchName: "", stateName: "", status: "online" as any, remark: "" });
+  const [editData, setEditData] = useState({ branchName: "", stateName: "", serialNumber: "", email: "", status: "online" as any, remark: "" });
 
   const [deleteDevice, setDeleteDevice] = useState<any>(null);
 
@@ -270,7 +270,17 @@ export default function Devices() {
   };
 
   const handleUpdate = () => {
-    updateMutation.mutate({ id: editDevice.id, data: editData });
+    updateMutation.mutate({
+      id: editDevice.id,
+      data: {
+        branchName: editData.branchName,
+        stateName: editData.stateName,
+        serialNumber: editData.serialNumber || undefined,
+        email: editData.email || null,
+        status: editData.status,
+        remark: editData.remark || null,
+      },
+    });
   };
 
   const handleDelete = () => {
@@ -279,7 +289,14 @@ export default function Devices() {
 
   const openEdit = (device: any) => {
     setEditDevice(device);
-    setEditData({ branchName: device.branchName, stateName: device.stateName, status: device.status, remark: device.remark || "" });
+    setEditData({
+      branchName: device.branchName,
+      stateName: device.stateName,
+      serialNumber: device.serialNumber || "",
+      email: device.email || "",
+      status: device.status,
+      remark: device.remark || "",
+    });
   };
 
   const handleBulkClose = () => {
@@ -834,6 +851,32 @@ export default function Devices() {
                   value={editData.stateName}
                   onChange={e => setEditData({...editData, stateName: e.target.value})}
                   placeholder="State name"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Hash className="h-3 w-3" /> Serial Number (SN)
+                </Label>
+                <Input
+                  className="text-sm bg-background border-border/60 focus:border-primary font-mono"
+                  value={editData.serialNumber}
+                  onChange={e => setEditData({...editData, serialNumber: e.target.value})}
+                  placeholder="e.g. DS-2CD2143G2-I"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Tag className="h-3 w-3" /> Email / Alert ID
+                </Label>
+                <Input
+                  type="email"
+                  className="text-sm bg-background border-border/60 focus:border-primary"
+                  value={editData.email}
+                  onChange={e => setEditData({...editData, email: e.target.value})}
+                  placeholder="branch@example.com"
                 />
               </div>
             </div>

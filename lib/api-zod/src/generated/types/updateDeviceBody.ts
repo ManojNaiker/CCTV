@@ -10,6 +10,9 @@ import type { UpdateDeviceBodyStatus } from "./updateDeviceBodyStatus";
 export interface UpdateDeviceBody {
   branchName?: string;
   stateName?: string;
+  serialNumber?: string;
+  /** @nullable */
+  email?: string | null;
   status?: UpdateDeviceBodyStatus;
   /** @nullable */
   remark?: string | null;

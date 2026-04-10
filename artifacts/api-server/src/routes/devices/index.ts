@@ -375,6 +375,8 @@ router.patch("/devices/:id", async (req, res): Promise<void> => {
   const updateData: Record<string, unknown> = {};
   if (parsed.data.branchName != null) updateData.branchName = parsed.data.branchName;
   if (parsed.data.stateName != null) updateData.stateName = parsed.data.stateName;
+  if (parsed.data.serialNumber != null) updateData.serialNumber = parsed.data.serialNumber;
+  if (parsed.data.email !== undefined) updateData.email = parsed.data.email;
   if (parsed.data.status != null) updateData.status = parsed.data.status;
   if (parsed.data.remark !== undefined) updateData.remark = parsed.data.remark;
 

@@ -64,7 +64,7 @@ function CustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: Cu
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [nextRefresh, setNextRefresh] = useState(120);
+  const [nextRefresh, setNextRefresh] = useState(60);
 
   const { data: stats, isLoading: statsLoading } = useGetDeviceStats({
     query: { queryKey: getGetDeviceStatsQueryKey() },
@@ -76,10 +76,10 @@ export default function Dashboard() {
         queryClient.invalidateQueries({ queryKey: getGetDeviceStatsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListDevicesQueryKey() });
         toast({ title: "Refresh Complete", description: data.message });
-        setNextRefresh(120);
+        setNextRefresh(60);
       },
       onError: () => {
-        setNextRefresh(120);
+        setNextRefresh(60);
       },
     },
   });

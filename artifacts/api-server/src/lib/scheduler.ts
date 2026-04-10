@@ -61,8 +61,8 @@ async function autoRefreshDevices(): Promise<void> {
 }
 
 export function startScheduler(): void {
-  // Auto-refresh device statuses every 15 minutes
-  cron.schedule("*/15 * * * *", () => {
+  // Auto-refresh device statuses every 1 minute
+  cron.schedule("* * * * *", () => {
     autoRefreshDevices();
   });
 

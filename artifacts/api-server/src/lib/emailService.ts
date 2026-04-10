@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import { db, settingsTable, devicesTable } from "@workspace/db";
+import { db, settingsTable, devicesTable, dvrStorageTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger";
 import { jsPDF } from "jspdf";
@@ -341,4 +341,184 @@ export async function sendBulkOfflineAlert(devices: OfflineDevice[]): Promise<vo
   await sendEmail(subject, html, undefined, uniqueTo, uniqueCc, [
     { filename: `CCTV_Offline_Report_${dateStr}.pdf`, content: pdfBuffer, contentType: "application/pdf" },
   ]);
+}
+
+function buildDvrReportPDF(
+  records: { state: string; branch: string; branchCameraCount: number | null; noOfRecordingCamera: number | null; noOfNotWorkingCamera: number | null; lastRecording: string | null; activityDate: string; totalRecordingDay: number | null; remark: string | null; status: string }[],
+  dateStr: string,
+  periodLabel: string
+): Buffer {
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, pageW, 22, "F");
+  doc.setFontSize(13);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.text("Light Finance — DVR Storage Activity Report", 14, 9);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(148, 163, 184);
+  doc.text(`Period: ${periodLabel}   |   Activity Date: ${dateStr}   |   Generated: ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`, 14, 16);
+
+  const completed = records.filter((r) => r.status === "completed");
+  const pending = records.filter((r) => r.status === "pending");
+
+  autoTable(doc, {
+    startY: 26,
+    head: [["#", "State", "Branch", "Branch Camera Count", "Recording Cameras", "Not Working", "Last Recording", "Activity Date", "Recording Days", "Remark", "Status"]],
+    body: records.map((r, i) => [
+      i + 1,
+      r.state,
+      r.branch,
+      r.branchCameraCount ?? "—",
+      r.noOfRecordingCamera ?? "—",
+      r.noOfNotWorkingCamera ?? "—",
+      r.lastRecording || "—",
+      r.activityDate,
+      r.totalRecordingDay ?? "—",
+      r.remark || "—",
+      r.status === "completed" ? "✓ Done" : "Pending",
+    ]),
+    styles: { fontSize: 7, cellPadding: 2 },
+    headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: "bold", fontSize: 7 },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: {
+      0: { cellWidth: 8 },
+      1: { cellWidth: 20 },
+      2: { cellWidth: 32 },
+      3: { cellWidth: 20 },
+      4: { cellWidth: 22 },
+      5: { cellWidth: 20 },
+      6: { cellWidth: 26 },
+      7: { cellWidth: 22 },
+      8: { cellWidth: 18 },
+      9: { cellWidth: 28 },
+      10: { cellWidth: 20 },
+    },
+    didParseCell: (data) => {
+      if (data.column.index === 10 && data.section === "body") {
+        const val = String(data.cell.raw);
+        if (val.includes("Done")) {
+          data.cell.styles.textColor = [22, 163, 74];
+          data.cell.styles.fontStyle = "bold";
+        } else {
+          data.cell.styles.textColor = [239, 68, 68];
+        }
+      }
+    },
+  });
+
+  const finalY = (doc as any).lastAutoTable?.finalY ?? 26;
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text(
+    `Total Branches: ${records.length}  |  Completed: ${completed.length}  |  Pending: ${pending.length}`,
+    14,
+    finalY + 8
+  );
+
+  return Buffer.from(doc.output("arraybuffer"));
+}
+
+function buildDvrReportHtml(
+  records: { state: string; branch: string; noOfRecordingCamera: number | null; noOfNotWorkingCamera: number | null; lastRecording: string | null; activityDate: string; totalRecordingDay: number | null; remark: string | null; status: string }[],
+  dateStr: string,
+  periodLabel: string
+): string {
+  const completed = records.filter((r) => r.status === "completed");
+  const pending = records.filter((r) => r.status === "pending");
+
+  const rows = records
+    .map(
+      (r, i) => `
+      <tr>
+        <td style="padding:6px 10px;text-align:center;border:1px solid #d1d5db;font-size:13px;">${i + 1}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:13px;">${r.state}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:13px;font-weight:600;">${r.branch}</td>
+        <td style="padding:6px 10px;text-align:center;border:1px solid #d1d5db;font-size:13px;">${r.noOfRecordingCamera ?? "—"}</td>
+        <td style="padding:6px 10px;text-align:center;border:1px solid #d1d5db;font-size:13px;">${r.noOfNotWorkingCamera ?? "—"}</td>
+        <td style="padding:6px 10px;text-align:center;border:1px solid #d1d5db;font-size:13px;">${r.lastRecording || "—"}</td>
+        <td style="padding:6px 10px;text-align:center;border:1px solid #d1d5db;font-size:13px;">${r.totalRecordingDay ?? "—"}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:13px;">${r.remark || "—"}</td>
+        <td style="padding:6px 10px;text-align:center;border:1px solid #d1d5db;font-size:13px;font-weight:600;color:${r.status === "completed" ? "#16a34a" : "#dc2626"};">
+          ${r.status === "completed" ? "✓ Done" : "Pending"}
+        </td>
+      </tr>`
+    )
+    .join("");
+
+  return `
+<div style="font-family:Arial,sans-serif;font-size:14px;color:#111827;max-width:900px;">
+  <div style="background:#0f172a;padding:16px 20px;border-radius:8px 8px 0 0;">
+    <h2 style="color:#ffffff;margin:0;font-size:18px;">Light Finance — DVR Storage Activity Report</h2>
+    <p style="color:#94a3b8;margin:4px 0 0;font-size:13px;">Period: ${periodLabel} &nbsp;|&nbsp; Activity Date: ${dateStr}</p>
+  </div>
+
+  <div style="background:#f8fafc;padding:12px 20px;border:1px solid #e5e7eb;display:flex;gap:32px;">
+    <span style="font-size:13px;color:#374151;"><strong>Total Branches:</strong> ${records.length}</span>
+    <span style="font-size:13px;color:#16a34a;"><strong>Completed:</strong> ${completed.length}</span>
+    <span style="font-size:13px;color:#dc2626;"><strong>Pending:</strong> ${pending.length}</span>
+  </div>
+
+  <table style="border-collapse:collapse;width:100%;font-size:13px;margin-top:0;">
+    <thead>
+      <tr style="background:#1e40af;">
+        <th style="padding:8px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;width:36px;">#</th>
+        <th style="padding:8px 10px;border:1px solid #1e3a8a;color:#fff;text-align:left;">State</th>
+        <th style="padding:8px 10px;border:1px solid #1e3a8a;color:#fff;text-align:left;">Branch</th>
+        <th style="padding:8px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;">Recording Cameras</th>
+        <th style="padding:8px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;">Not Working</th>
+        <th style="padding:8px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;">Last Recording</th>
+        <th style="padding:8px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;">Recording Days</th>
+        <th style="padding:8px 10px;border:1px solid #1e3a8a;color:#fff;text-align:left;">Remark</th>
+        <th style="padding:8px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;">Status</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+
+  <div style="margin-top:24px;font-size:12px;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:16px;">
+    This is an automated DVR activity report from the Light Finance CCTV Monitoring System.
+  </div>
+</div>`;
+}
+
+export async function sendDvrActivityReport(label: "mid-month" | "end-of-month"): Promise<{ sent: boolean; reason?: string }> {
+  const now = new Date();
+  const istDateStr = now.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+
+  const records = await db.select().from(dvrStorageTable).where(eq(dvrStorageTable.activityDate, istDateStr));
+
+  if (records.length === 0) {
+    return { sent: false, reason: "No DVR records found for today — report not sent" };
+  }
+
+  const monthStr = now.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", month: "long", year: "numeric" });
+  const periodLabel = label === "mid-month"
+    ? `1–15 ${monthStr} (First Half)`
+    : `16–End of ${monthStr} (Second Half)`;
+
+  const dateStr = now.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" });
+  const subject = `DVR Activity Report — ${periodLabel} | ${dateStr}`;
+
+  const settings = await getEmailSettings();
+  const toPrimary = settings.to ? settings.to.split(",").map((e) => e.trim()).filter(Boolean) : [];
+
+  const globalCcList = await getSetting("email_cc_list");
+  const ccRecipients = globalCcList ? globalCcList.split(",").map((e) => e.trim()).filter(Boolean) : [];
+
+  if (toPrimary.length === 0) {
+    return { sent: false, reason: "No email recipients configured" };
+  }
+
+  const html = buildDvrReportHtml(records, dateStr, periodLabel);
+  const pdfBuffer = buildDvrReportPDF(records, dateStr, periodLabel);
+
+  await sendEmail(subject, html, undefined, toPrimary, ccRecipients, [
+    { filename: `DVR_Activity_Report_${istDateStr}.pdf`, content: pdfBuffer, contentType: "application/pdf" },
+  ]);
+
+  return { sent: true };
 }

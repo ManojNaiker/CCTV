@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import { db, devicesTable, settingsTable, auditLogsTable } from "@workspace/db";
-import { sendBulkOfflineAlert } from "./emailService";
+import { sendBulkOfflineAlert, sendDvrActivityReport } from "./emailService";
 import { runDeviceRefresh } from "./refreshDevices";
 import { logger } from "./logger";
 
@@ -69,6 +69,38 @@ async function autoRefreshDevices(): Promise<void> {
   }
 }
 
+function getISTDateParts(): { day: number; isLastDayOfMonth: boolean } {
+  const now = new Date();
+  const istDate = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  const day = istDate.getDate();
+  const lastDay = new Date(istDate.getFullYear(), istDate.getMonth() + 1, 0).getDate();
+  return { day, isLastDayOfMonth: day === lastDay };
+}
+
+async function sendScheduledDvrReport(): Promise<void> {
+  const { day, isLastDayOfMonth } = getISTDateParts();
+
+  let label: "mid-month" | "end-of-month" | null = null;
+  if (day === 15) label = "mid-month";
+  else if (isLastDayOfMonth) label = "end-of-month";
+
+  if (!label) return;
+
+  logger.info(`DVR activity report trigger: ${label} (day ${day})`);
+
+  try {
+    const result = await sendDvrActivityReport(label);
+    if (result.sent) {
+      await logAction("EMAIL_SENT", "dvr_report", label, `DVR activity report sent — ${label}`);
+      logger.info(`DVR activity report sent successfully (${label})`);
+    } else {
+      logger.warn(`DVR activity report skipped (${label}): ${result.reason}`);
+    }
+  } catch (err) {
+    logger.error({ err }, `DVR activity report failed (${label})`);
+  }
+}
+
 export function startScheduler(): void {
   // Auto-refresh device statuses every 1 minute
   cron.schedule("* * * * *", () => {
@@ -93,8 +125,13 @@ export function startScheduler(): void {
     }
   });
 
+  // DVR activity report — runs daily at 09:00 IST, sends on 15th (mid-month) and last day of month (end-of-month)
+  cron.schedule("0 9 * * *", async () => {
+    await sendScheduledDvrReport();
+  }, { timezone: "Asia/Kolkata" });
+
   // Also run one refresh immediately on startup so the dashboard is fresh right away
   setTimeout(() => autoRefreshDevices(), 5000);
 
-  logger.info("Scheduler started — device auto-refresh every 15 min, email alerts at configured IST times");
+  logger.info("Scheduler started — device auto-refresh every min, offline email alerts at configured IST times, DVR activity report on 15th and last day of month at 09:00 IST");
 }

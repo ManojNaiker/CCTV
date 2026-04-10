@@ -377,7 +377,7 @@ export default function DvrStorage() {
               Initialize DVR Report
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground pt-1">
-              Aaj ke liye ({today}) record already exist ho sakte hain. Kya karna chahte hain?
+              Records for today ({today}) may already exist. How would you like to proceed?
             </DialogDescription>
           </DialogHeader>
 
@@ -391,9 +391,9 @@ export default function DvrStorage() {
                 <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
               </div>
               <div>
-                <p className="font-semibold text-sm text-orange-800 dark:text-orange-300">Naya Initialize Karo</p>
+                <p className="font-semibold text-sm text-orange-800 dark:text-orange-300">Fresh Initialize</p>
                 <p className="text-xs text-orange-600/80 dark:text-orange-400/70 mt-0.5 leading-relaxed">
-                  Aaj ke sabhi purane records delete ho jayenge. Sabhi branches ke liye fresh blank records banengy — sabhi fields khali rahenge aur Pending mein dikhenge.
+                  All existing records for today will be deleted. Fresh blank records will be created for all branches — all fields will be empty and shown as Pending.
                 </p>
               </div>
             </button>
@@ -407,9 +407,9 @@ export default function DvrStorage() {
                 <PlusCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p className="font-semibold text-sm text-blue-800 dark:text-blue-300">Purane mein Update Karo</p>
+                <p className="font-semibold text-sm text-blue-800 dark:text-blue-300">Update Existing</p>
                 <p className="text-xs text-blue-600/80 dark:text-blue-400/70 mt-0.5 leading-relaxed">
-                  Jo data already fill hai woh safe rahega. Sirf naye branches (jo abhi tak nahi hain) add ho jayenge.
+                  Existing data will be kept safe. Only new branches (not yet present) will be added.
                 </p>
               </div>
             </button>

@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, dvrStorageTable, devicesTable } from "@workspace/db";
+import { logger } from "../../lib/logger";
 
 const router: IRouter = Router();
 
@@ -112,6 +113,7 @@ router.post("/dvr-storage/initialize", async (req, res): Promise<void> => {
 
     res.json({ created, mode, records });
   } catch (err) {
+    logger.error({ err }, "Failed to initialize DVR storage records");
     res.status(500).json({ error: "Failed to initialize DVR storage records" });
   }
 });

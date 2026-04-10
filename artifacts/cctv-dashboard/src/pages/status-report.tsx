@@ -111,35 +111,80 @@ function eventsToSegments(events: TimelineEvent[]): Segment[] {
 const STATUS_COLOR: Record<string, { bg: string; label: string }> = {
   online:  { bg: "#22c55e", label: "Online"  },
   offline: { bg: "#ef4444", label: "Offline" },
-  unknown: { bg: "#f59e0b", label: "Unknown" },
+  unknown: { bg: "transparent", label: "Unknown" },
 };
 
-function TimelineBar({ events }: { events: TimelineEvent[] | undefined }) {
-  if (!events || events.length === 0) {
-    return (
-      <div className="w-full h-5 rounded flex overflow-hidden" title="No data recorded">
-        <div className="w-full h-full rounded" style={{ background: "rgba(0,0,0,0.07)" }} />
-      </div>
-    );
-  }
+const DAY_TICKS = [
+  { minute: 0,    label: "12AM" },
+  { minute: 360,  label: "6AM"  },
+  { minute: 720,  label: "12PM" },
+  { minute: 1080, label: "6PM"  },
+  { minute: 1440, label: "12AM" },
+];
 
-  const segments = eventsToSegments(events);
+function TimelineBar({ events }: { events: TimelineEvent[] | undefined }) {
+  const segments = events && events.length > 0 ? eventsToSegments(events) : [];
 
   return (
-    <div className="w-full h-5 rounded overflow-hidden flex" style={{ minWidth: 32 }}>
-      {segments.map((seg, i) => {
-        const widthPct = ((seg.endMinute - seg.startMinute) / 1440) * 100;
-        const color = STATUS_COLOR[seg.status]?.bg ?? "#9ca3af";
-        const label = STATUS_COLOR[seg.status]?.label ?? seg.status;
-        const title = `${label}: ${minutesToTimeLabel(seg.startMinute)} – ${minutesToTimeLabel(seg.endMinute)}`;
-        return (
+    <div className="w-full" style={{ minWidth: 80 }}>
+      {/* Bar track */}
+      <div
+        className="relative w-full rounded overflow-hidden"
+        style={{ height: 18, background: "rgba(0,0,0,0.07)" }}
+      >
+        {/* Online / Offline segments only — no orange for unknown */}
+        {segments
+          .filter((seg) => seg.status === "online" || seg.status === "offline")
+          .map((seg, i) => {
+            const leftPct = (seg.startMinute / 1440) * 100;
+            const widthPct = ((seg.endMinute - seg.startMinute) / 1440) * 100;
+            const color = seg.status === "online" ? "#22c55e" : "#ef4444";
+            const label = seg.status === "online" ? "Online" : "Offline";
+            const title = `${label}: ${minutesToTimeLabel(seg.startMinute)} – ${minutesToTimeLabel(seg.endMinute)}`;
+            return (
+              <div
+                key={i}
+                title={title}
+                className="absolute top-0 h-full"
+                style={{ left: `${leftPct}%`, width: `${Math.max(widthPct, 0.3)}%`, background: color }}
+              />
+            );
+          })}
+        {/* Hour tick marks at 6AM, 12PM, 6PM */}
+        {[360, 720, 1080].map((min) => (
           <div
-            key={i}
-            title={title}
-            style={{ width: `${widthPct}%`, background: color, minWidth: widthPct < 5 ? 2 : undefined }}
+            key={min}
+            className="absolute top-0 h-full pointer-events-none"
+            style={{
+              left: `${(min / 1440) * 100}%`,
+              width: 1,
+              background: "rgba(255,255,255,0.55)",
+              zIndex: 2,
+            }}
           />
-        );
-      })}
+        ))}
+      </div>
+      {/* Time ruler labels */}
+      <div className="relative w-full" style={{ height: 12 }}>
+        {DAY_TICKS.map((t) => (
+          <span
+            key={t.minute}
+            className="absolute text-[8px] text-muted-foreground/50 leading-none"
+            style={{
+              left: `${(t.minute / 1440) * 100}%`,
+              top: 1,
+              transform:
+                t.minute === 0
+                  ? "none"
+                  : t.minute === 1440
+                  ? "translateX(-100%)"
+                  : "translateX(-50%)",
+            }}
+          >
+            {t.label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -451,12 +496,8 @@ export default function StatusReport() {
           Offline
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-8 h-3 rounded" style={{ background: "#f59e0b" }} />
-          Unknown
-        </div>
-        <div className="flex items-center gap-2">
           <div className="w-8 h-3 rounded" style={{ background: "rgba(0,0,0,0.07)" }} />
-          No Data
+          No Data / Unknown
         </div>
         <span className="ml-2 text-muted-foreground/60 italic">Hover on bar to see time range</span>
       </div>
@@ -538,12 +579,12 @@ export default function StatusReport() {
                       const onlinePct = total > 0 && s ? Math.round((s.online / total) * 100) : 0;
                       return (
                         <td key={date} className="px-1 py-1.5 text-center">
-                          <span className={`text-[10px] font-bold ${onlinePct >= 80 ? "text-green-600" : onlinePct >= 50 ? "text-orange-500" : "text-red-500"}`}>
+                          <span className={`text-[10px] font-bold ${onlinePct >= 80 ? "text-green-600" : "text-red-500"}`}>
                             {onlinePct}%
                           </span>
                           <div className="w-full h-1 rounded-full bg-muted mt-0.5 overflow-hidden">
                             <div
-                              className={`h-full rounded-full ${onlinePct >= 80 ? "bg-green-500" : onlinePct >= 50 ? "bg-orange-400" : "bg-red-500"}`}
+                              className={`h-full rounded-full ${onlinePct >= 80 ? "bg-green-500" : "bg-red-500"}`}
                               style={{ width: `${onlinePct}%` }}
                             />
                           </div>
@@ -627,7 +668,6 @@ export default function StatusReport() {
                     const tracked = onlineD + offlineD;
                     const uptime = tracked > 0 ? ((onlineD / tracked) * 100).toFixed(1) : null;
                     const isGood = uptime !== null && Number(uptime) >= 80;
-                    const isMid  = uptime !== null && Number(uptime) >= 50 && Number(uptime) < 80;
                     return (
                       <tr key={device.serialNumber} className="hover:bg-muted/20 transition-colors">
                         <td className="px-4 py-3.5 text-muted-foreground/50 text-xs font-mono">{idx + 1}</td>
@@ -650,9 +690,9 @@ export default function StatusReport() {
                             <Badge
                               variant="outline"
                               className={`text-[10px] font-semibold ${
-                                isGood ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800/50"
-                                : isMid  ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400"
-                                :          "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800/50"
+                                isGood
+                                  ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800/50"
+                                  : "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800/50"
                               }`}
                             >
                               {uptime}%

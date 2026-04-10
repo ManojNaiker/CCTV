@@ -101,11 +101,8 @@ function eventsToSegments(events: TimelineEvent[]): Segment[] {
     const end = i + 1 < sorted.length ? sorted[i + 1].minuteOfDay : 1440;
     segments.push({ startMinute: start, endMinute: end, status: sorted[i].status });
   }
-  // Extend the first known status back to 12AM (midnight)
-  // so the full day is covered — gaps before first record use the same status
-  if (sorted[0].minuteOfDay > 0) {
-    segments.unshift({ startMinute: 0, endMinute: sorted[0].minuteOfDay, status: sorted[0].status });
-  }
+  // Period before first record stays empty (gray background, no color)
+  // Do not prepend any segment — the gray track shows through for unrecorded time
   return segments;
 }
 

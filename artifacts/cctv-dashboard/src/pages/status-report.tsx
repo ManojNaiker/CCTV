@@ -92,17 +92,25 @@ function minutesToTimeLabel(minutes: number): string {
   return `${hour}:${m.toString().padStart(2, "0")} ${period}`;
 }
 
-function eventsToSegments(events: TimelineEvent[]): Segment[] {
+function getCurrentISTMinute(): number {
+  const now = new Date();
+  return Math.floor(((now.getTime() + 5.5 * 60 * 60 * 1000) % (24 * 60 * 60 * 1000)) / 60000);
+}
+
+function eventsToSegments(events: TimelineEvent[], isToday: boolean): Segment[] {
   if (events.length === 0) return [];
   const sorted = [...events].sort((a, b) => a.minuteOfDay - b.minuteOfDay);
+  // For today, cap at the current IST minute so future time stays gray
+  const dayEnd = isToday ? getCurrentISTMinute() : 1440;
   const segments: Segment[] = [];
   for (let i = 0; i < sorted.length; i++) {
     const start = sorted[i].minuteOfDay;
-    const end = i + 1 < sorted.length ? sorted[i + 1].minuteOfDay : 1440;
+    const rawEnd = i + 1 < sorted.length ? sorted[i + 1].minuteOfDay : dayEnd;
+    const end = Math.min(rawEnd, dayEnd);
+    if (end <= start) continue;
     segments.push({ startMinute: start, endMinute: end, status: sorted[i].status });
   }
-  // Period before first record stays empty (gray background, no color)
-  // Do not prepend any segment — the gray track shows through for unrecorded time
+  // Period before first record and after current time stays empty gray
   return segments;
 }
 
@@ -120,8 +128,8 @@ const DAY_TICKS = [
   { minute: 1440, label: "12AM" },
 ];
 
-function TimelineBar({ events }: { events: TimelineEvent[] | undefined }) {
-  const segments = events && events.length > 0 ? eventsToSegments(events) : [];
+function TimelineBar({ events, isToday }: { events: TimelineEvent[] | undefined; isToday: boolean }) {
+  const segments = events && events.length > 0 ? eventsToSegments(events, isToday) : [];
 
   return (
     <div className="w-full" style={{ minWidth: 80 }}>
@@ -619,7 +627,7 @@ export default function StatusReport() {
                             key={date}
                             className={`px-2 py-3 ${isToday ? "bg-blue-50/40 dark:bg-blue-950/10" : ""}`}
                           >
-                            <TimelineBar events={events} />
+                            <TimelineBar events={events} isToday={isToday} />
                           </td>
                         );
                       })}

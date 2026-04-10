@@ -15,6 +15,7 @@ import {
   UserCircle,
   AtSign,
   CalendarDays,
+  HardDrive,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -70,6 +71,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { href: "/devices", label: "Devices", icon: ShieldCheck },
     { href: "/offline-report", label: "Offline Report", icon: WifiOff },
     { href: "/status-report", label: "Status Report", icon: CalendarDays },
+    { href: "/dvr-storage", label: "DVR Storage", icon: HardDrive },
     { href: "/cc-list", label: "Branch CC List", icon: AtSign },
     { href: "/users", label: "Users", icon: Users },
     { href: "/audit-logs", label: "Audit Logs", icon: Activity },

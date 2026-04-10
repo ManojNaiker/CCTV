@@ -14,6 +14,7 @@ import Settings from "@/pages/settings";
 import OfflineReport from "@/pages/offline-report";
 import CcList from "@/pages/cc-list";
 import StatusReport from "@/pages/status-report";
+import DvrStorage from "@/pages/dvr-storage";
 import NotFound from "@/pages/not-found";
 import LoginPage from "@/pages/login";
 
@@ -56,6 +57,7 @@ function AppRoutes() {
         <Route path="/offline-report" component={OfflineReport} />
         <Route path="/cc-list" component={CcList} />
         <Route path="/status-report" component={StatusReport} />
+        <Route path="/dvr-storage" component={DvrStorage} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

@@ -29,6 +29,13 @@
       "when": 1775810000000,
       "tag": "0003_add_device_status_history",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1775808900000,
+      "tag": "0004_add_dvr_storage",
+      "breakpoints": true
     }
   ]
 }

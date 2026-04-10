@@ -22,7 +22,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 ### CCTV Monitoring Dashboard (`artifacts/cctv-dashboard`)
 - Light Finance branch CCTV monitoring web application
 - Preview path: `/`
-- Features: Dashboard with online/offline split view, Device management, User management, Audit logs, 2-min auto-refresh, manual refresh, Login system
+- Features: Dashboard with online/offline split view, Device management, User management, Audit logs, 2-min auto-refresh, manual refresh, Login system, DVR Storage report
 
 ### API Server (`artifacts/api-server`)
 - Express 5 backend serving all REST API endpoints

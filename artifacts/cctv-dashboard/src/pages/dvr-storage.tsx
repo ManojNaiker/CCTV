@@ -14,6 +14,8 @@ import {
   Upload,
   Download,
   Table2,
+  MessageSquare,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -183,9 +185,10 @@ function generateDvrPDF(records: DvrRecord[], date: string) {
 type RecordTableProps = {
   rows: DvrRecord[];
   onSave: (id: number, field: string, value: string) => void;
+  onOpenRemark: (record: DvrRecord) => void;
 };
 
-function RecordTableInner({ rows, onSave }: RecordTableProps) {
+function RecordTableInner({ rows, onSave, onOpenRemark }: RecordTableProps) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-xs border-collapse">
@@ -200,7 +203,7 @@ function RecordTableInner({ rows, onSave }: RecordTableProps) {
             <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[120px]">Last Recording</th>
             <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Activity Date</th>
             <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[120px]">Total Recording Day</th>
-            <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[140px]">Remark</th>
+            <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[160px]">Remark</th>
             <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Status</th>
           </tr>
         </thead>
@@ -235,9 +238,24 @@ function RecordTableInner({ rows, onSave }: RecordTableProps) {
                     : <span className="text-muted-foreground/40">—</span>;
                 })()}
               </td>
-              <td className="px-2 py-2">
-                <EditableCell value={r.remark}
-                  onSave={(v) => onSave(r.id, "remark", v)} />
+              <td className="px-2 py-1.5">
+                <button
+                  onClick={() => onOpenRemark(r)}
+                  className={[
+                    "flex items-center gap-1.5 w-full px-2 py-1.5 rounded-md text-left text-xs transition-colors group",
+                    r.remark
+                      ? "bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/20 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800/40 text-blue-800 dark:text-blue-300"
+                      : "bg-muted/40 hover:bg-muted border border-dashed border-border hover:border-primary/40 text-muted-foreground hover:text-foreground",
+                  ].join(" ")}
+                  title="Click to edit remark"
+                >
+                  {r.remark
+                    ? <MessageSquare className="h-3 w-3 shrink-0 text-blue-500" />
+                    : <Pencil className="h-3 w-3 shrink-0 opacity-40 group-hover:opacity-70" />}
+                  <span className="truncate max-w-[130px]">
+                    {r.remark || <span className="opacity-40">Add remark…</span>}
+                  </span>
+                </button>
               </td>
               <td className="px-3 py-2 text-center">
                 {r.status === "completed" ? (
@@ -278,6 +296,8 @@ export default function DvrStorage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "completed">("all");
   const [bulkUploading, setBulkUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [remarkDialog, setRemarkDialog] = useState<{ record: DvrRecord; text: string } | null>(null);
+  const [savingRemark, setSavingRemark] = useState(false);
 
   const { data: records = [], isLoading } = useQuery<DvrRecord[]>({
     queryKey: ["dvr-storage", date],
@@ -458,6 +478,30 @@ export default function DvrStorage() {
     [updateMutation, records]
   );
 
+  const handleOpenRemark = useCallback((record: DvrRecord) => {
+    setRemarkDialog({ record, text: record.remark ?? "" });
+  }, []);
+
+  const handleSaveRemark = async () => {
+    if (!remarkDialog) return;
+    setSavingRemark(true);
+    try {
+      const res = await fetch(`${BASE}/api/dvr-storage/${remarkDialog.record.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ remark: remarkDialog.text }),
+      });
+      if (!res.ok) throw new Error();
+      queryClient.invalidateQueries({ queryKey: ["dvr-storage", date] });
+      setRemarkDialog(null);
+      toast({ title: "Remark saved" });
+    } catch {
+      toast({ title: "Failed to save remark", variant: "destructive" });
+    } finally {
+      setSavingRemark(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Initialize Confirmation Dialog */}
@@ -514,6 +558,60 @@ export default function DvrStorage() {
             >
               Cancel
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remark Dialog */}
+      <Dialog open={!!remarkDialog} onOpenChange={(open) => { if (!open) setRemarkDialog(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <MessageSquare className="h-5 w-5 text-blue-600" />
+              Remark
+            </DialogTitle>
+            {remarkDialog && (
+              <DialogDescription className="text-sm text-muted-foreground pt-0.5">
+                <span className="font-semibold text-foreground">{remarkDialog.record.branch}</span>
+                <span className="mx-1.5 text-muted-foreground/40">·</span>
+                {remarkDialog.record.state}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+
+          <div className="pt-1 space-y-4">
+            <textarea
+              className="w-full min-h-[120px] rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none placeholder:text-muted-foreground/50"
+              placeholder="Write your remark here…"
+              value={remarkDialog?.text ?? ""}
+              onChange={(e) => setRemarkDialog((prev) => prev ? { ...prev, text: e.target.value } : null)}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleSaveRemark();
+                if (e.key === "Escape") setRemarkDialog(null);
+              }}
+            />
+            <p className="text-[11px] text-muted-foreground/50">Ctrl+Enter to save · Esc to cancel</p>
+
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setRemarkDialog(null)}>
+                Cancel
+              </Button>
+              {remarkDialog?.text && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-red-600 border-red-200 hover:bg-red-50"
+                  onClick={() => setRemarkDialog((prev) => prev ? { ...prev, text: "" } : null)}
+                >
+                  Clear
+                </Button>
+              )}
+              <Button size="sm" onClick={handleSaveRemark} disabled={savingRemark} className="gap-2 min-w-[80px]">
+                {savingRemark ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                Save
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -735,13 +833,13 @@ export default function DvrStorage() {
             ) : (
               <>
                 <TabsContent value="pending" className="mt-0">
-                  <RecordTable rows={filteredPending} onSave={handleSave} />
+                  <RecordTable rows={filteredPending} onSave={handleSave} onOpenRemark={handleOpenRemark} />
                 </TabsContent>
                 <TabsContent value="completed" className="mt-0">
-                  <RecordTable rows={filteredCompleted} onSave={handleSave} />
+                  <RecordTable rows={filteredCompleted} onSave={handleSave} onOpenRemark={handleOpenRemark} />
                 </TabsContent>
                 <TabsContent value="all" className="mt-0">
-                  <RecordTable rows={filteredRecords} onSave={handleSave} />
+                  <RecordTable rows={filteredRecords} onSave={handleSave} onOpenRemark={handleOpenRemark} />
                 </TabsContent>
               </>
             )}

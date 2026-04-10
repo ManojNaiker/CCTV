@@ -10,9 +10,8 @@ import {
   UpdateDeviceBody,
   DeleteDeviceParams,
 } from "@workspace/api-zod";
-import { fetchAllDevicesWithRetry, mapHikStatus } from "../../lib/hikconnect";
 import { logger } from "../../lib/logger";
-import { sendOfflineAlert } from "../../lib/emailService";
+import { runDeviceRefresh } from "../../lib/refreshDevices";
 
 const router: IRouter = Router();
 
@@ -127,130 +126,10 @@ router.post("/devices/bulk", async (req, res): Promise<void> => {
 
 router.post("/devices/refresh", async (req, res): Promise<void> => {
   try {
-    logger.info("Starting Hik-Connect device status refresh...");
-
-    // Fetch all devices from Hik-Connect API
-    const hikDeviceMap = await fetchAllDevicesWithRetry();
-    logger.info({ count: hikDeviceMap.size }, "Fetched devices from Hik-Connect");
-
-    // Load all devices from our DB
-    const allDevices = await db.select().from(devicesTable);
-
-    const now = new Date();
-    let updatedCount = 0;
-    let onlineCount = 0;
-    let offlineCount = 0;
-    let unknownCount = 0;
-
-    // Returns the IST calendar date string (YYYY-MM-DD) for reliable same-day comparison
-    function toISTDateStr(d: Date): string {
-      return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
-    }
-
-    function isSameDayIST(a: Date, b: Date): boolean {
-      return toISTDateStr(a) === toISTDateStr(b);
-    }
-
-    // Auto-remark patterns we generated — these can be safely overwritten
-    function isAutoRemark(remark: string | null | undefined): boolean {
-      if (!remark || remark.trim() === "" || remark === "-") return true;
-      return remark.startsWith("CCTV has been offline");
-    }
-
-    for (const device of allDevices) {
-      const hikDevice = hikDeviceMap.get(device.serialNumber);
-      const newStatus = hikDevice ? mapHikStatus(hikDevice.status) : "unknown";
-
-      let newOfflineDays = device.offlineDays ?? 0;
-      let newRemark = device.remark;
-
-      if (newStatus === "offline") {
-        // Only increment offlineDays once per calendar day (IST).
-        const alreadyCountedToday =
-          device.status === "offline" &&
-          device.updatedAt != null &&
-          isSameDayIST(new Date(device.updatedAt), now);
-
-        if (!alreadyCountedToday) {
-          newOfflineDays = (device.offlineDays ?? 0) + 1;
-        }
-
-        // Auto-remark: update if empty OR if it was previously auto-generated.
-        // Manual remarks (set by a user) are preserved as-is.
-        if (isAutoRemark(newRemark)) {
-          if (newOfflineDays === 1) {
-            newRemark = "CCTV has been offline since today.";
-          } else {
-            newRemark = `CCTV has been offline from last ${newOfflineDays} day${newOfflineDays !== 1 ? "s" : ""}.`;
-          }
-        }
-
-        // Send offline alert email when device JUST went offline (status transition)
-        const justWentOffline = device.status !== "offline";
-        if (justWentOffline) {
-          sendOfflineAlert({
-            branchName: device.branchName,
-            serialNumber: device.serialNumber,
-            stateName: device.stateName,
-            offlineDays: newOfflineDays,
-            email: device.email,
-            ccEmails: device.ccEmails,
-          }).catch((err) => logger.warn({ err, serial: device.serialNumber }, "Failed to send offline alert email"));
-        }
-
-        offlineCount++;
-      } else if (newStatus === "online") {
-        // Clear offline tracking when device comes back online
-        newOfflineDays = 0;
-        if (isAutoRemark(newRemark)) newRemark = null; // Clear auto-remarks; preserve manual ones
-        onlineCount++;
-      } else {
-        unknownCount++;
-      }
-
-      // Update if status, offlineDays, OR remark changed
-      const remarkChanged = newRemark !== device.remark;
-      if (newStatus !== device.status || newOfflineDays !== device.offlineDays || remarkChanged) {
-        await db.update(devicesTable)
-          .set({
-            status: newStatus,
-            offlineDays: newOfflineDays,
-            remark: newRemark,
-            updatedAt: now,
-          })
-          .where(eq(devicesTable.id, device.id));
-        updatedCount++;
-      }
-
-      // Record a status history snapshot for every device on each refresh
-      await db.insert(deviceStatusHistoryTable).values({
-        deviceId: device.id,
-        serialNumber: device.serialNumber,
-        branchName: device.branchName,
-        stateName: device.stateName,
-        status: newStatus,
-        recordedAt: now,
-      });
-    }
-
-    const totalDevices = allDevices.length;
-    const description = `Hik-Connect refresh: ${totalDevices} devices checked. Online: ${onlineCount}, Offline: ${offlineCount}, Unknown: ${unknownCount}`;
-    await logAction("REFRESH", "device", "all", description);
-
-    // Always update the last refresh timestamp regardless of whether device statuses changed
-    await db.insert(settingsTable)
-      .values({ key: "last_refresh_at", value: now.toISOString() })
-      .onConflictDoUpdate({ target: settingsTable.key, set: { value: now.toISOString() } });
-
-    logger.info({ updatedCount, onlineCount, offlineCount, unknownCount }, "Refresh complete");
-
+    const result = await runDeviceRefresh();
     res.json({
       message: "Device status refreshed from Hik-Connect",
-      updatedAt: now.toISOString(),
-      devicesChecked: totalDevices,
-      devicesUpdated: updatedCount,
-      hikDevicesFetched: hikDeviceMap.size,
-      stats: { online: onlineCount, offline: offlineCount, unknown: unknownCount },
+      ...result,
     });
   } catch (err) {
     const msg = (err as Error).message;

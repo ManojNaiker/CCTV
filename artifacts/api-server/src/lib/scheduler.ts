@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import { db, devicesTable, settingsTable } from "@workspace/db";
 import { sendBulkOfflineAlert } from "./emailService";
+import { runDeviceRefresh } from "./refreshDevices";
 import { logger } from "./logger";
 
 async function getSchedulerSettings(): Promise<{ enabled: boolean; times: string[] }> {
@@ -49,8 +50,23 @@ async function sendScheduledOfflineAlert(label: string): Promise<void> {
   }
 }
 
+async function autoRefreshDevices(): Promise<void> {
+  try {
+    logger.info("Auto-refresh: pulling latest device statuses from Hik-Connect...");
+    const result = await runDeviceRefresh();
+    logger.info(result, "Auto-refresh complete");
+  } catch (err) {
+    logger.error({ err }, "Auto-refresh failed");
+  }
+}
+
 export function startScheduler(): void {
-  // Run every minute and check if current IST time matches a configured schedule
+  // Auto-refresh device statuses every 15 minutes
+  cron.schedule("*/15 * * * *", () => {
+    autoRefreshDevices();
+  });
+
+  // Run every minute and check if current IST time matches a configured email schedule
   cron.schedule("* * * * *", async () => {
     const { enabled, times } = await getSchedulerSettings();
     if (!enabled || times.length === 0) return;
@@ -68,5 +84,8 @@ export function startScheduler(): void {
     }
   });
 
-  logger.info("Scheduler started — checks every minute against configured IST times");
+  // Also run one refresh immediately on startup so the dashboard is fresh right away
+  setTimeout(() => autoRefreshDevices(), 5000);
+
+  logger.info("Scheduler started — device auto-refresh every 15 min, email alerts at configured IST times");
 }

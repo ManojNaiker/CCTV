@@ -128,18 +128,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-background md:flex-row">
+    <div className="flex h-screen w-full flex-col bg-background md:flex-row overflow-hidden">
       {/* Desktop Sidebar */}
-      <aside className="hidden w-64 flex-col border-r border-sidebar-border px-4 py-6 md:flex bg-sidebar">
+      <aside className="hidden w-64 flex-col border-r border-sidebar-border px-4 py-6 md:flex bg-sidebar h-screen sticky top-0 shrink-0">
         <LogoBlock />
         {user && <UserBlock />}
 
         <p className="text-[10px] font-semibold text-sidebar-foreground/30 uppercase tracking-widest px-3 mb-2">Navigation</p>
-        <nav className="flex flex-1 flex-col gap-1">
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
           <NavLinks />
         </nav>
 
-        <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-sidebar-border/40">
+        <div className="mt-auto flex items-center justify-between gap-2 pt-4 border-t border-sidebar-border/40 shrink-0">
           <Button
             variant="ghost"
             className="flex-1 justify-start gap-3 text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-accent text-sm h-9 font-medium"
@@ -153,7 +153,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Mobile Header & Content */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col min-w-0 overflow-y-auto">
         <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-card px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 md:hidden">
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>

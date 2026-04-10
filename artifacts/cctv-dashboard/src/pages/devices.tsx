@@ -151,7 +151,7 @@ export default function Devices() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [createData, setCreateData] = useState({ serialNumber: "", branchName: "", stateName: "", remark: "" });
+  const [createData, setCreateData] = useState({ serialNumber: "", branchName: "", stateName: "", email: "", remark: "" });
 
   const [editDevice, setEditDevice] = useState<any>(null);
   const [editData, setEditData] = useState({ branchName: "", stateName: "", serialNumber: "", email: "", status: "online" as any, remark: "" });
@@ -184,7 +184,7 @@ export default function Devices() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListDevicesQueryKey() });
         setIsCreateOpen(false);
-        setCreateData({ serialNumber: "", branchName: "", stateName: "", remark: "" });
+        setCreateData({ serialNumber: "", branchName: "", stateName: "", email: "", remark: "" });
         toast({ title: "Device added" });
       }
     }
@@ -556,42 +556,132 @@ export default function Devices() {
       </Card>
 
       {/* ── Add Device ── */}
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-sm">
-              <span className="text-primary">+</span> Add Device
-            </DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-3 py-1">
-            {[
-              { label: "Serial Number", key: "serialNumber", placeholder: "DS-2CD2143G2-I", mono: true },
-              { label: "Branch Name", key: "branchName", placeholder: "e.g. Bhinder" },
-              { label: "State Name", key: "stateName", placeholder: "e.g. Rajasthan" },
-              { label: "Remark", key: "remark", placeholder: "Optional note..." },
-            ].map(({ label, key, placeholder, mono }) => (
-              <div key={key} className="grid gap-1">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">{label}</Label>
+      <Dialog open={isCreateOpen} onOpenChange={(open) => { setIsCreateOpen(open); if (!open) setCreateData({ serialNumber: "", branchName: "", stateName: "", email: "", remark: "" }); }}>
+        <DialogContent className="sm:max-w-lg p-0 overflow-hidden gap-0">
+          {/* Gradient header */}
+          <div
+            className="px-6 pt-5 pb-4 relative"
+            style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #1e40af 100%)" }}
+          >
+            <div className="h-0.5 w-full absolute top-0 left-0 bg-gradient-to-r from-blue-500/0 via-blue-400/50 to-blue-500/0" />
+            <div className="flex items-start gap-4">
+              <div className="h-11 w-11 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0 mt-0.5">
+                <Video className="h-5 w-5 text-blue-200" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-blue-300 uppercase tracking-widest mb-0.5">New Device</p>
+                <h2 className="text-lg font-bold text-white tracking-tight">Add Device</h2>
+                <p className="text-blue-200/50 text-xs mt-0.5">Fields marked <span className="text-red-400 font-bold">*</span> are required</p>
+              </div>
+              <button
+                onClick={() => setIsCreateOpen(false)}
+                className="h-7 w-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors shrink-0"
+              >
+                <X className="h-3.5 w-3.5 text-white/70" />
+              </button>
+            </div>
+          </div>
+
+          {/* Fields */}
+          <div className="px-6 py-5 space-y-4">
+            {/* Serial Number - full width */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Hash className="h-3 w-3" /> Serial Number <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                className="text-sm bg-background border-border/60 focus:border-primary font-mono"
+                placeholder="e.g. DS-2CD2143G2-I"
+                value={createData.serialNumber}
+                onChange={e => setCreateData({ ...createData, serialNumber: e.target.value })}
+                autoFocus
+              />
+              <p className="text-[11px] text-muted-foreground/50">The Hikvision device serial number</p>
+            </div>
+
+            {/* Branch + State side by side */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <MapPin className="h-3 w-3" /> Branch Name <span className="text-red-500">*</span>
+                </Label>
                 <Input
-                  className={`text-sm h-8 bg-background/50 ${mono ? "font-mono" : ""}`}
-                  placeholder={placeholder}
-                  value={(createData as any)[key]}
-                  onChange={e => setCreateData({ ...createData, [key]: e.target.value })}
+                  className="text-sm bg-background border-border/60 focus:border-primary"
+                  placeholder="e.g. Bhinder"
+                  value={createData.branchName}
+                  onChange={e => setCreateData({ ...createData, branchName: e.target.value })}
                 />
               </div>
-            ))}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <MapPin className="h-3 w-3" /> State Name <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  className="text-sm bg-background border-border/60 focus:border-primary"
+                  placeholder="e.g. Rajasthan"
+                  value={createData.stateName}
+                  onChange={e => setCreateData({ ...createData, stateName: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* Email */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Tag className="h-3 w-3" /> Alert Email
+              </Label>
+              <Input
+                type="email"
+                className="text-sm bg-background border-border/60 focus:border-primary"
+                placeholder="branch@lightfinance.com"
+                value={(createData as any).email || ""}
+                onChange={e => setCreateData({ ...createData, email: e.target.value } as any)}
+              />
+              <p className="text-[11px] text-muted-foreground/50">Primary email for offline alerts (optional)</p>
+            </div>
+
+            {/* Remark */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Remark / Note
+              </Label>
+              <textarea
+                className="w-full text-sm bg-background border border-border/60 focus:border-primary rounded-md px-3 py-2 resize-none outline-none focus:ring-1 focus:ring-primary/30 transition-colors placeholder:text-muted-foreground/40"
+                rows={2}
+                placeholder="Optional note about this device..."
+                value={createData.remark}
+                onChange={e => setCreateData({ ...createData, remark: e.target.value })}
+              />
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-            <Button
-              size="sm"
-              className="text-xs h-8"
-              onClick={handleCreate}
-              disabled={createMutation.isPending || !createData.serialNumber || !createData.branchName || !createData.stateName}
-            >
-              {createMutation.isPending ? "Adding..." : "Add Device"}
-            </Button>
-          </DialogFooter>
+
+          <Separator className="bg-border/40" />
+
+          <div className="px-6 py-4 flex items-center justify-between gap-3 bg-muted/20">
+            <p className="text-[11px] text-muted-foreground/40">
+              {!createData.serialNumber && !createData.branchName && !createData.stateName
+                ? "Fill in the required fields above"
+                : createData.serialNumber && createData.branchName && createData.stateName
+                ? <span className="text-green-600 font-medium">✓ Ready to submit</span>
+                : <span className="text-amber-500">Fill all required fields</span>}
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="h-9 px-4" onClick={() => setIsCreateOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="h-9 px-5 gap-2 bg-blue-600 hover:bg-blue-700 text-white border-0"
+                onClick={handleCreate}
+                disabled={createMutation.isPending || !createData.serialNumber || !createData.branchName || !createData.stateName}
+              >
+                {createMutation.isPending
+                  ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Adding...</>
+                  : <><Plus className="h-3.5 w-3.5" /> Add Device</>
+                }
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

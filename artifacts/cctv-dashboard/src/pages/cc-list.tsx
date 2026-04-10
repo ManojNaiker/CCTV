@@ -48,11 +48,12 @@ function parseCsv(text: string): ParsedRow[] {
   }).filter(r => r.branchName);
 }
 
-function BulkUpdateDialog({ open, onClose, allDevices, onSuccess }: {
+function BulkUpdateDialog({ open, onClose, allDevices, onSuccess, mode = "update" }: {
   open: boolean;
   onClose: () => void;
   allDevices: any[];
   onSuccess: () => void;
+  mode?: "add" | "update";
 }) {
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -62,6 +63,8 @@ function BulkUpdateDialog({ open, onClose, allDevices, onSuccess }: {
   const [result, setResult] = useState<ApplyResult | null>(null);
   const [dragOver, setDragOver] = useState(false);
 
+  const isAdd = mode === "add";
+
   const handleClose = () => {
     onClose();
     setTimeout(() => { setStep("upload"); setRows([]); setResult(null); }, 300);
@@ -69,16 +72,22 @@ function BulkUpdateDialog({ open, onClose, allDevices, onSuccess }: {
 
   const downloadTemplate = () => {
     const header = "Branch Name,State Name,CC Emails";
-    const csvRows = allDevices.map(d => {
-      const cc = d.ccEmails ?? "";
-      return `"${d.branchName}","${d.stateName ?? ""}","${cc}"`;
-    });
+    const csvRows = isAdd
+      ? [
+          // Blank template with example row
+          '"Bhinder","Rajasthan","email1@company.com,email2@company.com"',
+          '"Pune Main","Maharashtra",""',
+        ]
+      : allDevices.map(d => {
+          const cc = d.ccEmails ?? "";
+          return `"${d.branchName}","${d.stateName ?? ""}","${cc}"`;
+        });
     const csv = [header, ...csvRows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "cc_list_template.csv";
+    a.download = isAdd ? "cc_bulk_add_template.csv" : "cc_list_update_template.csv";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -145,11 +154,13 @@ function BulkUpdateDialog({ open, onClose, allDevices, onSuccess }: {
       <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
-            <FileSpreadsheet className="h-5 w-5 text-blue-600" />
-            Bulk Update CC List
+            <FileSpreadsheet className={`h-5 w-5 ${isAdd ? "text-green-600" : "text-blue-600"}`} />
+            {isAdd ? "Bulk Add CC Emails" : "Bulk Update CC List"}
           </DialogTitle>
           <DialogDescription>
-            Download the template, fill in CC emails for each branch, then upload to apply all changes at once.
+            {isAdd
+              ? "Download the blank template, fill in branch names and CC emails, then upload to add CC recipients in bulk."
+              : "Download the template pre-filled with current data, edit CC emails, then upload to apply all changes at once."}
           </DialogDescription>
         </DialogHeader>
 
@@ -157,12 +168,20 @@ function BulkUpdateDialog({ open, onClose, allDevices, onSuccess }: {
         {step === "upload" && (
           <div className="space-y-5 py-2">
             {/* Download template */}
-            <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4 flex items-center justify-between gap-4">
+            <div className={`rounded-xl border p-4 flex items-center justify-between gap-4 ${isAdd ? "border-green-100 bg-green-50/60" : "border-blue-100 bg-blue-50/60"}`}>
               <div>
-                <p className="text-sm font-semibold text-blue-900">Step 1 — Download Template</p>
-                <p className="text-xs text-blue-700 mt-0.5">Pre-filled with all branches and their current CC emails. Edit the <strong>CC Emails</strong> column (comma-separate multiple emails).</p>
+                <p className={`text-sm font-semibold ${isAdd ? "text-green-900" : "text-blue-900"}`}>Step 1 — Download Template</p>
+                <p className={`text-xs mt-0.5 ${isAdd ? "text-green-700" : "text-blue-700"}`}>
+                  {isAdd
+                    ? "Blank CSV template — fill in Branch Name, State Name, and CC Emails (comma-separate multiple emails)."
+                    : "Pre-filled with all branches and their current CC emails. Edit the CC Emails column (comma-separate multiple emails)."}
+                </p>
               </div>
-              <Button variant="outline" className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-100 shrink-0" onClick={downloadTemplate}>
+              <Button
+                variant="outline"
+                className={`gap-2 shrink-0 ${isAdd ? "border-green-300 text-green-700 hover:bg-green-100" : "border-blue-300 text-blue-700 hover:bg-blue-100"}`}
+                onClick={downloadTemplate}
+              >
                 <Download className="h-4 w-4" /> Download Template
               </Button>
             </div>
@@ -493,6 +512,7 @@ export default function CcList() {
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState("all");
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkAddOpen, setBulkAddOpen] = useState(false);
 
   const { data: devices, isLoading, refetch } = useListDevices({});
 
@@ -548,6 +568,22 @@ export default function CcList() {
               <p className="text-amber-100 text-sm mt-0.5 max-w-md">
                 Manage per-branch CC email addresses. These will be CC'd on all offline alert emails.
               </p>
+              <div className="flex items-center gap-2 mt-3 flex-wrap">
+                <Button
+                  size="sm"
+                  className="gap-1.5 bg-white/15 hover:bg-white/25 text-white border border-white/25 h-8 text-xs font-medium"
+                  onClick={() => setBulkAddOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Bulk Add
+                </Button>
+                <Button
+                  size="sm"
+                  className="gap-1.5 bg-white/15 hover:bg-white/25 text-white border border-white/25 h-8 text-xs font-medium"
+                  onClick={() => setBulkOpen(true)}
+                >
+                  <Upload className="h-3.5 w-3.5" /> Bulk Update
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -640,6 +676,24 @@ export default function CcList() {
           ))}
         </div>
       )}
+
+      {/* ── Bulk Update Dialog ── */}
+      <BulkUpdateDialog
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        allDevices={devices ?? []}
+        onSuccess={refetch}
+        mode="update"
+      />
+
+      {/* ── Bulk Add Dialog ── */}
+      <BulkUpdateDialog
+        open={bulkAddOpen}
+        onClose={() => setBulkAddOpen(false)}
+        allDevices={devices ?? []}
+        onSuccess={refetch}
+        mode="add"
+      />
     </div>
   );
 }

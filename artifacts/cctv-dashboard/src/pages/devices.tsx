@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { format, formatDistanceToNow } from "date-fns";
-import { Search, Plus, MoreHorizontal, FileEdit, Trash2, Video, Upload, ChevronRight, CheckCircle2, AlertCircle, SkipForward, Download, FileSpreadsheet, X, Loader2, Hash, MapPin, Tag, Clock, Pencil } from "lucide-react";
+import { Search, Plus, MoreHorizontal, FileEdit, Trash2, Video, Upload, CheckCircle2, AlertCircle, SkipForward, Download, FileSpreadsheet, X, Loader2, Hash, MapPin, Tag, Clock, Pencil, RefreshCw } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { 
@@ -9,8 +9,10 @@ import {
   useUpdateDevice,
   useDeleteDevice,
   useBulkCreateDevices,
+  useBulkUpdateDevices,
   getListDevicesQueryKey
 } from "@workspace/api-client-react";
+import type { BulkUpdateDeviceRow } from "@workspace/api-client-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -162,6 +164,13 @@ export default function Devices() {
   const [bulkResult, setBulkResult] = useState<{ created: number; skipped: number; errors: string[] } | null>(null);
   const [fileError, setFileError] = useState<string>("");
 
+  const updateFileInputRef = useRef<HTMLInputElement>(null);
+  const [isUpdateOpen, setIsUpdateOpen] = useState(false);
+  const [updateParsedRows, setUpdateParsedRows] = useState<BulkUpdateDeviceRow[]>([]);
+  const [updateSelectedFile, setUpdateSelectedFile] = useState<File | null>(null);
+  const [updateFileError, setUpdateFileError] = useState<string>("");
+  const [updateResult, setUpdateResult] = useState<{ updated: number; notFound: string[]; errors: string[] } | null>(null);
+
   const validRows = useMemo(() => parsedRows.filter(r => !r.error), [parsedRows]);
   const errorRows = useMemo(() => parsedRows.filter(r => !!r.error), [parsedRows]);
 
@@ -281,6 +290,86 @@ export default function Devices() {
     setBulkResult(null);
   };
 
+  const bulkUpdateMutation = useBulkUpdateDevices({
+    mutation: {
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({ queryKey: getListDevicesQueryKey() });
+        setUpdateResult(data);
+        setUpdateParsedRows([]);
+        setUpdateSelectedFile(null);
+        toast({
+          title: "Bulk update complete",
+          description: `${data.updated} devices updated`,
+        });
+      },
+      onError: () => {
+        toast({ title: "Bulk update failed", variant: "destructive" });
+      }
+    }
+  });
+
+  const handleUpdateFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUpdateFileError("");
+    setUpdateSelectedFile(file);
+    try {
+      const rows = await parseExcelFile(file);
+      const updateRows: BulkUpdateDeviceRow[] = rows
+        .filter(r => !r.error && r.branchName)
+        .map(r => ({
+          branchName: r.branchName,
+          stateName: r.stateName || undefined,
+          serialNumber: r.serialNumber || undefined,
+          email: r.email || undefined,
+        }));
+      setUpdateParsedRows(updateRows);
+    } catch {
+      setUpdateFileError("Could not read the file. Please upload a valid .xlsx or .xls file.");
+      setUpdateSelectedFile(null);
+      setUpdateParsedRows([]);
+    }
+    if (updateFileInputRef.current) updateFileInputRef.current.value = "";
+  };
+
+  const handleClearUpdateFile = () => {
+    setUpdateSelectedFile(null);
+    setUpdateParsedRows([]);
+    setUpdateFileError("");
+    if (updateFileInputRef.current) updateFileInputRef.current.value = "";
+  };
+
+  const handleBulkUpdate = () => {
+    if (updateParsedRows.length === 0) return;
+    bulkUpdateMutation.mutate({ data: updateParsedRows });
+  };
+
+  const handleUpdateClose = () => {
+    setIsUpdateOpen(false);
+    setUpdateParsedRows([]);
+    setUpdateSelectedFile(null);
+    setUpdateFileError("");
+    setUpdateResult(null);
+  };
+
+  const handleExportAll = async () => {
+    try {
+      const res = await fetch("/api/devices");
+      const allDevices: any[] = await res.json();
+      const ws = XLSX.utils.aoa_to_sheet([
+        ["State Name", "Branch Name", "Serial Number", "Email ID"],
+        ...allDevices.map(d => [d.stateName, d.branchName, d.serialNumber, d.email ?? ""]),
+      ]);
+      ws["!cols"] = [{ wch: 20 }, { wch: 30 }, { wch: 22 }, { wch: 30 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Devices");
+      XLSX.writeFile(wb, `devices_export_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+      toast({ title: "Export complete", description: `${allDevices.length} devices exported` });
+    } catch {
+      toast({ title: "Export failed", variant: "destructive" });
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* ── Header Banner ── */}
@@ -310,10 +399,26 @@ export default function Devices() {
             <Button
               variant="outline"
               className="gap-2 bg-white/8 border-white/20 text-white hover:bg-white/15 hover:text-white h-10"
+              onClick={handleExportAll}
+            >
+              <Download className="h-4 w-4" />
+              Export All
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2 bg-white/8 border-white/20 text-white hover:bg-white/15 hover:text-white h-10"
               onClick={() => setIsBulkOpen(true)}
             >
               <Upload className="h-4 w-4" />
               Bulk Import
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2 bg-amber-400/20 border-amber-300/40 text-amber-200 hover:bg-amber-400/30 hover:text-amber-100 h-10"
+              onClick={() => setIsUpdateOpen(true)}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Bulk Update
             </Button>
             <Button
               className="gap-2 bg-white/90 text-blue-900 hover:bg-white border-0 font-semibold h-10 shadow-lg shadow-blue-900/20"
@@ -824,6 +929,166 @@ export default function Devices() {
               {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Bulk Update by Branch Name ── */}
+      <input
+        type="file"
+        ref={updateFileInputRef}
+        accept=".xlsx,.xls"
+        className="hidden"
+        onChange={handleUpdateFileChange}
+      />
+      <Dialog open={isUpdateOpen} onOpenChange={(open) => !open && handleUpdateClose()}>
+        <DialogContent className="sm:max-w-xl p-0 overflow-hidden gap-0">
+          {/* Header */}
+          <div
+            className="px-6 pt-5 pb-4"
+            style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #78350f 100%)" }}
+          >
+            <div className="flex items-start gap-4">
+              <div className="h-11 w-11 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0 mt-0.5">
+                <RefreshCw className="h-5 w-5 text-amber-200" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-amber-300 uppercase tracking-widest mb-0.5">Bulk Update</p>
+                <h2 className="text-lg font-bold text-white tracking-tight">Update Devices by Branch Name</h2>
+                <p className="text-white/50 text-xs mt-0.5">Upload an Excel file — devices are matched by Branch Name</p>
+              </div>
+              <button onClick={handleUpdateClose} className="h-7 w-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors shrink-0">
+                <X className="h-3.5 w-3.5 text-white/70" />
+              </button>
+            </div>
+          </div>
+
+          <div className="px-6 py-5 space-y-4">
+            {updateResult ? (
+              /* Result view */
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-xl border bg-green-50 p-4 text-center">
+                    <span className="font-mono text-2xl font-bold text-green-600">{updateResult.updated}</span>
+                    <p className="text-xs text-muted-foreground mt-1">Updated</p>
+                  </div>
+                  <div className="rounded-xl border bg-amber-50 p-4 text-center">
+                    <span className="font-mono text-2xl font-bold text-amber-500">{updateResult.notFound.length}</span>
+                    <p className="text-xs text-muted-foreground mt-1">Not Found</p>
+                  </div>
+                  <div className="rounded-xl border bg-red-50 p-4 text-center">
+                    <span className="font-mono text-2xl font-bold text-red-500">{updateResult.errors.length}</span>
+                    <p className="text-xs text-muted-foreground mt-1">Errors</p>
+                  </div>
+                </div>
+                {updateResult.notFound.length > 0 && (
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+                    <p className="text-xs font-semibold text-amber-700 mb-1">Branches Not Found:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {updateResult.notFound.map((b, i) => (
+                        <span key={i} className="text-[11px] font-mono bg-amber-100 border border-amber-300 text-amber-800 rounded px-1.5 py-0.5">{b}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {updateResult.errors.length > 0 && (
+                  <div className="rounded-lg bg-red-50 border border-red-200 p-3 max-h-32 overflow-y-auto">
+                    <p className="text-xs font-semibold text-red-700 mb-1">Errors:</p>
+                    {updateResult.errors.map((e, i) => (
+                      <p key={i} className="text-[11px] font-mono text-red-700">{e}</p>
+                    ))}
+                  </div>
+                )}
+                <Button className="w-full h-9" onClick={handleUpdateClose}>Done</Button>
+              </div>
+            ) : (
+              /* Upload view */
+              <>
+                {/* Format tip */}
+                <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+                  <p className="text-xs font-semibold text-amber-800 mb-1">Expected Excel Format (same as Export/Import):</p>
+                  <div className="grid grid-cols-4 gap-1 text-[10px] font-mono">
+                    {["State Name", "Branch Name", "Serial Number", "Email ID"].map((h) => (
+                      <span key={h} className="bg-amber-100 border border-amber-300 text-amber-800 rounded px-1.5 py-0.5 text-center">{h}</span>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-amber-700 mt-1.5">Devices are matched by <strong>Branch Name</strong>. Leave a cell blank to keep the existing value.</p>
+                </div>
+
+                {updateFileError && (
+                  <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-700">{updateFileError}</div>
+                )}
+
+                {!updateSelectedFile ? (
+                  <button
+                    onClick={() => updateFileInputRef.current?.click()}
+                    className="w-full border-2 border-dashed border-border hover:border-amber-400 rounded-xl p-8 text-center transition-colors group"
+                  >
+                    <FileSpreadsheet className="h-10 w-10 mx-auto text-muted-foreground/40 group-hover:text-amber-500 transition-colors mb-2" />
+                    <p className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">Click to upload Excel file</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">.xlsx or .xls</p>
+                  </button>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3">
+                      <FileSpreadsheet className="h-5 w-5 text-green-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{updateSelectedFile.name}</p>
+                        <p className="text-xs text-muted-foreground">{updateParsedRows.length} valid rows ready to update</p>
+                      </div>
+                      <button onClick={handleClearUpdateFile} className="h-6 w-6 rounded-full hover:bg-muted flex items-center justify-center">
+                        <X className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                    </div>
+
+                    {updateParsedRows.length > 0 && (
+                      <div className="rounded-lg border overflow-hidden max-h-48 overflow-y-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-muted/60 border-b">
+                              <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Branch Name</th>
+                              <th className="text-left px-3 py-2 font-semibold text-muted-foreground">State</th>
+                              <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Serial No.</th>
+                              <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Email</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {updateParsedRows.slice(0, 50).map((row, i) => (
+                              <tr key={i} className="border-b last:border-0 hover:bg-muted/30">
+                                <td className="px-3 py-1.5 font-medium">{row.branchName}</td>
+                                <td className="px-3 py-1.5 text-muted-foreground">{row.stateName || "—"}</td>
+                                <td className="px-3 py-1.5 font-mono text-muted-foreground">{row.serialNumber || "—"}</td>
+                                <td className="px-3 py-1.5 text-muted-foreground">{row.email || "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {updateParsedRows.length > 50 && (
+                          <p className="text-xs text-muted-foreground text-center py-1.5 bg-muted/30">
+                            …and {updateParsedRows.length - 50} more rows
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button variant="outline" size="sm" className="h-9 px-4" onClick={handleUpdateClose}>Cancel</Button>
+                  <Button
+                    size="sm"
+                    className="h-9 px-5 gap-2 bg-amber-600 hover:bg-amber-700 text-white border-0"
+                    onClick={handleBulkUpdate}
+                    disabled={updateParsedRows.length === 0 || bulkUpdateMutation.isPending}
+                  >
+                    {bulkUpdateMutation.isPending
+                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Updating...</>
+                      : <><RefreshCw className="h-3.5 w-3.5" /> Update {updateParsedRows.length} Devices</>
+                    }
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

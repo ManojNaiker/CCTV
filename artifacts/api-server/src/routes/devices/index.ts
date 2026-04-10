@@ -309,6 +309,55 @@ router.get("/devices/:id", async (req, res): Promise<void> => {
   res.json(device);
 });
 
+router.patch("/devices/bulk-update", async (req, res): Promise<void> => {
+  const rows = req.body as Array<{
+    branchName: string;
+    stateName?: string;
+    serialNumber?: string;
+    email?: string;
+    remark?: string;
+  }>;
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    res.status(400).json({ error: "Expected a non-empty array of device rows" });
+    return;
+  }
+
+  const allDevices = await db.select({ id: devicesTable.id, branchName: devicesTable.branchName })
+    .from(devicesTable);
+  const nameToId = new Map(allDevices.map(d => [d.branchName.trim().toLowerCase(), d.id]));
+
+  let updated = 0;
+  const notFound: string[] = [];
+  const errors: string[] = [];
+
+  for (const row of rows) {
+    if (!row.branchName?.trim()) continue;
+    const id = nameToId.get(row.branchName.trim().toLowerCase());
+    if (!id) {
+      notFound.push(row.branchName);
+      continue;
+    }
+    try {
+      const fields: Record<string, unknown> = {};
+      if (row.stateName != null && row.stateName.trim()) fields.stateName = row.stateName.trim();
+      if (row.serialNumber != null && row.serialNumber.trim()) fields.serialNumber = row.serialNumber.trim();
+      if (row.email != null) fields.email = row.email.trim() || null;
+      if (row.remark != null) fields.remark = row.remark.trim() || null;
+
+      if (Object.keys(fields).length === 0) continue;
+
+      await db.update(devicesTable).set(fields).where(eq(devicesTable.id, id));
+      await logAction("UPDATE", "device", String(id), `Device '${row.branchName}' bulk-updated — ${Object.keys(fields).join(", ")}`);
+      updated++;
+    } catch (err: any) {
+      errors.push(`${row.branchName}: ${err?.message ?? "Unknown error"}`);
+    }
+  }
+
+  res.json({ updated, notFound, errors });
+});
+
 router.patch("/devices/:id", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = UpdateDeviceParams.safeParse({ id: parseInt(raw, 10) });

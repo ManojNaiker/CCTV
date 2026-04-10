@@ -1439,3 +1439,40 @@ export function useGetRecentAuditLogs<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+// ── Bulk Update Devices by Branch Name ──────────────────────────────────────
+
+export type BulkUpdateDeviceRow = {
+  branchName: string;
+  stateName?: string;
+  serialNumber?: string;
+  email?: string;
+  remark?: string;
+};
+
+export type BulkUpdateResult = {
+  updated: number;
+  notFound: string[];
+  errors: string[];
+};
+
+export const bulkUpdateDevices = async (
+  rows: BulkUpdateDeviceRow[],
+  options?: RequestInit,
+): Promise<BulkUpdateResult> => {
+  return customFetch<BulkUpdateResult>("/api/devices/bulk-update", {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(rows),
+  });
+};
+
+export function useBulkUpdateDevices(options?: {
+  mutation?: UseMutationOptions<BulkUpdateResult, ErrorType<unknown>, { data: BulkUpdateDeviceRow[] }>;
+}): UseMutationResult<BulkUpdateResult, ErrorType<unknown>, { data: BulkUpdateDeviceRow[] }> {
+  const mutationFn: MutationFunction<BulkUpdateResult, { data: BulkUpdateDeviceRow[] }> = (props) => {
+    return bulkUpdateDevices(props.data);
+  };
+  return useMutation({ mutationKey: ["bulkUpdateDevices"], mutationFn, ...options?.mutation });
+}

@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react";
-import { format } from "date-fns";
-import { Search, Plus, MoreHorizontal, FileEdit, Trash2, Video, Upload, ChevronRight, CheckCircle2, AlertCircle, SkipForward, Download, FileSpreadsheet, X, Loader2 } from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
+import { Search, Plus, MoreHorizontal, FileEdit, Trash2, Video, Upload, ChevronRight, CheckCircle2, AlertCircle, SkipForward, Download, FileSpreadsheet, X, Loader2, Hash, MapPin, Tag, Clock, Pencil } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { 
@@ -284,34 +284,39 @@ export default function Devices() {
   return (
     <div className="space-y-6">
       {/* ── Header Banner ── */}
-      <div className="rounded-2xl overflow-hidden shadow-lg relative"
-        style={{ background: "linear-gradient(135deg, #064e3b 0%, #047857 50%, #059669 100%)" }}>
-        <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/5" />
-        <div className="absolute right-24 -bottom-8 h-32 w-32 rounded-full bg-white/5" />
-        <div className="absolute -left-6 -bottom-6 h-24 w-24 rounded-full bg-white/5" />
+      <div
+        className="rounded-2xl overflow-hidden relative"
+        style={{
+          background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #1e40af 100%)",
+          boxShadow: "0 4px 24px rgba(30, 64, 175, 0.25)",
+        }}
+      >
+        <div className="h-0.5 w-full bg-gradient-to-r from-blue-500/0 via-blue-400/60 to-blue-500/0" />
+        <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/5 pointer-events-none" />
+        <div className="absolute right-24 -bottom-8 h-32 w-32 rounded-full bg-white/5 pointer-events-none" />
 
         <div className="relative p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
-              <Video className="h-6 w-6 text-white" />
+            <div className="h-12 w-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/15">
+              <Video className="h-6 w-6 text-blue-200" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white tracking-tight">Device Inventory</h1>
-              <p className="text-emerald-100 text-sm mt-0.5">Manage CCTV devices across all branches</p>
+              <p className="text-blue-200/70 text-sm mt-0.5">Manage CCTV devices across all branches</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
             <Button
               variant="outline"
-              className="gap-2 bg-white/10 border-white/30 text-white hover:bg-white/20 hover:text-white h-10"
+              className="gap-2 bg-white/8 border-white/20 text-white hover:bg-white/15 hover:text-white h-10"
               onClick={() => setIsBulkOpen(true)}
             >
               <Upload className="h-4 w-4" />
               Bulk Import
             </Button>
             <Button
-              className="gap-2 bg-white text-emerald-700 hover:bg-emerald-50 border-0 font-semibold h-10"
+              className="gap-2 bg-white/90 text-blue-900 hover:bg-white border-0 font-semibold h-10 shadow-lg shadow-blue-900/20"
               onClick={() => setIsCreateOpen(true)}
             >
               <Plus className="h-4 w-4" />
@@ -641,45 +646,162 @@ export default function Devices() {
 
       {/* ── Edit Device ── */}
       <Dialog open={!!editDevice} onOpenChange={(open) => !open && setEditDevice(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-sm">
-              <span className="text-primary">~</span> Edit Device
-            </DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-3 py-1">
-            <div className="grid gap-1">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Branch Name</Label>
-              <Input className="text-sm h-8 bg-background/50" value={editData.branchName} onChange={e => setEditData({...editData, branchName: e.target.value})} />
+        <DialogContent className="sm:max-w-lg p-0 overflow-hidden gap-0">
+          {/* Dialog header with device identity */}
+          <div
+            className="px-6 pt-5 pb-4 relative"
+            style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #1e40af 100%)" }}
+          >
+            <div className="flex items-start gap-4">
+              <div className="h-11 w-11 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0 mt-0.5">
+                <Pencil className="h-5 w-5 text-blue-200" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-blue-300 uppercase tracking-widest mb-0.5">Edit Device</p>
+                <h2 className="text-lg font-bold text-white tracking-tight truncate">
+                  {editDevice?.branchName}
+                </h2>
+                <p className="text-blue-200/60 text-xs mt-0.5">{editDevice?.stateName}</p>
+              </div>
+              <button
+                onClick={() => setEditDevice(null)}
+                className="h-7 w-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors shrink-0"
+              >
+                <X className="h-3.5 w-3.5 text-white/70" />
+              </button>
             </div>
-            <div className="grid gap-1">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider">State Name</Label>
-              <Input className="text-sm h-8 bg-background/50" value={editData.stateName} onChange={e => setEditData({...editData, stateName: e.target.value})} />
+
+            {/* Device identity pills */}
+            <div className="flex items-center gap-2 mt-4 flex-wrap">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/8 border border-white/12">
+                <Hash className="h-3 w-3 text-blue-300" />
+                <span className="text-[11px] font-mono text-blue-200">ID: {editDevice?.id}</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/8 border border-white/12">
+                <Tag className="h-3 w-3 text-blue-300" />
+                <span className="text-[11px] font-mono text-blue-200">{editDevice?.serialNumber}</span>
+              </div>
+              {editDevice?.updatedAt && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/8 border border-white/12">
+                  <Clock className="h-3 w-3 text-blue-300" />
+                  <span className="text-[11px] text-blue-200">
+                    Updated {formatDistanceToNow(new Date(editDevice.updatedAt), { addSuffix: true })}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/8 border border-white/12">
+                <span
+                  className={`h-1.5 w-1.5 rounded-full inline-block ${
+                    editDevice?.status === "online" ? "bg-green-400 animate-pulse" :
+                    editDevice?.status === "offline" ? "bg-red-400" : "bg-amber-400"
+                  }`}
+                />
+                <span className={`text-[11px] capitalize font-medium ${
+                  editDevice?.status === "online" ? "text-green-300" :
+                  editDevice?.status === "offline" ? "text-red-300" : "text-amber-300"
+                }`}>
+                  {editDevice?.status ?? "unknown"}
+                </span>
+              </div>
             </div>
-            <div className="grid gap-1">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Status</Label>
+          </div>
+
+          {/* Editable fields */}
+          <div className="px-6 py-5 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <MapPin className="h-3 w-3" /> Branch Name
+                </Label>
+                <Input
+                  className="text-sm bg-background border-border/60 focus:border-primary"
+                  value={editData.branchName}
+                  onChange={e => setEditData({...editData, branchName: e.target.value})}
+                  placeholder="Branch name"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <MapPin className="h-3 w-3" /> State Name
+                </Label>
+                <Input
+                  className="text-sm bg-background border-border/60 focus:border-primary"
+                  value={editData.stateName}
+                  onChange={e => setEditData({...editData, stateName: e.target.value})}
+                  placeholder="State name"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Override Status
+              </Label>
               <Select value={editData.status} onValueChange={(v: any) => setEditData({...editData, status: v})}>
-                <SelectTrigger className="text-xs h-8 bg-background/50">
+                <SelectTrigger className="text-sm bg-background border-border/60">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="online">Online</SelectItem>
-                  <SelectItem value="offline">Offline</SelectItem>
-                  <SelectItem value="unknown">Unknown</SelectItem>
+                  <SelectItem value="online">
+                    <span className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-green-500 inline-block" />
+                      Online
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="offline">
+                    <span className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-red-500 inline-block" />
+                      Offline
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="unknown">
+                    <span className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-amber-400 inline-block" />
+                      Unknown
+                    </span>
+                  </SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-[11px] text-muted-foreground/60">This overrides the auto-synced status from Hik-Connect until the next refresh.</p>
             </div>
-            <div className="grid gap-1">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Remark</Label>
-              <Input className="text-sm h-8 bg-background/50" value={editData.remark} onChange={e => setEditData({...editData, remark: e.target.value})} />
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Remark / Note
+              </Label>
+              <textarea
+                className="w-full text-sm bg-background border border-border/60 focus:border-primary rounded-md px-3 py-2 resize-none outline-none focus:ring-1 focus:ring-primary/30 transition-colors placeholder:text-muted-foreground/40"
+                rows={3}
+                value={editData.remark}
+                onChange={e => setEditData({...editData, remark: e.target.value})}
+                placeholder="e.g. CCTV has been offline since today — power issue at branch"
+              />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => setEditDevice(null)}>Cancel</Button>
-            <Button size="sm" className="text-xs h-8" onClick={handleUpdate} disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? "Saving..." : "Save Changes"}
-            </Button>
-          </DialogFooter>
+
+          <Separator className="bg-border/40" />
+
+          <div className="px-6 py-4 flex items-center justify-between gap-3 bg-muted/20">
+            <p className="text-[11px] text-muted-foreground/50 font-mono">
+              {editDevice?.serialNumber}
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="h-9 px-4" onClick={() => setEditDevice(null)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="h-9 px-5 gap-2 bg-blue-600 hover:bg-blue-700 text-white border-0"
+                onClick={handleUpdate}
+                disabled={updateMutation.isPending}
+              >
+                {updateMutation.isPending
+                  ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</>
+                  : <><CheckCircle2 className="h-3.5 w-3.5" /> Save Changes</>
+                }
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

@@ -101,9 +101,10 @@ function eventsToSegments(events: TimelineEvent[]): Segment[] {
     const end = i + 1 < sorted.length ? sorted[i + 1].minuteOfDay : 1440;
     segments.push({ startMinute: start, endMinute: end, status: sorted[i].status });
   }
-  // If first event doesn't start at 0, prepend an "unknown" from 0 to first event
+  // Extend the first known status back to 12AM (midnight)
+  // so the full day is covered — gaps before first record use the same status
   if (sorted[0].minuteOfDay > 0) {
-    segments.unshift({ startMinute: 0, endMinute: sorted[0].minuteOfDay, status: "unknown" });
+    segments.unshift({ startMinute: 0, endMinute: sorted[0].minuteOfDay, status: sorted[0].status });
   }
   return segments;
 }

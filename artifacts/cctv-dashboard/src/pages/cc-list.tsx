@@ -559,7 +559,7 @@ export default function CcList() {
         <div className="absolute -left-6 -bottom-6 h-24 w-24 rounded-full bg-white/5" />
 
         <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-4">
+          <div className="flex items-center gap-4">
             <div className="h-12 w-12 rounded-xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
               <Mail className="h-6 w-6 text-white" />
             </div>
@@ -568,27 +568,26 @@ export default function CcList() {
               <p className="text-amber-100 text-sm mt-0.5 max-w-md">
                 Manage per-branch CC email addresses. These will be CC'd on all offline alert emails.
               </p>
-              <div className="flex items-center gap-2 mt-3 flex-wrap">
-                <Button
-                  size="sm"
-                  className="gap-1.5 bg-white/15 hover:bg-white/25 text-white border border-white/25 h-8 text-xs font-medium"
-                  onClick={() => setBulkAddOpen(true)}
-                >
-                  <Plus className="h-3.5 w-3.5" /> Bulk Add
-                </Button>
-                <Button
-                  size="sm"
-                  className="gap-1.5 bg-white/15 hover:bg-white/25 text-white border border-white/25 h-8 text-xs font-medium"
-                  onClick={() => setBulkOpen(true)}
-                >
-                  <Upload className="h-3.5 w-3.5" /> Bulk Update
-                </Button>
-              </div>
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="flex items-center gap-3 shrink-0">
+          {/* Right side: action buttons + stats */}
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <Button
+              variant="outline"
+              className="gap-2 bg-white/8 border-white/20 text-white hover:bg-white/15 hover:text-white h-10"
+              onClick={() => setBulkAddOpen(true)}
+            >
+              <Plus className="h-4 w-4" /> Bulk Add
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2 bg-white/8 border-white/20 text-white hover:bg-white/15 hover:text-white h-10"
+              onClick={() => setBulkOpen(true)}
+            >
+              <Upload className="h-4 w-4" /> Bulk Update
+            </Button>
+            <div className="w-px h-8 bg-white/20 mx-1 hidden sm:block" />
             <div className="text-center px-5 py-3 rounded-xl bg-white/15 border border-white/20 backdrop-blur-sm min-w-[80px]">
               {isLoading
                 ? <div className="h-7 w-8 bg-white/20 rounded animate-pulse mx-auto mb-1" />

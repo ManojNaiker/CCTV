@@ -206,4 +206,78 @@ router.delete("/dvr-storage/:id", async (req, res): Promise<void> => {
   }
 });
 
+// POST /api/dvr-storage/bulk-update
+// body: { date: string, records: Array<{ branch, branchCameraCount?, noOfRecordingCamera?, noOfNotWorkingCamera?, lastRecording?, remark? }> }
+router.post("/dvr-storage/bulk-update", async (req, res): Promise<void> => {
+  try {
+    const date: string = req.body?.date || getISTDate();
+    const rows: Array<{
+      branch: string;
+      branchCameraCount?: string | number | null;
+      noOfRecordingCamera?: string | number | null;
+      noOfNotWorkingCamera?: string | number | null;
+      lastRecording?: string | null;
+      remark?: string | null;
+    }> = req.body?.records ?? [];
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      res.status(400).json({ error: "No records provided" });
+      return;
+    }
+
+    const existing = await db
+      .select()
+      .from(dvrStorageTable)
+      .where(eq(dvrStorageTable.activityDate, date));
+
+    const existingMap = new Map(existing.map((r) => [r.branch.trim().toLowerCase(), r]));
+
+    let updated = 0;
+    let skipped = 0;
+
+    for (const row of rows) {
+      const branchKey = (row.branch ?? "").trim().toLowerCase();
+      if (!branchKey) { skipped++; continue; }
+
+      const record = existingMap.get(branchKey);
+      if (!record) { skipped++; continue; }
+
+      const toNum = (v: string | number | null | undefined): number | null => {
+        if (v === null || v === undefined || v === "") return null;
+        const n = Number(v);
+        return isNaN(n) ? null : n;
+      };
+
+      const updateData: Record<string, unknown> = {};
+
+      if (row.branchCameraCount !== undefined) updateData["branchCameraCount"] = toNum(row.branchCameraCount);
+      if (row.noOfRecordingCamera !== undefined) updateData["noOfRecordingCamera"] = toNum(row.noOfRecordingCamera);
+      if (row.noOfNotWorkingCamera !== undefined) updateData["noOfNotWorkingCamera"] = toNum(row.noOfNotWorkingCamera);
+      if (row.lastRecording !== undefined) updateData["lastRecording"] = row.lastRecording || null;
+      if (row.remark !== undefined) updateData["remark"] = row.remark || null;
+
+      const merged = { ...record, ...updateData };
+      const autoTotalDays = calcTotalDays(merged.lastRecording as string | null, merged.activityDate);
+      updateData["totalRecordingDay"] = autoTotalDays;
+      merged.totalRecordingDay = autoTotalDays;
+
+      updateData["status"] = isCompleted({
+        branchCameraCount: merged.branchCameraCount as number | null,
+        noOfRecordingCamera: merged.noOfRecordingCamera as number | null,
+        noOfNotWorkingCamera: merged.noOfNotWorkingCamera as number | null,
+        lastRecording: merged.lastRecording as string | null,
+        totalRecordingDay: merged.totalRecordingDay as number | null,
+      }) ? "completed" : "pending";
+
+      await db.update(dvrStorageTable).set(updateData).where(eq(dvrStorageTable.id, record.id));
+      updated++;
+    }
+
+    res.json({ updated, skipped, total: rows.length });
+  } catch (err) {
+    logger.error({ err }, "Failed to bulk update DVR storage records");
+    res.status(500).json({ error: "Failed to bulk update records" });
+  }
+});
+
 export default router;

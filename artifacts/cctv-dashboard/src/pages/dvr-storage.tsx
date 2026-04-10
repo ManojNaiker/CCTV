@@ -11,6 +11,9 @@ import {
   PlusCircle,
   Search,
   X,
+  Upload,
+  Download,
+  Table2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -26,6 +29,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -272,6 +276,8 @@ export default function DvrStorage() {
   const [initializing, setInitializing] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "completed">("all");
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: records = [], isLoading } = useQuery<DvrRecord[]>({
     queryKey: ["dvr-storage", date],
@@ -334,6 +340,92 @@ export default function DvrStorage() {
       generateDvrPDF(records, date);
     } finally {
       setExportingPDF(false);
+    }
+  };
+
+  const handleDownloadExcel = () => {
+    if (records.length === 0) return;
+    const rows = records.map((r, i) => ({
+      "#": i + 1,
+      State: r.state,
+      Branch: r.branch,
+      "Branch Camera Count": r.branchCameraCount ?? "",
+      "No Of Recording Camera": r.noOfRecordingCamera ?? "",
+      "No Of Not Working Camera": r.noOfNotWorkingCamera ?? "",
+      "Last Recording": r.lastRecording ?? "",
+      "Activity Date": r.activityDate,
+      "Total Recording Days": r.totalRecordingDay ?? "",
+      Remark: r.remark ?? "",
+      Status: r.status,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws["!cols"] = [
+      { wch: 5 }, { wch: 16 }, { wch: 32 }, { wch: 20 }, { wch: 22 },
+      { wch: 22 }, { wch: 16 }, { wch: 14 }, { wch: 20 }, { wch: 24 }, { wch: 12 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "DVR Storage");
+    XLSX.writeFile(wb, `DVR_Storage_${date}.xlsx`);
+  };
+
+  const handleDownloadTemplate = () => {
+    const templateRow = {
+      Branch: "BRANCH NAME (must match exactly)",
+      "Branch Camera Count": "",
+      "No Of Recording Camera": "",
+      "No Of Not Working Camera": "",
+      "Last Recording": "YYYY-MM-DD",
+      Remark: "",
+    };
+    const ws = XLSX.utils.json_to_sheet([templateRow]);
+    ws["!cols"] = [{ wch: 36 }, { wch: 20 }, { wch: 22 }, { wch: 22 }, { wch: 16 }, { wch: 24 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, `DVR_BulkUpdate_Template.xlsx`);
+  };
+
+  const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    setBulkUploading(true);
+    try {
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, string | number>>(ws);
+
+      if (rows.length === 0) {
+        toast({ title: "File is empty or unreadable", variant: "destructive" });
+        return;
+      }
+
+      const normalized = rows.map((row) => ({
+        branch: String(row["Branch"] ?? "").trim(),
+        branchCameraCount: row["Branch Camera Count"] ?? null,
+        noOfRecordingCamera: row["No Of Recording Camera"] ?? null,
+        noOfNotWorkingCamera: row["No Of Not Working Camera"] ?? null,
+        lastRecording: row["Last Recording"] ? String(row["Last Recording"]).trim() : null,
+        remark: row["Remark"] ? String(row["Remark"]).trim() : null,
+      }));
+
+      const res = await fetch(`${BASE}/api/dvr-storage/bulk-update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, records: normalized }),
+      });
+
+      if (!res.ok) throw new Error();
+      const result = await res.json() as { updated: number; skipped: number };
+      queryClient.invalidateQueries({ queryKey: ["dvr-storage", date] });
+      toast({
+        title: `Bulk update complete — ${result.updated} updated, ${result.skipped} skipped`,
+      });
+    } catch {
+      toast({ title: "Bulk update failed", variant: "destructive" });
+    } finally {
+      setBulkUploading(false);
     }
   };
 
@@ -474,6 +566,45 @@ export default function DvrStorage() {
               Initialize
             </Button>
 
+            {/* Bulk Update */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={handleBulkUpload}
+            />
+            <Button
+              className="gap-2 bg-white/15 text-white hover:bg-white/25 border border-white/20 h-10"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={bulkUploading || records.length === 0}
+              title="Upload Excel/CSV to bulk update records"
+            >
+              {bulkUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              Bulk Update
+            </Button>
+
+            {/* Bulk Download Excel */}
+            <Button
+              className="gap-2 bg-white/15 text-white hover:bg-white/25 border border-white/20 h-10"
+              onClick={handleDownloadExcel}
+              disabled={records.length === 0}
+              title="Download data as Excel"
+            >
+              <Download className="h-4 w-4" />
+              Excel
+            </Button>
+
+            {/* Download Template */}
+            <Button
+              className="gap-2 bg-white/15 text-white hover:bg-white/25 border border-white/20 h-10"
+              onClick={handleDownloadTemplate}
+              title="Download blank Excel template for bulk update"
+            >
+              <Table2 className="h-4 w-4" />
+              Template
+            </Button>
+
             <Button
               className="gap-2 bg-white/90 text-blue-900 hover:bg-white border-0 font-semibold h-10"
               onClick={handleExportPDF}
@@ -542,7 +673,7 @@ export default function DvrStorage() {
             )}
 
             <span className="text-xs text-muted-foreground/60 ml-auto hidden lg:block">
-              Tab key se next field mein jayein. All fields filled → auto Completed.
+              Use Tab key to move to the next field. All fields filled → auto Completed.
             </span>
           </div>
         </CardContent>
@@ -599,7 +730,7 @@ export default function DvrStorage() {
               </div>
             ) : filteredRecords.length === 0 ? (
               <div className="py-12 text-center text-muted-foreground text-sm">
-                Koi result nahi mila — search ya filter change karein.
+                No results found — try changing the search or filter.
               </div>
             ) : (
               <>

@@ -22,6 +22,18 @@ import { useToast } from "@/hooks/use-toast";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
+async function logReportEvent(description: string) {
+  try {
+    await fetch(`${BASE}/api/audit-logs/event`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "REPORT_GENERATED", entityType: "report", entityId: "offline-report", description }),
+    });
+  } catch {
+    // Non-fatal
+  }
+}
+
 export default function OfflineReport() {
   const { toast } = useToast();
   const [exporting, setExporting] = useState<"csv" | "pdf" | null>(null);
@@ -93,6 +105,7 @@ export default function OfflineReport() {
     a.download = `offline-devices-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    void logReportEvent(`Offline Device Report exported as CSV — ${offlineDevices.length} offline device(s)`);
     setExporting(null);
   };
 
@@ -101,6 +114,7 @@ export default function OfflineReport() {
     setExporting("pdf");
     try {
       await generateOfflinePDF(offlineDevices, { total, online, offline });
+      void logReportEvent(`Offline Device Report exported as PDF — ${offlineDevices.length} offline device(s)`);
     } finally {
       setExporting(null);
     }

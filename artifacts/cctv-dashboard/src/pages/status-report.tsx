@@ -48,6 +48,18 @@ type Segment = {
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+async function logReportEvent(description: string) {
+  try {
+    await fetch(`${BASE}/api/audit-logs/event`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "REPORT_GENERATED", entityType: "report", entityId: "status-report", description }),
+    });
+  } catch {
+    // Non-fatal
+  }
+}
+
 function getISTDateStr(d: Date): string {
   return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 }
@@ -261,6 +273,7 @@ export default function StatusReport() {
     setExportingPDF(true);
     try {
       await generateStatusReportPDF({ records, devices, dateRange, daySummaries, from, to });
+      void logReportEvent(`Status Report exported as PDF — date range: ${from} to ${to}, ${devices.length} device(s)`);
     } finally {
       setExportingPDF(false);
     }

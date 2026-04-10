@@ -58,4 +58,31 @@ router.get("/audit-logs/recent", async (req, res): Promise<void> => {
   })));
 });
 
+router.post("/audit-logs/event", async (req, res): Promise<void> => {
+  const { action, entityType, entityId, description } = req.body as {
+    action?: string;
+    entityType?: string;
+    entityId?: string;
+    description?: string;
+  };
+
+  if (!action || !entityType || !entityId || !description) {
+    res.status(400).json({ error: "action, entityType, entityId and description are required" });
+    return;
+  }
+
+  try {
+    await db.insert(auditLogsTable).values({
+      action,
+      entityType,
+      entityId,
+      description,
+      username: "system",
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to log event" });
+  }
+});
+
 export default router;

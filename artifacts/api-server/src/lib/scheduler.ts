@@ -1,8 +1,16 @@
 import cron from "node-cron";
-import { db, devicesTable, settingsTable } from "@workspace/db";
+import { db, devicesTable, settingsTable, auditLogsTable } from "@workspace/db";
 import { sendBulkOfflineAlert } from "./emailService";
 import { runDeviceRefresh } from "./refreshDevices";
 import { logger } from "./logger";
+
+async function logAction(action: string, entityType: string, entityId: string, description: string) {
+  try {
+    await db.insert(auditLogsTable).values({ action, entityType, entityId, description, username: "system" });
+  } catch {
+    // Non-fatal
+  }
+}
 
 async function getSchedulerSettings(): Promise<{ enabled: boolean; times: string[] }> {
   try {
@@ -44,6 +52,7 @@ async function sendScheduledOfflineAlert(label: string): Promise<void> {
       }))
     );
 
+    await logAction("EMAIL_SENT", "device", "bulk", `Auto scheduled offline alert email sent (${label}) — ${offlineDevices.length} offline device(s)`);
     logger.info(`${label}: Scheduled email sent for ${offlineDevices.length} offline device(s)`);
   } catch (err) {
     logger.error({ err }, `${label}: Scheduled email job failed`);

@@ -1,9 +1,17 @@
 import { Router, type IRouter } from "express";
-import { db, settingsTable, devicesTable } from "@workspace/db";
+import { db, settingsTable, devicesTable, auditLogsTable } from "@workspace/db";
 import { loginGetSession, type HikCredentials } from "../../lib/hikconnect";
 import { logger } from "../../lib/logger";
 import { getEmailSettings, createTransporter, sendOfflineAlert, sendBulkOfflineAlert } from "../../lib/emailService";
 import { eq } from "drizzle-orm";
+
+async function logAction(action: string, entityType: string, entityId: string, description: string) {
+  try {
+    await db.insert(auditLogsTable).values({ action, entityType, entityId, description, username: "system" });
+  } catch {
+    // Non-fatal
+  }
+}
 
 const router: IRouter = Router();
 
@@ -328,6 +336,7 @@ router.post("/devices/:id/send-alert", async (req, res): Promise<void> => {
       ccEmails: device.ccEmails,
     });
 
+    await logAction("EMAIL_SENT", "device", String(id), `Manual offline alert email sent for '${device.branchName}' (${device.serialNumber})`);
     logger.info({ id, branchName: device.branchName }, "Manual offline alert sent");
     res.json({ success: true, message: `Alert email sent for ${device.branchName}` });
   } catch (err) {
@@ -360,6 +369,7 @@ router.post("/devices/send-bulk-alert", async (req, res): Promise<void> => {
       }))
     );
 
+    await logAction("EMAIL_SENT", "device", "bulk", `Manual bulk offline alert email sent — ${offlineDevices.length} offline device(s)`);
     logger.info({ count: offlineDevices.length }, "Bulk offline alert sent");
     res.json({ success: true, message: `Bulk alert sent for ${offlineDevices.length} offline device(s).`, count: offlineDevices.length });
   } catch (err) {

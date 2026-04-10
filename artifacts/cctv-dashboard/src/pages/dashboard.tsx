@@ -34,9 +34,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 
 const COLORS = {
-  online: "#16a34a",
-  offline: "#dc2626",
-  unknown: "#d97706",
+  online: "#4ade80",
+  offline: "#fb7185",
+  unknown: "#fb923c",
 };
 
 interface CustomLabelProps {
@@ -55,7 +55,7 @@ function CustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: Cu
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
   return (
-    <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={13} fontWeight={700}>
+    <text x={x} y={y} fill="#78350f" textAnchor="middle" dominantBaseline="central" fontSize={13} fontWeight={700}>
       {`${(percent * 100).toFixed(0)}%`}
     </text>
   );
@@ -184,49 +184,49 @@ export default function Dashboard() {
         </Card>
 
         {/* Online */}
-        <Card className="border-green-200 dark:border-green-800/50 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-          <div className="h-1 bg-gradient-to-r from-green-400 to-emerald-500" />
+        <Card className="border-emerald-200 dark:border-emerald-800/50 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-emerald-300 to-green-400" />
           <CardContent className="pt-4 pb-5 px-5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-green-600 dark:text-green-400 uppercase tracking-wider">Online</p>
-              <div className="h-9 w-9 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
-                <Wifi className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Online</p>
+              <div className="h-9 w-9 rounded-xl bg-emerald-50 dark:bg-emerald-900/40 flex items-center justify-center">
+                <Wifi className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
               </div>
             </div>
             {statsLoading ? <Skeleton className="h-9 w-20" /> : (
-              <p className="text-3xl font-extrabold text-green-700 dark:text-green-400">{online.toLocaleString()}</p>
+              <p className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">{online.toLocaleString()}</p>
             )}
           </CardContent>
         </Card>
 
         {/* Offline */}
-        <Card className="border-red-200 dark:border-red-800/50 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-          <div className="h-1 bg-gradient-to-r from-red-400 to-rose-500" />
+        <Card className="border-rose-200 dark:border-rose-800/50 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-rose-300 to-pink-400" />
           <CardContent className="pt-4 pb-5 px-5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">Offline</p>
-              <div className="h-9 w-9 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
-                <WifiOff className="h-4 w-4 text-red-600 dark:text-red-400" />
+              <p className="text-xs font-semibold text-rose-500 dark:text-rose-400 uppercase tracking-wider">Offline</p>
+              <div className="h-9 w-9 rounded-xl bg-rose-50 dark:bg-rose-900/40 flex items-center justify-center">
+                <WifiOff className="h-4 w-4 text-rose-500 dark:text-rose-400" />
               </div>
             </div>
             {statsLoading ? <Skeleton className="h-9 w-20" /> : (
-              <p className="text-3xl font-extrabold text-red-600 dark:text-red-400">{offline.toLocaleString()}</p>
+              <p className="text-3xl font-extrabold text-rose-500 dark:text-rose-400">{offline.toLocaleString()}</p>
             )}
           </CardContent>
         </Card>
 
         {/* Unknown */}
-        <Card className="border-orange-200 dark:border-orange-800/50 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-          <div className="h-1 bg-gradient-to-r from-orange-400 to-amber-500" />
+        <Card className="border-amber-200 dark:border-amber-800/50 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-amber-300 to-orange-400" />
           <CardContent className="pt-4 pb-5 px-5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-orange-600 dark:text-orange-400 uppercase tracking-wider">Unknown</p>
-              <div className="h-9 w-9 rounded-xl bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center">
-                <HelpCircle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+              <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Unknown</p>
+              <div className="h-9 w-9 rounded-xl bg-amber-50 dark:bg-amber-900/40 flex items-center justify-center">
+                <HelpCircle className="h-4 w-4 text-amber-500 dark:text-amber-400" />
               </div>
             </div>
             {statsLoading ? <Skeleton className="h-9 w-20" /> : (
-              <p className="text-3xl font-extrabold text-orange-600 dark:text-orange-400">{unknown.toLocaleString()}</p>
+              <p className="text-3xl font-extrabold text-amber-600 dark:text-amber-400">{unknown.toLocaleString()}</p>
             )}
           </CardContent>
         </Card>
@@ -326,9 +326,9 @@ export default function Dashboard() {
             {/* Status rows */}
             <div className="space-y-2.5">
               {[
-                { label: "Online Branches", value: online, barColor: "bg-green-500", textColor: "text-green-700 dark:text-green-400" },
-                { label: "Offline Branches", value: offline, barColor: "bg-red-500", textColor: "text-red-600 dark:text-red-400" },
-                { label: "Unknown State", value: unknown, barColor: "bg-orange-500", textColor: "text-orange-600 dark:text-orange-400" },
+                { label: "Online Branches", value: online, barColor: "bg-emerald-400", textColor: "text-emerald-600 dark:text-emerald-400" },
+                { label: "Offline Branches", value: offline, barColor: "bg-rose-400", textColor: "text-rose-500 dark:text-rose-400" },
+                { label: "Unknown State", value: unknown, barColor: "bg-amber-400", textColor: "text-amber-600 dark:text-amber-400" },
               ].map((row) => (
                 <div key={row.label}>
                   <div className="flex items-center justify-between text-sm mb-1">
@@ -361,7 +361,7 @@ export default function Dashboard() {
             <div className="mt-auto space-y-2 pt-2">
               {offline > 0 && (
                 <Link href="/offline-report">
-                  <Button variant="destructive" size="sm" className="w-full gap-2 justify-between h-9">
+                  <Button size="sm" className="w-full gap-2 justify-between h-9 bg-rose-400 hover:bg-rose-500 text-white border-0">
                     <span>View {offline} Offline Devices</span>
                     <ArrowRight className="h-4 w-4" />
                   </Button>

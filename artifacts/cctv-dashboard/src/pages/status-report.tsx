@@ -512,14 +512,14 @@ export default function StatusReport() {
               <table className="w-full text-xs border-collapse">
                 <thead>
                   <tr className="border-b bg-muted/40">
-                    <th className="sticky left-0 bg-muted/60 z-10 px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[200px]">
+                    <th className="sticky left-0 bg-muted/60 z-10 px-3 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider min-w-[140px] w-[140px]">
                       Device / Branch
                     </th>
                     {visibleDates.map((date) => {
                       const { day, weekday, month } = formatDisplayDate(date);
                       const isToday = date === today;
                       return (
-                        <th key={date} className={`px-1 py-2 text-center min-w-[80px] ${isToday ? "bg-blue-50 dark:bg-blue-950/30" : ""}`}>
+                        <th key={date} className={`px-1 py-2 text-center min-w-[110px] ${isToday ? "bg-blue-50 dark:bg-blue-950/30" : ""}`}>
                           <div className={`font-bold text-sm ${isToday ? "text-blue-600 dark:text-blue-400" : "text-foreground"}`}>{day}</div>
                           <div className={`text-[10px] ${isToday ? "text-blue-500/70" : "text-muted-foreground/60"}`}>{weekday}</div>
                           <div className={`text-[10px] ${isToday ? "text-blue-400/60" : "text-muted-foreground/40"}`}>{month}</div>
@@ -529,7 +529,7 @@ export default function StatusReport() {
                   </tr>
                   {/* Day uptime % summary row */}
                   <tr className="border-b bg-muted/20">
-                    <td className="sticky left-0 bg-muted/30 z-10 px-4 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    <td className="sticky left-0 bg-muted/30 z-10 px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-[140px]">
                       Day Uptime
                     </td>
                     {visibleDates.map((date) => {

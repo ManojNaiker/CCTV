@@ -59,6 +59,7 @@ function EditableCell({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value != null ? String(value) : "");
   const inputRef = useRef<HTMLInputElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   const startEdit = () => {
     setDraft(value != null ? String(value) : "");
@@ -71,34 +72,54 @@ function EditableCell({
     onSave(draft);
   };
 
-  if (editing) {
-    return (
-      <input
-        ref={inputRef}
-        type={type}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") commit();
-          if (e.key === "Escape") setEditing(false);
-        }}
-        className="w-full px-1.5 py-0.5 text-xs border border-primary rounded focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-        style={{ minWidth: 60 }}
-      />
+  const focusNext = () => {
+    const cells = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-editable-cell]')
     );
-  }
+    const idx = cells.indexOf(wrapperRef.current!);
+    const next = cells[idx + 1];
+    if (next) next.focus();
+  };
 
   return (
-    <span
-      onClick={startEdit}
-      className={`cursor-pointer hover:bg-muted/60 px-1.5 py-0.5 rounded text-xs block truncate ${
-        value == null || value === "" ? "text-muted-foreground/40 italic" : ""
-      }`}
-      title={value != null && value !== "" ? String(value) : "Click to edit"}
+    <div
+      ref={wrapperRef}
+      data-editable-cell
+      tabIndex={editing ? -1 : 0}
+      onFocus={() => { if (!editing) startEdit(); }}
+      className="outline-none"
     >
-      {value != null && value !== "" ? String(value) : placeholder}
-    </span>
+      {editing ? (
+        <input
+          ref={inputRef}
+          type={type}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { commit(); }
+            if (e.key === "Escape") { setEditing(false); }
+            if (e.key === "Tab") {
+              e.preventDefault();
+              commit();
+              setTimeout(focusNext, 0);
+            }
+          }}
+          className="w-full px-1.5 py-0.5 text-xs border border-primary rounded focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+          style={{ minWidth: 60 }}
+        />
+      ) : (
+        <span
+          onClick={startEdit}
+          className={`cursor-pointer hover:bg-muted/60 px-1.5 py-0.5 rounded text-xs block truncate ${
+            value == null || value === "" ? "text-muted-foreground/40 italic" : ""
+          }`}
+          title={value != null && value !== "" ? String(value) : "Click to edit"}
+        >
+          {value != null && value !== "" ? String(value) : placeholder}
+        </span>
+      )}
+    </div>
   );
 }
 

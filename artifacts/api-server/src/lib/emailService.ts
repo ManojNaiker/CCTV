@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 import { logger } from "./logger";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 
 export interface EmailSettings {
   host: string;
@@ -112,28 +114,64 @@ const PDF_COMPANY_NAME = "Light Finance";
 const PDF_PORTAL_NAME = "CCTV Monitoring Portal";
 const PDF_HEADER_HEIGHT = 28;
 
+function loadServerLogo(): string | null {
+  try {
+    const paths = [
+      resolve(process.cwd(), "../cctv-dashboard/public/logo.png"),
+      resolve(process.cwd(), "../../artifacts/cctv-dashboard/public/logo.png"),
+    ];
+    for (const p of paths) {
+      try {
+        const buf = readFileSync(p);
+        return "data:image/png;base64," + buf.toString("base64");
+      } catch { }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function drawServerWatermark(doc: InstanceType<typeof jsPDF>, logoBase64: string): void {
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  try {
+    doc.saveGraphicsState();
+    (doc as any).setGState((doc as any).GState({ opacity: 0.06 }));
+    doc.addImage(logoBase64, "PNG", pageW / 2 - 40, pageH / 2 - 40, 80, 80);
+    doc.restoreGraphicsState();
+  } catch { }
+}
+
 function addPdfPageElements(
   doc: InstanceType<typeof jsPDF>,
   pageNum: number,
   totalPages: number,
   generatedAt: string,
   title: string,
-  subtitle?: string
+  subtitle?: string,
+  logoBase64?: string | null
 ): void {
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
+
+  if (logoBase64) drawServerWatermark(doc, logoBase64);
 
   doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, pageW, PDF_HEADER_HEIGHT, "F");
 
   const logoH = 14;
   const logoW = 28;
-  doc.setFillColor(29, 78, 216);
-  doc.roundedRect(10, 6, logoW, logoH - 2, 2, 2, "F");
-  doc.setFontSize(7);
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.text(PDF_COMPANY_NAME, 10 + logoW / 2, 14, { align: "center" });
+  if (logoBase64) {
+    doc.addImage(logoBase64, "PNG", 10, 5, logoW, logoH);
+  } else {
+    doc.setFillColor(29, 78, 216);
+    doc.roundedRect(10, 6, logoW, logoH - 2, 2, 2, "F");
+    doc.setFontSize(7);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.text(PDF_COMPANY_NAME, 10 + logoW / 2, 14, { align: "center" });
+  }
 
   doc.setFontSize(14);
   doc.setTextColor(22, 22, 22);
@@ -271,10 +309,11 @@ function buildOfflinePDF(devices: OfflineDevice[], dateStr: string): Buffer {
     margin: { left: 10, right: 10, top: PDF_HEADER_HEIGHT + 2 },
   });
 
+  const logo = loadServerLogo();
   const totalPages = doc.getNumberOfPages();
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
-    addPdfPageElements(doc, p, totalPages, generatedAt, "Branch CCTV Offline Report");
+    addPdfPageElements(doc, p, totalPages, generatedAt, "Branch CCTV Offline Report", undefined, logo);
   }
 
   return Buffer.from(doc.output("arraybuffer"));
@@ -345,61 +384,85 @@ type OfflineDevice = {
 
 function buildOfflineAlertHtml(devices: OfflineDevice[]): string {
   const hasLongOffline = devices.some((d) => d.offlineDays >= 3);
+  const dateStr = new Date().toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "long", year: "numeric" });
 
-  const tableRows = devices
-    .map(
-      (d, i) => {
-        const remark = d.remark
-          ? d.remark
-          : d.offlineDays >= 3
-          ? `Has been offline for ${d.offlineDays} days.`
-          : "";
-        return `
-        <tr>
-          <td style="padding: 6px 10px; text-align: center; border: 1px solid #000000; font-size: 13px;">${i + 1}</td>
-          <td style="padding: 6px 10px; border: 1px solid #000000; font-size: 13px;">${d.stateName}</td>
-          <td style="padding: 6px 10px; border: 1px solid #000000; font-size: 13px; font-weight: 600;">${d.branchName}</td>
-          <td style="padding: 6px 10px; text-align: center; border: 1px solid #000000; font-size: 13px;">Offline</td>
-          <td style="padding: 6px 10px; border: 1px solid #000000; font-size: 13px;">${remark}</td>
-        </tr>`;
-      }
-    )
-    .join("");
+  const tableRows = devices.map((d, i) => {
+    const remark = d.remark
+      ? d.remark
+      : d.offlineDays >= 3
+      ? `Offline for ${d.offlineDays} days`
+      : "CCTV has been offline since today.";
+    const bgColor = i % 2 === 0 ? "#ffffff" : "#fff5f5";
+    return `
+      <tr style="background-color:${bgColor};">
+        <td style="padding:8px 12px;text-align:center;border:1px solid #e5e7eb;font-size:13px;color:#6b7280;">${i + 1}</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;font-size:13px;">${d.stateName}</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;font-size:13px;font-weight:700;color:#111827;">${d.branchName}</td>
+        <td style="padding:8px 12px;text-align:center;border:1px solid #e5e7eb;font-size:13px;">
+          <span style="background:#fee2e2;color:#b91c1c;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;">Offline</span>
+        </td>
+        <td style="padding:8px 12px;text-align:center;border:1px solid #e5e7eb;font-size:13px;${d.offlineDays >= 3 ? "color:#b91c1c;font-weight:600;" : "color:#374151;"}">${d.offlineDays} day${d.offlineDays !== 1 ? "s" : ""}</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;font-size:13px;color:#374151;">${remark}</td>
+      </tr>`;
+  }).join("");
 
   return `
-<div style="font-family: Arial, sans-serif; font-size: 14px; color: #000000; max-width: 700px;">
+<div style="font-family:Arial,sans-serif;max-width:720px;margin:0 auto;background:#f9fafb;padding:0;">
 
-  <p style="margin: 0 0 6px 0;"><strong>Dear Branch Team,</strong></p>
-  <p style="margin: 0 0 4px 0; line-height: 1.6;">Please find below the CCTV status of your branches; please check your internet cable if any issue persists; and please contact the IT team.</p>
-  <p style="margin: 0 0 4px 0; line-height: 1.6;">कृपया अपनी शाखाओं की सीसीटीवी स्थिति नीचे देखें; कृपया अपना इंटरनेट केबल जांचें; यदि समस्या बनी रहती है तो आईटी टीम से संपर्क करें।</p>
-  <p style="margin: 0 0 16px 0; line-height: 1.6;">કૃપા કરીને તમારી શાખાઓની સીસીટીવી સ્થિતિ નીચે શોધો; કૃપા કરીને તમારી ઇન્ટરનેટ કેબલ તપાસો; જો સમસ્યા ચાલુ રહે તો કૃપા કરીને IT ટીમનો સંપર્ક કરો.</p>
+  <div style="background:#1d4ed8;padding:20px 24px;border-radius:8px 8px 0 0;">
+    <h1 style="color:#ffffff;margin:0;font-size:20px;font-weight:700;">Light Finance — CCTV Monitoring</h1>
+    <p style="color:#bfdbfe;margin:4px 0 0;font-size:13px;">Branch CCTV Offline Alert &nbsp;|&nbsp; ${dateStr}</p>
+  </div>
 
-  <p style="margin: 0 0 6px 0;"><strong>Dear RM's,</strong></p>
-  <p style="margin: 0 0 4px 0; line-height: 1.6;">The CCTV cameras at the following branches are showing as offline; please coordinate with your branch BMs to resolve the issue as soon as possible.</p>
-  <p style="margin: 0 0 4px 0; line-height: 1.6;">निम्नलिखित शाखाओं के सीसीटीवी कैमरे ऑफ़लाइन दिख रहे हैं; कृपया समस्या को यथाशीघ्र हल करने के लिए अपनी शाखा के बीएम के साथ समन्वय करें।</p>
-  <p style="margin: 0 0 16px 0; line-height: 1.6;">નીચેની શાખાઓ પરના સીસીટીવી કેમેરા ઑફલાઇન તરીકે દેખાઈ રહ્યા છે; શક્ય તેટલી વહેલી તકે સમસ્યાનો ઉકેલ લાવવા માટે કૃપા કરીને તમારી શાખા BM સાથે સંકલન કરો.</p>
+  <div style="background:#ffffff;padding:20px 24px;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;">
 
-  ${hasLongOffline ? `<p style="margin: 0 0 16px 0; font-weight: bold;">Since the branch has been offline for more than 3 days, CBM, DM, SH, please coordinate with your branch.</p>` : ""}
+    <p style="margin:0 0 6px;font-size:14px;color:#111827;"><strong>Dear Branch Team,</strong></p>
+    <p style="margin:0 0 4px;font-size:13px;color:#374151;line-height:1.7;">Please find below the CCTV status of your branches. If any issue persists, please check your internet connection and contact the IT team.</p>
+    <p style="margin:0 0 4px;font-size:13px;color:#374151;line-height:1.7;">कृपया अपनी शाखाओं की सीसीटीवी स्थिति नीचे देखें। यदि समस्या बनी रहती है तो इंटरनेट केबल जांचें व आईटी टीम से संपर्क करें।</p>
+    <p style="margin:0 0 16px;font-size:13px;color:#374151;line-height:1.7;">કૃપા કરીને નીચે સ્થિતિ જુઓ. સમસ્યા ચાલુ રહે તો ઇન્ટરનેટ કેબલ તપાસો અને IT ટીમનો સંપર્ક કરો.</p>
 
-  <table style="border-collapse: collapse; width: auto; min-width: 500px; font-size: 13px;">
-    <thead>
-      <tr style="background-color: #FFC000;">
-        <th style="padding: 7px 10px; border: 1px solid #000000; text-align: center; font-weight: bold; width: 40px;">NO</th>
-        <th style="padding: 7px 10px; border: 1px solid #000000; text-align: center; font-weight: bold;">State Name</th>
-        <th style="padding: 7px 10px; border: 1px solid #000000; text-align: center; font-weight: bold;">Branch Name</th>
-        <th style="padding: 7px 10px; border: 1px solid #000000; text-align: center; font-weight: bold;">CCTV Status</th>
-        <th style="padding: 7px 10px; border: 1px solid #000000; text-align: center; font-weight: bold;">Remark</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${tableRows}
-    </tbody>
-  </table>
+    <p style="margin:0 0 6px;font-size:14px;color:#111827;"><strong>Dear RM's,</strong></p>
+    <p style="margin:0 0 4px;font-size:13px;color:#374151;line-height:1.7;">The CCTV cameras at the following branches are offline. Please coordinate with your branch BMs to resolve this as soon as possible.</p>
+    <p style="margin:0 0 4px;font-size:13px;color:#374151;line-height:1.7;">निम्नलिखित शाखाओं के सीसीटीवी कैमरे ऑफ़लाइन हैं। कृपया समस्या जल्द हल करने के लिए बीएम के साथ समन्वय करें।</p>
+    <p style="margin:0 0 20px;font-size:13px;color:#374151;line-height:1.7;">નીચેની શાખાઓ ઑફલાઇન છે. BM સાથે સંકલન કરીને સમસ્યા વહેલી તકે ઉકેલો.</p>
 
-  <br/>
-  <p style="margin: 0 0 2px 0;">Thanks &amp; Regards,</p>
-  <p style="margin: 0 0 2px 0;"><strong>IT Team</strong></p>
-  <p style="margin: 0; color: #555555; font-size: 12px;">Light Finance &mdash; CCTV Monitoring System</p>
+    ${hasLongOffline ? `
+    <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:10px 14px;margin-bottom:20px;border-radius:0 4px 4px 0;">
+      <p style="margin:0;font-size:13px;font-weight:700;color:#b91c1c;">&#9888; Alert: One or more branches have been offline for more than 3 days. CBM, DM, SH — please coordinate with your branch immediately.</p>
+    </div>` : ""}
+
+    <div style="margin-bottom:20px;overflow-x:auto;">
+      <div style="background:#fbbf24;padding:2px 0;border-radius:6px 6px 0 0;"></div>
+      <table style="border-collapse:collapse;width:100%;font-size:13px;border:1px solid #e5e7eb;">
+        <thead>
+          <tr style="background:#1d4ed8;">
+            <th style="padding:9px 12px;border:1px solid #1e3a8a;color:#fff;text-align:center;font-weight:600;width:36px;">#</th>
+            <th style="padding:9px 12px;border:1px solid #1e3a8a;color:#fff;text-align:left;font-weight:600;">State</th>
+            <th style="padding:9px 12px;border:1px solid #1e3a8a;color:#fff;text-align:left;font-weight:600;">Branch Name</th>
+            <th style="padding:9px 12px;border:1px solid #1e3a8a;color:#fff;text-align:center;font-weight:600;">CCTV Status</th>
+            <th style="padding:9px 12px;border:1px solid #1e3a8a;color:#fff;text-align:center;font-weight:600;">Days Offline</th>
+            <th style="padding:9px 12px;border:1px solid #1e3a8a;color:#fff;text-align:left;font-weight:600;">Remark</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:12px 16px;margin-bottom:20px;">
+      <p style="margin:0;font-size:13px;color:#1e40af;"><strong>Summary:</strong> &nbsp;
+        Total Offline: <strong>${devices.length}</strong> &nbsp;|&nbsp;
+        Offline &ge; 3 days: <strong style="color:#b91c1c;">${devices.filter(d => d.offlineDays >= 3).length}</strong>
+      </p>
+    </div>
+
+    <p style="margin:0 0 2px;font-size:13px;color:#374151;">Thanks &amp; Regards,</p>
+    <p style="margin:0 0 2px;font-size:14px;font-weight:700;color:#111827;">IT Team</p>
+    <p style="margin:0;font-size:12px;color:#6b7280;">Light Finance &mdash; CCTV Monitoring System</p>
+  </div>
+
+  <div style="background:#f3f4f6;padding:12px 24px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 8px 8px;text-align:center;">
+    <p style="margin:0;font-size:11px;color:#9ca3af;">This is an automated alert from the Light Finance CCTV Monitoring System. Please do not reply to this email.</p>
+  </div>
 
 </div>
   `;
@@ -566,13 +629,15 @@ function buildDvrReportPDF(records: DvrRecord[], dateStr: string, periodLabel: s
     { align: "center" }
   );
 
+  const logo = loadServerLogo();
   const totalPages = doc.getNumberOfPages();
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
     addPdfPageElements(
       doc, p, totalPages, generatedAt,
       "DVR Storage Activity Report",
-      `${PDF_PORTAL_NAME}  |  Period: ${periodLabel}`
+      `${PDF_PORTAL_NAME}  |  Period: ${periodLabel}`,
+      logo
     );
   }
 
@@ -587,58 +652,62 @@ function buildDvrReportHtml(
   const completed = records.filter((r) => r.status === "completed");
   const pending = records.filter((r) => r.status === "pending");
 
-  const rows = records
-    .map(
-      (r, i) => `
-      <tr>
-        <td style="padding:6px 10px;text-align:center;border:1px solid #d1d5db;font-size:13px;">${i + 1}</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:13px;">${r.state}</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:13px;font-weight:600;">${r.branch}</td>
-        <td style="padding:6px 10px;text-align:center;border:1px solid #d1d5db;font-size:13px;">${r.noOfRecordingCamera ?? "—"}</td>
-        <td style="padding:6px 10px;text-align:center;border:1px solid #d1d5db;font-size:13px;">${r.noOfNotWorkingCamera ?? "—"}</td>
-        <td style="padding:6px 10px;text-align:center;border:1px solid #d1d5db;font-size:13px;">${r.lastRecording || "—"}</td>
-        <td style="padding:6px 10px;text-align:center;border:1px solid #d1d5db;font-size:13px;">${r.totalRecordingDay ?? "—"}</td>
-        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:13px;">${r.remark || "—"}</td>
-        <td style="padding:6px 10px;text-align:center;border:1px solid #d1d5db;font-size:13px;font-weight:600;color:${r.status === "completed" ? "#16a34a" : "#dc2626"};">
-          ${r.status === "completed" ? "✓ Done" : "Pending"}
+  const rows = records.map((r, i) => {
+    const bgColor = i % 2 === 0 ? "#ffffff" : "#f8fafc";
+    const isDone = r.status === "completed";
+    return `
+      <tr style="background-color:${bgColor};">
+        <td style="padding:8px 10px;text-align:center;border:1px solid #e5e7eb;font-size:13px;color:#6b7280;">${i + 1}</td>
+        <td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;">${r.state}</td>
+        <td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:13px;font-weight:700;color:#111827;">${r.branch}</td>
+        <td style="padding:8px 10px;text-align:center;border:1px solid #e5e7eb;font-size:13px;">${r.noOfRecordingCamera ?? "—"}</td>
+        <td style="padding:8px 10px;text-align:center;border:1px solid #e5e7eb;font-size:13px;${r.noOfNotWorkingCamera ? "color:#b91c1c;font-weight:600;" : ""}">${r.noOfNotWorkingCamera ?? "—"}</td>
+        <td style="padding:8px 10px;text-align:center;border:1px solid #e5e7eb;font-size:13px;">${r.lastRecording || "—"}</td>
+        <td style="padding:8px 10px;text-align:center;border:1px solid #e5e7eb;font-size:13px;">${r.totalRecordingDay ?? "—"}</td>
+        <td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;">${r.remark || "—"}</td>
+        <td style="padding:8px 10px;text-align:center;border:1px solid #e5e7eb;font-size:13px;">
+          <span style="background:${isDone ? "#dcfce7" : "#fee2e2"};color:${isDone ? "#15803d" : "#b91c1c"};padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;">${isDone ? "✓ Done" : "Pending"}</span>
         </td>
-      </tr>`
-    )
-    .join("");
+      </tr>`;
+  }).join("");
 
   return `
-<div style="font-family:Arial,sans-serif;font-size:14px;color:#111827;max-width:900px;">
-  <div style="background:#0f172a;padding:16px 20px;border-radius:8px 8px 0 0;">
-    <h2 style="color:#ffffff;margin:0;font-size:18px;">Light Finance — DVR Storage Activity Report</h2>
-    <p style="color:#94a3b8;margin:4px 0 0;font-size:13px;">Period: ${periodLabel} &nbsp;|&nbsp; Activity Date: ${dateStr}</p>
+<div style="font-family:Arial,sans-serif;max-width:900px;margin:0 auto;background:#f9fafb;padding:0;">
+
+  <div style="background:#1d4ed8;padding:20px 24px;border-radius:8px 8px 0 0;">
+    <h1 style="color:#ffffff;margin:0;font-size:20px;font-weight:700;">Light Finance — DVR Storage Activity Report</h1>
+    <p style="color:#bfdbfe;margin:4px 0 0;font-size:13px;">Period: ${periodLabel} &nbsp;|&nbsp; Activity Date: ${dateStr}</p>
   </div>
 
-  <div style="background:#f8fafc;padding:12px 20px;border:1px solid #e5e7eb;display:flex;gap:32px;">
-    <span style="font-size:13px;color:#374151;"><strong>Total Branches:</strong> ${records.length}</span>
-    <span style="font-size:13px;color:#16a34a;"><strong>Completed:</strong> ${completed.length}</span>
-    <span style="font-size:13px;color:#dc2626;"><strong>Pending:</strong> ${pending.length}</span>
+  <div style="background:#eff6ff;padding:12px 24px;border-left:1px solid #bfdbfe;border-right:1px solid #bfdbfe;display:table;width:100%;box-sizing:border-box;">
+    <span style="font-size:13px;color:#374151;margin-right:24px;display:inline-block;"><strong>Total Branches:</strong> ${records.length}</span>
+    <span style="font-size:13px;color:#15803d;margin-right:24px;display:inline-block;"><strong>Completed:</strong> ${completed.length}</span>
+    <span style="font-size:13px;color:#b91c1c;display:inline-block;"><strong>Pending:</strong> ${pending.length}</span>
   </div>
 
-  <table style="border-collapse:collapse;width:100%;font-size:13px;margin-top:0;">
-    <thead>
-      <tr style="background:#1e40af;">
-        <th style="padding:8px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;width:36px;">#</th>
-        <th style="padding:8px 10px;border:1px solid #1e3a8a;color:#fff;text-align:left;">State</th>
-        <th style="padding:8px 10px;border:1px solid #1e3a8a;color:#fff;text-align:left;">Branch</th>
-        <th style="padding:8px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;">Recording Cameras</th>
-        <th style="padding:8px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;">Not Working</th>
-        <th style="padding:8px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;">Last Recording</th>
-        <th style="padding:8px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;">Recording Days</th>
-        <th style="padding:8px 10px;border:1px solid #1e3a8a;color:#fff;text-align:left;">Remark</th>
-        <th style="padding:8px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;">Status</th>
-      </tr>
-    </thead>
-    <tbody>${rows}</tbody>
-  </table>
-
-  <div style="margin-top:24px;font-size:12px;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:16px;">
-    This is an automated DVR activity report from the Light Finance CCTV Monitoring System.
+  <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:0;overflow-x:auto;">
+    <table style="border-collapse:collapse;width:100%;font-size:13px;">
+      <thead>
+        <tr style="background:#1d4ed8;">
+          <th style="padding:9px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;font-weight:600;width:36px;">#</th>
+          <th style="padding:9px 10px;border:1px solid #1e3a8a;color:#fff;text-align:left;font-weight:600;">State</th>
+          <th style="padding:9px 10px;border:1px solid #1e3a8a;color:#fff;text-align:left;font-weight:600;">Branch</th>
+          <th style="padding:9px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;font-weight:600;">Recording Cameras</th>
+          <th style="padding:9px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;font-weight:600;">Not Working</th>
+          <th style="padding:9px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;font-weight:600;">Last Recording</th>
+          <th style="padding:9px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;font-weight:600;">Recording Days</th>
+          <th style="padding:9px 10px;border:1px solid #1e3a8a;color:#fff;text-align:left;font-weight:600;">Remark</th>
+          <th style="padding:9px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;font-weight:600;">Status</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
   </div>
+
+  <div style="background:#f3f4f6;padding:12px 24px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 8px 8px;text-align:center;">
+    <p style="margin:0;font-size:11px;color:#9ca3af;">This is an automated DVR activity report from the Light Finance CCTV Monitoring System. Please do not reply to this email.</p>
+  </div>
+
 </div>`;
 }
 

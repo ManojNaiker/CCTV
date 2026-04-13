@@ -383,86 +383,56 @@ type OfflineDevice = {
 };
 
 function buildOfflineAlertHtml(devices: OfflineDevice[]): string {
-  const hasLongOffline = devices.some((d) => d.offlineDays >= 3);
   const dateStr = new Date().toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "long", year: "numeric" });
 
   const tableRows = devices.map((d, i) => {
     const remark = d.remark
       ? d.remark
       : d.offlineDays >= 3
-      ? `Offline for ${d.offlineDays} days`
+      ? `CCTV has been offline for ${d.offlineDays} days.`
       : "CCTV has been offline since today.";
     const bgColor = i % 2 === 0 ? "#ffffff" : "#fff5f5";
     return `
       <tr style="background-color:${bgColor};">
-        <td style="padding:8px 12px;text-align:center;border:1px solid #e5e7eb;font-size:13px;color:#6b7280;">${i + 1}</td>
-        <td style="padding:8px 12px;border:1px solid #e5e7eb;font-size:13px;">${d.stateName}</td>
+        <td style="padding:8px 12px;text-align:center;border:1px solid #e5e7eb;font-size:13px;color:#374151;">${i + 1}</td>
+        <td style="padding:8px 12px;border:1px solid #e5e7eb;font-size:13px;color:#374151;">${d.stateName}</td>
         <td style="padding:8px 12px;border:1px solid #e5e7eb;font-size:13px;font-weight:700;color:#111827;">${d.branchName}</td>
-        <td style="padding:8px 12px;text-align:center;border:1px solid #e5e7eb;font-size:13px;">
-          <span style="background:#fee2e2;color:#b91c1c;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;">Offline</span>
-        </td>
-        <td style="padding:8px 12px;text-align:center;border:1px solid #e5e7eb;font-size:13px;${d.offlineDays >= 3 ? "color:#b91c1c;font-weight:600;" : "color:#374151;"}">${d.offlineDays} day${d.offlineDays !== 1 ? "s" : ""}</td>
+        <td style="padding:8px 12px;text-align:center;border:1px solid #e5e7eb;font-size:13px;">Offline</td>
         <td style="padding:8px 12px;border:1px solid #e5e7eb;font-size:13px;color:#374151;">${remark}</td>
       </tr>`;
   }).join("");
 
   return `
-<div style="font-family:Arial,sans-serif;max-width:720px;margin:0 auto;background:#f9fafb;padding:0;">
-
-  <div style="background:#1d4ed8;padding:20px 24px;border-radius:8px 8px 0 0;">
-    <h1 style="color:#ffffff;margin:0;font-size:20px;font-weight:700;">Light Finance — CCTV Monitoring</h1>
-    <p style="color:#bfdbfe;margin:4px 0 0;font-size:13px;">Branch CCTV Offline Alert &nbsp;|&nbsp; ${dateStr}</p>
-  </div>
-
-  <div style="background:#ffffff;padding:20px 24px;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;">
+<div style="font-family:Arial,sans-serif;max-width:720px;margin:0 auto;background:#ffffff;padding:24px;">
 
     <p style="margin:0 0 6px;font-size:14px;color:#111827;"><strong>Dear Branch Team,</strong></p>
-    <p style="margin:0 0 4px;font-size:13px;color:#374151;line-height:1.7;">Please find below the CCTV status of your branches. If any issue persists, please check your internet connection and contact the IT team.</p>
-    <p style="margin:0 0 4px;font-size:13px;color:#374151;line-height:1.7;">कृपया अपनी शाखाओं की सीसीटीवी स्थिति नीचे देखें। यदि समस्या बनी रहती है तो इंटरनेट केबल जांचें व आईटी टीम से संपर्क करें।</p>
-    <p style="margin:0 0 16px;font-size:13px;color:#374151;line-height:1.7;">કૃપા કરીને નીચે સ્થિતિ જુઓ. સમસ્યા ચાલુ રહે તો ઇન્ટરનેટ કેબલ તપાસો અને IT ટીમનો સંપર્ક કરો.</p>
+    <p style="margin:0 0 4px;font-size:13px;color:#374151;line-height:1.7;">Please find below the CCTV status of your branches; please check your internet cable if any issue persists; and please contact the IT team.</p>
+    <p style="margin:0 0 4px;font-size:13px;color:#374151;line-height:1.7;">कृपया अपनी शाखाओं की सीसीटीवी स्थिति नीचे देखें; कृपया अपना इंटरनेट केबल जांचें; यदि समस्या बनी रहती है तो आईटी टीम से संपर्क करें।</p>
+    <p style="margin:0 0 20px;font-size:13px;color:#374151;line-height:1.7;">કૃપા કરીને તમારી શાખાઓની સીસીટીવી સ્થિતિ નીચે શોધો; કૃપા કરીને તમારી ઇન્ટરનેટ કેબલ તપાસો; જો સમસ્યા ચાલુ રહે તો કૃપા કરીને IT ટીમનો સંપર્ક કરો.</p>
 
     <p style="margin:0 0 6px;font-size:14px;color:#111827;"><strong>Dear RM's,</strong></p>
-    <p style="margin:0 0 4px;font-size:13px;color:#374151;line-height:1.7;">The CCTV cameras at the following branches are offline. Please coordinate with your branch BMs to resolve this as soon as possible.</p>
-    <p style="margin:0 0 4px;font-size:13px;color:#374151;line-height:1.7;">निम्नलिखित शाखाओं के सीसीटीवी कैमरे ऑफ़लाइन हैं। कृपया समस्या जल्द हल करने के लिए बीएम के साथ समन्वय करें।</p>
-    <p style="margin:0 0 20px;font-size:13px;color:#374151;line-height:1.7;">નીચેની શાખાઓ ઑફલાઇન છે. BM સાથે સંકલન કરીને સમસ્યા વહેલી તકે ઉકેલો.</p>
+    <p style="margin:0 0 4px;font-size:13px;color:#374151;line-height:1.7;">The CCTV cameras at the following branches are showing as offline; please coordinate with your branch BMs to resolve the issue as soon as possible.</p>
+    <p style="margin:0 0 4px;font-size:13px;color:#374151;line-height:1.7;">निम्नलिखित शाखाओं के सीसीटीवी कैमरे ऑफ़लाइन दिख रहे हैं; कृपया समस्या को यथाशीघ्र हल करने के लिए अपनी शाखा के बीएम के साथ समन्वय करें।</p>
+    <p style="margin:0 0 20px;font-size:13px;color:#374151;line-height:1.7;">નીચેની શાખાઓ પર ના સીસીટીવી કેમેરા ઑફ્લાઇન તરીકે દેખાઇ રહ્યા છે; શક્ય તેટલી વહેલી તકે સમસ્યાનો ઉકેલ લાવવા માટે કૃપા કરીને તમારી શાખા BM સાથે સંકલન કરો.</p>
 
-    ${hasLongOffline ? `
-    <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:10px 14px;margin-bottom:20px;border-radius:0 4px 4px 0;">
-      <p style="margin:0;font-size:13px;font-weight:700;color:#b91c1c;">&#9888; Alert: One or more branches have been offline for more than 3 days. CBM, DM, SH — please coordinate with your branch immediately.</p>
-    </div>` : ""}
-
-    <div style="margin-bottom:20px;overflow-x:auto;">
-      <div style="background:#fbbf24;padding:2px 0;border-radius:6px 6px 0 0;"></div>
+    <div style="margin-bottom:24px;overflow-x:auto;">
       <table style="border-collapse:collapse;width:100%;font-size:13px;border:1px solid #e5e7eb;">
         <thead>
-          <tr style="background:#1d4ed8;">
-            <th style="padding:9px 12px;border:1px solid #1e3a8a;color:#fff;text-align:center;font-weight:600;width:36px;">#</th>
-            <th style="padding:9px 12px;border:1px solid #1e3a8a;color:#fff;text-align:left;font-weight:600;">State</th>
-            <th style="padding:9px 12px;border:1px solid #1e3a8a;color:#fff;text-align:left;font-weight:600;">Branch Name</th>
-            <th style="padding:9px 12px;border:1px solid #1e3a8a;color:#fff;text-align:center;font-weight:600;">CCTV Status</th>
-            <th style="padding:9px 12px;border:1px solid #1e3a8a;color:#fff;text-align:center;font-weight:600;">Days Offline</th>
-            <th style="padding:9px 12px;border:1px solid #1e3a8a;color:#fff;text-align:left;font-weight:600;">Remark</th>
+          <tr style="background:#FFD700;">
+            <th style="padding:9px 12px;border:1px solid #ccaa00;color:#111827;text-align:center;font-weight:700;width:40px;">NO</th>
+            <th style="padding:9px 12px;border:1px solid #ccaa00;color:#111827;text-align:left;font-weight:700;">State Name</th>
+            <th style="padding:9px 12px;border:1px solid #ccaa00;color:#111827;text-align:left;font-weight:700;">Branch Name</th>
+            <th style="padding:9px 12px;border:1px solid #ccaa00;color:#111827;text-align:center;font-weight:700;">CCTV Status</th>
+            <th style="padding:9px 12px;border:1px solid #ccaa00;color:#111827;text-align:left;font-weight:700;">Remark</th>
           </tr>
         </thead>
         <tbody>${tableRows}</tbody>
       </table>
     </div>
 
-    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:12px 16px;margin-bottom:20px;">
-      <p style="margin:0;font-size:13px;color:#1e40af;"><strong>Summary:</strong> &nbsp;
-        Total Offline: <strong>${devices.length}</strong> &nbsp;|&nbsp;
-        Offline &ge; 3 days: <strong style="color:#b91c1c;">${devices.filter(d => d.offlineDays >= 3).length}</strong>
-      </p>
-    </div>
-
     <p style="margin:0 0 2px;font-size:13px;color:#374151;">Thanks &amp; Regards,</p>
     <p style="margin:0 0 2px;font-size:14px;font-weight:700;color:#111827;">IT Team</p>
-    <p style="margin:0;font-size:12px;color:#6b7280;">Light Finance &mdash; CCTV Monitoring System</p>
-  </div>
-
-  <div style="background:#f3f4f6;padding:12px 24px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 8px 8px;text-align:center;">
-    <p style="margin:0;font-size:11px;color:#9ca3af;">This is an automated alert from the Light Finance CCTV Monitoring System. Please do not reply to this email.</p>
-  </div>
+    <p style="margin:0;font-size:12px;color:#374151;">Light Finance &mdash; CCTV Monitoring System</p>
 
 </div>
   `;

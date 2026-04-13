@@ -41,29 +41,21 @@ const sessionCache = new Map<string, { sessionId: string; domain: string; create
 const SESSION_TTL_MS = 25 * 60 * 1000; // 25 minutes
 
 /**
- * Load Hik-Connect credentials from DB settings.
- * Falls back to environment variables.
+ * Load Hik-Connect credentials from DB settings only.
+ * Credentials must be configured by the user in Settings → Hik-Connect.
  */
 export async function loadCredentialsFromDb(): Promise<HikCredentials> {
-  try {
-    const rows = await db.select().from(settingsTable);
-    const map: Record<string, string> = {};
-    for (const r of rows) {
-      if (r.value) map[r.key] = r.value;
-    }
-
-    const account = map.hik_account || process.env.HIK_ACCOUNT || "";
-    const password = map.hik_password || process.env.HIK_PASSWORD || "";
-    const passwordType = (map.hik_password_type as "normal" | "encrypted") || "encrypted";
-
-    return { account, password, passwordType };
-  } catch {
-    return {
-      account: process.env.HIK_ACCOUNT || "",
-      password: process.env.HIK_PASSWORD || "",
-      passwordType: "encrypted",
-    };
+  const rows = await db.select().from(settingsTable);
+  const map: Record<string, string> = {};
+  for (const r of rows) {
+    if (r.value) map[r.key] = r.value;
   }
+
+  const account = map.hik_account || "";
+  const password = map.hik_password || "";
+  const passwordType = (map.hik_password_type as "normal" | "encrypted") || "encrypted";
+
+  return { account, password, passwordType };
 }
 
 /**

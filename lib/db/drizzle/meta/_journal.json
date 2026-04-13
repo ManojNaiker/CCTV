@@ -36,6 +36,13 @@
       "when": 1775808900000,
       "tag": "0004_add_dvr_storage",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1776085000000,
+      "tag": "0005_add_image_url_to_dvr_storage",
+      "breakpoints": true
     }
   ]
 }

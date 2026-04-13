@@ -3,6 +3,9 @@ import { eq } from "drizzle-orm";
 import { db, dvrStorageTable, devicesTable } from "@workspace/db";
 import { logger } from "../../lib/logger";
 import { sendDvrReportManual } from "../../lib/emailService";
+import { writeFileSync, unlinkSync, existsSync } from "fs";
+import { join, extname } from "path";
+import { UPLOADS_DIR } from "../../app";
 
 const router: IRouter = Router();
 
@@ -153,6 +156,7 @@ router.patch("/dvr-storage/:id", async (req, res): Promise<void> => {
     if (lastRecording !== undefined) updateData["lastRecording"] = lastRecording || null;
     if (totalRecordingDay !== undefined) updateData["totalRecordingDay"] = totalRecordingDay === "" ? null : Number(totalRecordingDay);
     if (remark !== undefined) updateData["remark"] = remark || null;
+    if (req.body.imageUrl !== undefined) updateData["imageUrl"] = req.body.imageUrl || null;
 
     const [existing] = await db.select().from(dvrStorageTable).where(eq(dvrStorageTable.id, id));
     if (!existing) {
@@ -189,6 +193,63 @@ router.patch("/dvr-storage/:id", async (req, res): Promise<void> => {
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: "Failed to update DVR storage record" });
+  }
+});
+
+// POST /api/dvr-storage/:id/image — upload image (base64) for a DVR record
+router.post("/dvr-storage/:id/image", async (req, res): Promise<void> => {
+  try {
+    const id = Number(req.params["id"]);
+    if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+
+    const { imageData } = req.body as { imageData?: string };
+    if (!imageData) { res.status(400).json({ error: "imageData is required" }); return; }
+
+    const match = imageData.match(/^data:image\/(\w+);base64,(.+)$/);
+    if (!match) { res.status(400).json({ error: "Invalid image format. Expected data URI." }); return; }
+
+    const ext = match[1] === "jpeg" ? "jpg" : match[1];
+    const buffer = Buffer.from(match[2], "base64");
+
+    const [existing] = await db.select().from(dvrStorageTable).where(eq(dvrStorageTable.id, id));
+    if (!existing) { res.status(404).json({ error: "Record not found" }); return; }
+
+    // Delete old image if it exists
+    if (existing.imageUrl) {
+      const oldFile = join(UPLOADS_DIR, existing.imageUrl.split("/").pop() ?? "");
+      if (existsSync(oldFile)) { try { unlinkSync(oldFile); } catch { } }
+    }
+
+    const filename = `dvr_${id}_${Date.now()}.${ext}`;
+    writeFileSync(join(UPLOADS_DIR, filename), buffer);
+
+    const imageUrl = `/api/uploads/${filename}`;
+    const [updated] = await db.update(dvrStorageTable).set({ imageUrl }).where(eq(dvrStorageTable.id, id)).returning();
+    res.json({ imageUrl, record: updated });
+  } catch (err) {
+    logger.error({ err }, "Failed to upload DVR image");
+    res.status(500).json({ error: "Failed to upload image" });
+  }
+});
+
+// DELETE /api/dvr-storage/:id/image — remove image for a DVR record
+router.delete("/dvr-storage/:id/image", async (req, res): Promise<void> => {
+  try {
+    const id = Number(req.params["id"]);
+    if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+
+    const [existing] = await db.select().from(dvrStorageTable).where(eq(dvrStorageTable.id, id));
+    if (!existing) { res.status(404).json({ error: "Record not found" }); return; }
+
+    if (existing.imageUrl) {
+      const oldFile = join(UPLOADS_DIR, existing.imageUrl.split("/").pop() ?? "");
+      if (existsSync(oldFile)) { try { unlinkSync(oldFile); } catch { } }
+    }
+
+    const [updated] = await db.update(dvrStorageTable).set({ imageUrl: null }).where(eq(dvrStorageTable.id, id)).returning();
+    res.json({ success: true, record: updated });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete image" });
   }
 });
 

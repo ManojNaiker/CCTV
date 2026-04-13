@@ -415,15 +415,22 @@ function buildOfflineAlertHtml(devices: OfflineDevice[]): string {
     <p style="margin:0 0 4px;font-size:13px;color:#374151;line-height:1.7;">निम्नलिखित शाखाओं के सीसीटीवी कैमरे ऑफ़लाइन दिख रहे हैं; कृपया समस्या को यथाशीघ्र हल करने के लिए अपनी शाखा के बीएम के साथ समन्वय करें।</p>
     <p style="margin:0 0 20px;font-size:13px;color:#374151;line-height:1.7;">નીચેની શાખાઓ પર ના સીસીટીવી કેમેરા ઑફ્લાઇન તરીકે દેખાઇ રહ્યા છે; શક્ય તેટલી વહેલી તકે સમસ્યાનો ઉકેલ લાવવા માટે કૃપા કરીને તમારી શાખા BM સાથે સંકલન કરો.</p>
 
-    <div style="margin-bottom:24px;overflow-x:auto;">
-      <table style="border-collapse:collapse;width:100%;font-size:13px;border:1px solid #e5e7eb;">
+    <div style="margin-bottom:24px;">
+      <table style="border-collapse:collapse;width:600px;max-width:100%;table-layout:fixed;font-size:13px;border:1px solid #e5e7eb;">
+        <colgroup>
+          <col style="width:40px;" />
+          <col style="width:110px;" />
+          <col style="width:140px;" />
+          <col style="width:100px;" />
+          <col style="width:210px;" />
+        </colgroup>
         <thead>
           <tr style="background:#FFD700;">
-            <th style="padding:9px 12px;border:1px solid #ccaa00;color:#111827;text-align:center;font-weight:700;width:40px;">NO</th>
-            <th style="padding:9px 12px;border:1px solid #ccaa00;color:#111827;text-align:left;font-weight:700;">State Name</th>
-            <th style="padding:9px 12px;border:1px solid #ccaa00;color:#111827;text-align:left;font-weight:700;">Branch Name</th>
-            <th style="padding:9px 12px;border:1px solid #ccaa00;color:#111827;text-align:center;font-weight:700;">CCTV Status</th>
-            <th style="padding:9px 12px;border:1px solid #ccaa00;color:#111827;text-align:left;font-weight:700;">Remark</th>
+            <th style="padding:9px 12px;border:1px solid #ccaa00;color:#111827;text-align:center;font-weight:700;overflow:hidden;">NO</th>
+            <th style="padding:9px 12px;border:1px solid #ccaa00;color:#111827;text-align:left;font-weight:700;overflow:hidden;">State Name</th>
+            <th style="padding:9px 12px;border:1px solid #ccaa00;color:#111827;text-align:left;font-weight:700;overflow:hidden;">Branch Name</th>
+            <th style="padding:9px 12px;border:1px solid #ccaa00;color:#111827;text-align:center;font-weight:700;overflow:hidden;">CCTV Status</th>
+            <th style="padding:9px 12px;border:1px solid #ccaa00;color:#111827;text-align:left;font-weight:700;overflow:hidden;">Remark</th>
           </tr>
         </thead>
         <tbody>${tableRows}</tbody>
@@ -513,7 +520,7 @@ export async function sendBulkOfflineAlert(devices: OfflineDevice[]): Promise<vo
   ]);
 }
 
-type DvrRecord = { state: string; branch: string; branchCameraCount: number | null; noOfRecordingCamera: number | null; noOfNotWorkingCamera: number | null; lastRecording: string | null; activityDate: string; totalRecordingDay: number | null; remark: string | null; status: string };
+type DvrRecord = { state: string; branch: string; branchCameraCount: number | null; noOfRecordingCamera: number | null; noOfNotWorkingCamera: number | null; lastRecording: string | null; activityDate: string; totalRecordingDay: number | null; remark: string | null; imageUrl?: string | null; status: string };
 
 function buildDvrReportPDF(records: DvrRecord[], dateStr: string, periodLabel: string): Buffer {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -536,22 +543,27 @@ function buildDvrReportPDF(records: DvrRecord[], dateStr: string, periodLabel: s
   doc.setLineWidth(0.3);
   doc.line(10, CONTENT_TOP + 7, pageW - 10, CONTENT_TOP + 7);
 
+  const devDomain = process.env["REPLIT_DEV_DOMAIN"] ? `https://${process.env["REPLIT_DEV_DOMAIN"]}` : "";
+
+  const tableBody = records.map((r, i) => [
+    String(i + 1),
+    r.state,
+    r.branch,
+    r.branchCameraCount != null ? String(r.branchCameraCount) : "—",
+    r.noOfRecordingCamera != null ? String(r.noOfRecordingCamera) : "—",
+    r.noOfNotWorkingCamera != null ? String(r.noOfNotWorkingCamera) : "—",
+    r.lastRecording || "—",
+    r.activityDate,
+    r.totalRecordingDay != null ? String(r.totalRecordingDay) : "—",
+    r.remark || "—",
+    r.status === "completed" ? "✓ Completed" : "Pending",
+    r.imageUrl ? "Yes" : "No",
+  ]);
+
   autoTable(doc, {
     startY: CONTENT_TOP + 10,
-    head: [["#", "State", "Branch", "Branch Camera Count", "No Of Recording Camera", "No Of Not Working Camera", "Last Recording", "Activity Date", "Total Recording Day", "Remark", "Status"]],
-    body: records.map((r, i) => [
-      String(i + 1),
-      r.state,
-      r.branch,
-      r.branchCameraCount != null ? String(r.branchCameraCount) : "—",
-      r.noOfRecordingCamera != null ? String(r.noOfRecordingCamera) : "—",
-      r.noOfNotWorkingCamera != null ? String(r.noOfNotWorkingCamera) : "—",
-      r.lastRecording || "—",
-      r.activityDate,
-      r.totalRecordingDay != null ? String(r.totalRecordingDay) : "—",
-      r.remark || "—",
-      r.status === "completed" ? "✓ Completed" : "Pending",
-    ]),
+    head: [["#", "State", "Branch", "Branch Camera Count", "No Of Recording Camera", "No Of Not Working Camera", "Last Recording", "Activity Date", "Total Recording Day", "Remark", "Status", "Attachment"]],
+    body: tableBody,
     headStyles: {
       fillColor: [29, 78, 216],
       textColor: [255, 255, 255],
@@ -563,25 +575,39 @@ function buildDvrReportPDF(records: DvrRecord[], dateStr: string, periodLabel: s
     alternateRowStyles: { fillColor: [248, 250, 252] },
     columnStyles: {
       0: { cellWidth: 8, halign: "center" },
-      1: { cellWidth: 20 },
-      2: { cellWidth: 32, fontStyle: "bold" },
-      3: { cellWidth: 20, halign: "center" },
-      4: { cellWidth: 24, halign: "center" },
-      5: { cellWidth: 20, halign: "center" },
-      6: { cellWidth: 26, halign: "center" },
-      7: { cellWidth: 22, halign: "center" },
-      8: { cellWidth: 18, halign: "center" },
-      9: { cellWidth: 28 },
-      10: { cellWidth: 22, halign: "center" },
+      1: { cellWidth: 18 },
+      2: { cellWidth: 28, fontStyle: "bold" },
+      3: { cellWidth: 18, halign: "center" },
+      4: { cellWidth: 20, halign: "center" },
+      5: { cellWidth: 18, halign: "center" },
+      6: { cellWidth: 22, halign: "center" },
+      7: { cellWidth: 20, halign: "center" },
+      8: { cellWidth: 16, halign: "center" },
+      9: { cellWidth: 26 },
+      10: { cellWidth: 20, halign: "center" },
+      11: { cellWidth: 18, halign: "center" },
     },
     didParseCell: (data) => {
-      if (data.column.index === 10 && data.section === "body") {
-        const val = String(data.cell.raw);
-        data.cell.styles.fontStyle = "bold";
-        if (val.includes("Completed")) {
-          data.cell.styles.textColor = [22, 163, 74];
-        } else {
-          data.cell.styles.textColor = [220, 38, 38];
+      if (data.section === "body") {
+        if (data.column.index === 10) {
+          const val = String(data.cell.raw);
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.textColor = val.includes("Completed") ? [22, 163, 74] : [220, 38, 38];
+        }
+        if (data.column.index === 11) {
+          const val = String(data.cell.raw);
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.textColor = val === "Yes" ? [29, 78, 216] : [156, 163, 175];
+        }
+      }
+    },
+    didDrawCell: (data) => {
+      if (data.section === "body" && data.column.index === 11) {
+        const rowIdx = data.row.index;
+        const rec = records[rowIdx];
+        if (rec?.imageUrl && devDomain) {
+          const fullUrl = `${devDomain}${rec.imageUrl}`;
+          doc.link(data.cell.x, data.cell.y, data.cell.width, data.cell.height, { url: fullUrl });
         }
       }
     },

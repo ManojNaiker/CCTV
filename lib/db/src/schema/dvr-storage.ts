@@ -11,6 +11,7 @@ export const dvrStorageTable = pgTable("dvr_storage", {
   activityDate: text("activity_date").notNull(),
   totalRecordingDay: integer("total_recording_day"),
   remark: text("remark"),
+  imageUrl: text("image_url"),
   status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

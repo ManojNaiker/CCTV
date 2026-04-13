@@ -16,6 +16,9 @@ import {
   MessageSquare,
   Pencil,
   Mail,
+  ImagePlus,
+  Trash2,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -46,6 +49,7 @@ type DvrRecord = {
   activityDate: string;
   totalRecordingDay: number | null;
   remark: string | null;
+  imageUrl: string | null;
   status: string;
 };
 
@@ -176,11 +180,12 @@ async function generateDvrPDF(records: DvrRecord[], date: string) {
     r.totalRecordingDay ?? "—",
     r.remark || "—",
     r.status === "completed" ? "✓ Completed" : "Pending",
+    r.imageUrl ? "Yes" : "No",
   ]);
 
   autoTable(doc, {
     startY: CONTENT_TOP + 10,
-    head: [["#", "State", "Branch", "Branch Camera Count", "No Of Recording Camera", "No Of Not Working Camera", "Last Recording", "Activity Date", "Total Recording Day", "Remark", "Status"]],
+    head: [["#", "State", "Branch", "Branch Camera Count", "No Of Recording Camera", "No Of Not Working Camera", "Last Recording", "Activity Date", "Total Recording Day", "Remark", "Status", "Attachment"]],
     body: rows,
     headStyles: {
       fillColor: [29, 78, 216],
@@ -193,25 +198,38 @@ async function generateDvrPDF(records: DvrRecord[], date: string) {
     alternateRowStyles: { fillColor: [248, 250, 252] },
     columnStyles: {
       0: { cellWidth: 8, halign: "center" },
-      1: { cellWidth: 20 },
-      2: { cellWidth: 32, fontStyle: "bold" },
-      3: { cellWidth: 20, halign: "center" },
-      4: { cellWidth: 24, halign: "center" },
-      5: { cellWidth: 20, halign: "center" },
-      6: { cellWidth: 26, halign: "center" },
-      7: { cellWidth: 22, halign: "center" },
-      8: { cellWidth: 18, halign: "center" },
-      9: { cellWidth: 28 },
-      10: { cellWidth: 22, halign: "center" },
+      1: { cellWidth: 18 },
+      2: { cellWidth: 28, fontStyle: "bold" },
+      3: { cellWidth: 18, halign: "center" },
+      4: { cellWidth: 20, halign: "center" },
+      5: { cellWidth: 18, halign: "center" },
+      6: { cellWidth: 22, halign: "center" },
+      7: { cellWidth: 20, halign: "center" },
+      8: { cellWidth: 16, halign: "center" },
+      9: { cellWidth: 26 },
+      10: { cellWidth: 20, halign: "center" },
+      11: { cellWidth: 18, halign: "center" },
     },
     didParseCell: (data) => {
-      if (data.column.index === 10 && data.section === "body") {
-        const val = String(data.cell.raw);
-        data.cell.styles.fontStyle = "bold";
-        if (val.includes("Completed")) {
-          data.cell.styles.textColor = [22, 163, 74];
-        } else {
-          data.cell.styles.textColor = [220, 38, 38];
+      if (data.section === "body") {
+        if (data.column.index === 10) {
+          const val = String(data.cell.raw);
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.textColor = val.includes("Completed") ? [22, 163, 74] : [220, 38, 38];
+        }
+        if (data.column.index === 11) {
+          const val = String(data.cell.raw);
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.textColor = val === "Yes" ? [29, 78, 216] : [156, 163, 175];
+        }
+      }
+    },
+    didDrawCell: (data) => {
+      if (data.section === "body" && data.column.index === 11) {
+        const rec = records[data.row.index];
+        if (rec?.imageUrl) {
+          const fullUrl = `${window.location.origin}${rec.imageUrl}`;
+          doc.link(data.cell.x, data.cell.y, data.cell.width, data.cell.height, { url: fullUrl });
         }
       }
     },
@@ -312,11 +330,32 @@ type RecordTableProps = {
   rows: DvrRecord[];
   onSave: (id: number, field: string, value: string) => void;
   onOpenRemark: (record: DvrRecord) => void;
+  onUploadImage: (id: number, file: File) => void;
+  onDeleteImage: (id: number) => void;
+  uploadingId: number | null;
 };
 
-function RecordTableInner({ rows, onSave, onOpenRemark }: RecordTableProps) {
+function RecordTableInner({ rows, onSave, onOpenRemark, onUploadImage, onDeleteImage, uploadingId }: RecordTableProps) {
+  const imgInputRef = useRef<HTMLInputElement>(null);
+  const [pendingUploadId, setPendingUploadId] = useState<number | null>(null);
+
+  const triggerUpload = (id: number) => {
+    setPendingUploadId(id);
+    imgInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && pendingUploadId !== null) {
+      onUploadImage(pendingUploadId, file);
+    }
+    e.target.value = "";
+    setPendingUploadId(null);
+  };
+
   return (
     <div className="overflow-x-auto">
+      <input ref={imgInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
       <table className="w-full text-xs border-collapse">
         <thead>
           <tr className="border-b bg-muted/40">
@@ -330,6 +369,7 @@ function RecordTableInner({ rows, onSave, onOpenRemark }: RecordTableProps) {
             <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Activity Date</th>
             <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[120px]">Total Recording Day</th>
             <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[160px]">Remark</th>
+            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[100px]">Image</th>
             <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Status</th>
           </tr>
         </thead>
@@ -383,6 +423,47 @@ function RecordTableInner({ rows, onSave, onOpenRemark }: RecordTableProps) {
                   </span>
                 </button>
               </td>
+              <td className="px-2 py-1.5 text-center">
+                {uploadingId === r.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin mx-auto text-blue-500" />
+                ) : r.imageUrl ? (
+                  <div className="flex items-center justify-center gap-1">
+                    <a
+                      href={r.imageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-[10px] font-medium"
+                      title="View image"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      View
+                    </a>
+                    <button
+                      onClick={() => triggerUpload(r.id)}
+                      className="text-muted-foreground hover:text-blue-600 p-0.5 rounded"
+                      title="Replace image"
+                    >
+                      <ImagePlus className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => onDeleteImage(r.id)}
+                      className="text-muted-foreground hover:text-red-500 p-0.5 rounded"
+                      title="Remove image"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => triggerUpload(r.id)}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted/40 hover:bg-blue-50 border border-dashed border-border hover:border-blue-300 text-muted-foreground hover:text-blue-600 text-[10px] transition-colors"
+                    title="Upload image"
+                  >
+                    <ImagePlus className="h-3 w-3" />
+                    Upload
+                  </button>
+                )}
+              </td>
               <td className="px-3 py-2 text-center">
                 {r.status === "completed" ? (
                   <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 text-[10px] gap-1">
@@ -398,7 +479,7 @@ function RecordTableInner({ rows, onSave, onOpenRemark }: RecordTableProps) {
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={11} className="py-12 text-center text-muted-foreground text-sm">
+              <td colSpan={12} className="py-12 text-center text-muted-foreground text-sm">
                 No records found
               </td>
             </tr>
@@ -428,6 +509,7 @@ export default function DvrStorage() {
   const [emailTo, setEmailTo] = useState("");
   const [emailCc, setEmailCc] = useState("");
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [imageUploadingId, setImageUploadingId] = useState<number | null>(null);
 
   const { data: records = [], isLoading } = useQuery<DvrRecord[]>({
     queryKey: ["dvr-storage", date],

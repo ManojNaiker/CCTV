@@ -146,6 +146,13 @@ async function generateDvrPDF(records: DvrRecord[], date: string) {
     timeZoneName: "short",
   });
 
+  const dateObj = new Date(date + "T00:00:00+05:30");
+  const dayNum = dateObj.getDate();
+  const monthStr = dateObj.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+  const periodLabel = dayNum <= 15
+    ? `1–15 ${monthStr} (First Half)`
+    : `16–End of ${monthStr} (Second Half)`;
+
   const completed = records.filter((r) => r.status === "completed");
   const pending = records.filter((r) => r.status === "pending");
 
@@ -272,7 +279,7 @@ async function generateDvrPDF(records: DvrRecord[], date: string) {
     doc.setFontSize(7.5);
     doc.setTextColor(110, 110, 110);
     doc.setFont("helvetica", "normal");
-    doc.text(`${PORTAL_NAME}  |  Activity Date: ${date}`, lPageW / 2, 17, { align: "center" });
+    doc.text(`${PORTAL_NAME}  |  Period: ${periodLabel}`, lPageW / 2, 17, { align: "center" });
 
     doc.setDrawColor(200, 200, 200);
     doc.setLineWidth(0.5);

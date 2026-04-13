@@ -108,37 +108,174 @@ export async function sendEmail(
   logger.info({ to: toList, cc: ccList, subject }, "Email sent successfully");
 }
 
-function buildOfflinePDF(devices: OfflineDevice[], dateStr: string): Buffer {
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+const PDF_COMPANY_NAME = "Light Finance";
+const PDF_PORTAL_NAME = "CCTV Monitoring Portal";
+const PDF_HEADER_HEIGHT = 28;
+
+function addPdfPageElements(
+  doc: InstanceType<typeof jsPDF>,
+  pageNum: number,
+  totalPages: number,
+  generatedAt: string,
+  title: string,
+  subtitle?: string
+): void {
   const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageW, PDF_HEADER_HEIGHT, "F");
+
+  const logoH = 14;
+  const logoW = 28;
+  doc.setFillColor(29, 78, 216);
+  doc.roundedRect(10, 6, logoW, logoH - 2, 2, 2, "F");
+  doc.setFontSize(7);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.text(PDF_COMPANY_NAME, 10 + logoW / 2, 14, { align: "center" });
 
   doc.setFontSize(14);
+  doc.setTextColor(22, 22, 22);
   doc.setFont("helvetica", "bold");
-  doc.text("Light Finance — CCTV Offline Report", pageW / 2, 14, { align: "center" });
-  doc.setFontSize(9);
+  doc.text(title, pageW / 2, 11, { align: "center" });
+
+  doc.setFontSize(7.5);
+  doc.setTextColor(110, 110, 110);
   doc.setFont("helvetica", "normal");
-  doc.text(`Date: ${dateStr}`, pageW / 2, 20, { align: "center" });
+  doc.text(subtitle ?? PDF_PORTAL_NAME, pageW / 2, 17, { align: "center" });
+
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.5);
+  doc.line(10, PDF_HEADER_HEIGHT, pageW - 10, PDF_HEADER_HEIGHT);
+
+  const footerY = pageH - 12;
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, footerY - 5, pageW, 20, "F");
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.3);
+  doc.line(10, footerY - 3, pageW - 10, footerY - 3);
+
+  doc.setFontSize(7);
+  doc.setTextColor(130, 130, 130);
+  doc.setFont("helvetica", "normal");
+  doc.text(PDF_COMPANY_NAME, 10, footerY + 1);
+  doc.text(`Generated: ${generatedAt}`, 10, footerY + 5);
+  doc.text(PDF_PORTAL_NAME, pageW - 10, footerY + 1, { align: "right" });
+  doc.text("Confidential — Internal Use Only", pageW - 10, footerY + 5, { align: "right" });
+
+  doc.setFontSize(8);
+  doc.setTextColor(60, 60, 60);
+  doc.text(`Page ${pageNum} of ${totalPages}`, pageW / 2, footerY + 3, { align: "center" });
+}
+
+function buildOfflinePDF(devices: OfflineDevice[], dateStr: string): Buffer {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const CONTENT_TOP = PDF_HEADER_HEIGHT + 4;
+  const generatedAt = new Date().toLocaleString("en-IN", {
+    day: "2-digit", month: "long", year: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    timeZoneName: "short",
+  });
+
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(30, 58, 138);
+  doc.text("Device Status Summary", 10, CONTENT_TOP + 5);
+  doc.setDrawColor(200, 210, 230);
+  doc.setLineWidth(0.3);
+  doc.line(10, CONTENT_TOP + 7, pageW - 10, CONTENT_TOP + 7);
 
   autoTable(doc, {
-    startY: 26,
-    head: [["#", "State", "Branch", "Status", "Offline Days", "Remark"]],
-    body: devices.map((d, i) => [
-      String(i + 1),
-      d.stateName,
-      d.branchName,
-      "Offline",
-      String(d.offlineDays),
-      d.remark || (d.offlineDays >= 3 ? `Offline for ${d.offlineDays} days` : ""),
-    ]),
-    styles: { fontSize: 9, cellPadding: 3 },
-    headStyles: { fillColor: [255, 192, 0], textColor: [0, 0, 0], fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [255, 250, 235] },
-    columnStyles: {
-      0: { halign: "center", cellWidth: 12 },
-      3: { halign: "center", cellWidth: 22 },
-      4: { halign: "center", cellWidth: 26 },
+    startY: CONTENT_TOP + 10,
+    head: [["Status", "Count", "Percentage"]],
+    body: [
+      ["Offline", devices.length.toString(), "100.0%"],
+      ["Total", devices.length.toString(), "100.0%"],
+    ],
+    headStyles: {
+      fillColor: [220, 230, 241],
+      textColor: [30, 30, 30],
+      fontStyle: "bold",
+      halign: "center",
+      fontSize: 9,
     },
+    bodyStyles: { halign: "center", fontSize: 9 },
+    columnStyles: {
+      0: { halign: "left", cellWidth: 50 },
+      1: { cellWidth: 30 },
+      2: { cellWidth: 40 },
+    },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    didParseCell: (data) => {
+      if (data.row.index === 1) {
+        data.cell.styles.fontStyle = "bold";
+        data.cell.styles.fillColor = [240, 240, 240];
+      }
+      if (data.section === "body" && data.column.index === 0 && data.row.index === 0) {
+        data.cell.styles.textColor = [185, 28, 28];
+      }
+    },
+    margin: { left: 10, right: 10, top: PDF_HEADER_HEIGHT + 2 },
   });
+
+  const afterSummary = (doc as any).lastAutoTable?.finalY ?? CONTENT_TOP + 40;
+  let nextY = afterSummary + 12;
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(30, 58, 138);
+  doc.text(`Offline Device List (${devices.length} devices)`, 10, nextY);
+  doc.setDrawColor(200, 210, 230);
+  doc.setLineWidth(0.3);
+  doc.line(10, nextY + 2, pageW - 10, nextY + 2);
+
+  autoTable(doc, {
+    startY: nextY + 5,
+    head: [["#", "Branch Name", "State", "Serial Number", "Days Offline", "Remark"]],
+    body: devices.map((d, i) => [
+      (i + 1).toString(),
+      d.branchName,
+      d.stateName,
+      d.serialNumber,
+      `${d.offlineDays} days`,
+      d.remark || (d.offlineDays >= 3 ? `Offline for ${d.offlineDays} days` : "—"),
+    ]),
+    headStyles: {
+      fillColor: [29, 78, 216],
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+      fontSize: 8,
+      halign: "center",
+    },
+    bodyStyles: { fontSize: 8 },
+    columnStyles: {
+      0: { cellWidth: 10, halign: "center" },
+      1: { cellWidth: 45, fontStyle: "bold", textColor: [185, 28, 28] },
+      2: { cellWidth: 35 },
+      3: { cellWidth: 35, textColor: [80, 80, 80] },
+      4: { cellWidth: 22, halign: "center" },
+      5: { cellWidth: 45 },
+    },
+    alternateRowStyles: { fillColor: [254, 242, 242] },
+    didParseCell: (data) => {
+      if (data.section === "body" && data.column.index === 4) {
+        const days = parseInt(String(data.cell.raw), 10);
+        if (!isNaN(days) && days >= 3) {
+          data.cell.styles.textColor = [185, 28, 28];
+          data.cell.styles.fontStyle = "bold";
+        }
+      }
+    },
+    margin: { left: 10, right: 10, top: PDF_HEADER_HEIGHT + 2 },
+  });
+
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    addPdfPageElements(doc, p, totalPages, generatedAt, "Branch CCTV Offline Report");
+  }
 
   return Buffer.from(doc.output("arraybuffer"));
 }
@@ -348,21 +485,27 @@ type DvrRecord = { state: string; branch: string; branchCameraCount: number | nu
 function buildDvrReportPDF(records: DvrRecord[], dateStr: string, periodLabel: string): Buffer {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
-
-  doc.setFontSize(14);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(0, 0, 0);
-  doc.text("Light Finance — DVR Storage Activity Report", pageW / 2, 14, { align: "center" });
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.text(`Period: ${periodLabel}   |   Date: ${dateStr}`, pageW / 2, 21, { align: "center" });
+  const CONTENT_TOP = PDF_HEADER_HEIGHT + 4;
+  const generatedAt = new Date().toLocaleString("en-IN", {
+    day: "2-digit", month: "long", year: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    timeZoneName: "short",
+  });
 
   const completed = records.filter((r) => r.status === "completed");
   const pending = records.filter((r) => r.status === "pending");
 
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(30, 58, 138);
+  doc.text("DVR Storage Activity Records", 10, CONTENT_TOP + 5);
+  doc.setDrawColor(200, 210, 230);
+  doc.setLineWidth(0.3);
+  doc.line(10, CONTENT_TOP + 7, pageW - 10, CONTENT_TOP + 7);
+
   autoTable(doc, {
-    startY: 27,
-    head: [["#", "State", "Branch", "Branch Camera Count", "Recording Cameras", "Not Working", "Last Recording", "Activity Date", "Recording Days", "Remark", "Status"]],
+    startY: CONTENT_TOP + 10,
+    head: [["#", "State", "Branch", "Branch Camera Count", "No Of Recording Camera", "No Of Not Working Camera", "Last Recording", "Activity Date", "Total Recording Day", "Remark", "Status"]],
     body: records.map((r, i) => [
       String(i + 1),
       r.state,
@@ -374,43 +517,64 @@ function buildDvrReportPDF(records: DvrRecord[], dateStr: string, periodLabel: s
       r.activityDate,
       r.totalRecordingDay != null ? String(r.totalRecordingDay) : "—",
       r.remark || "—",
-      r.status === "completed" ? "Done" : "Pending",
+      r.status === "completed" ? "✓ Completed" : "Pending",
     ]),
-    styles: { fontSize: 8, cellPadding: 3, textColor: [0, 0, 0] },
-    headStyles: { fillColor: [255, 192, 0], textColor: [0, 0, 0], fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [255, 250, 235] },
+    headStyles: {
+      fillColor: [29, 78, 216],
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+      fontSize: 7,
+      halign: "center",
+    },
+    bodyStyles: { fontSize: 7, cellPadding: 2 },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
     columnStyles: {
-      0: { halign: "center", cellWidth: 10 },
-      1: { cellWidth: 22 },
-      2: { cellWidth: 34 },
-      3: { halign: "center", cellWidth: 22 },
-      4: { halign: "center", cellWidth: 22 },
-      5: { halign: "center", cellWidth: 20 },
-      6: { halign: "center", cellWidth: 26 },
-      7: { halign: "center", cellWidth: 22 },
-      8: { halign: "center", cellWidth: 20 },
+      0: { cellWidth: 8, halign: "center" },
+      1: { cellWidth: 20 },
+      2: { cellWidth: 32, fontStyle: "bold" },
+      3: { cellWidth: 20, halign: "center" },
+      4: { cellWidth: 24, halign: "center" },
+      5: { cellWidth: 20, halign: "center" },
+      6: { cellWidth: 26, halign: "center" },
+      7: { cellWidth: 22, halign: "center" },
+      8: { cellWidth: 18, halign: "center" },
       9: { cellWidth: 28 },
-      10: { halign: "center", cellWidth: 20 },
+      10: { cellWidth: 22, halign: "center" },
     },
     didParseCell: (data) => {
       if (data.column.index === 10 && data.section === "body") {
         const val = String(data.cell.raw);
         data.cell.styles.fontStyle = "bold";
-        data.cell.styles.textColor = val === "Done" ? [22, 163, 74] : [220, 38, 38];
+        if (val.includes("Completed")) {
+          data.cell.styles.textColor = [22, 163, 74];
+        } else {
+          data.cell.styles.textColor = [220, 38, 38];
+        }
       }
     },
+    margin: { left: 10, right: 10, top: PDF_HEADER_HEIGHT + 2 },
   });
 
-  const finalY = (doc as any).lastAutoTable?.finalY ?? 27;
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(0, 0, 0);
+  const finalY = (doc as any).lastAutoTable?.finalY ?? CONTENT_TOP + 10;
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(60, 60, 60);
   doc.text(
     `Total: ${records.length}  |  Completed: ${completed.length}  |  Pending: ${pending.length}`,
     pageW / 2,
-    finalY + 8,
+    finalY + 7,
     { align: "center" }
   );
+
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    addPdfPageElements(
+      doc, p, totalPages, generatedAt,
+      "DVR Storage Activity Report",
+      `${PDF_PORTAL_NAME}  |  Period: ${periodLabel}`
+    );
+  }
 
   return Buffer.from(doc.output("arraybuffer"));
 }

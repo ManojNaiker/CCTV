@@ -105,23 +105,57 @@ function EditableCellInner({ value, onSave, type = "text", align = "left" }: Edi
 }
 const EditableCell = memo(EditableCellInner);
 
-function generateDvrPDF(records: DvrRecord[], date: string) {
+async function generateDvrPDF(records: DvrRecord[], date: string) {
+  const COMPANY_NAME = "Light Finance";
+  const PORTAL_NAME = "CCTV Monitoring Portal";
+  const REPORT_TITLE = "DVR Storage Activity Report";
+  const HEADER_HEIGHT = 28;
+
+  async function loadLogoBase64(): Promise<{ base64: string; img: HTMLImageElement } | null> {
+    try {
+      const url = `${window.location.origin}/logo.png`;
+      const res = await fetch(url, { cache: "force-cache" });
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = base64;
+      });
+      return { base64, img };
+    } catch {
+      return null;
+    }
+  }
+
+  const logo = await loadLogoBase64();
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
+  const CONTENT_TOP = HEADER_HEIGHT + 4;
 
-  doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, pageW, 22, "F");
-  doc.setFontSize(13);
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.text("Light Finance — DVR Storage Report", 14, 9);
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(148, 163, 184);
-  doc.text(`Activity Date: ${date}   |   Generated: ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`, 14, 16);
+  const generatedAt = new Date().toLocaleString("en-IN", {
+    day: "2-digit", month: "long", year: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    timeZoneName: "short",
+  });
 
   const completed = records.filter((r) => r.status === "completed");
   const pending = records.filter((r) => r.status === "pending");
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(30, 58, 138);
+  doc.text("DVR Storage Activity Records", 10, CONTENT_TOP + 5);
+  doc.setDrawColor(200, 210, 230);
+  doc.setLineWidth(0.3);
+  doc.line(10, CONTENT_TOP + 7, pageW - 10, CONTENT_TOP + 7);
 
   const rows = records.map((r, i) => [
     i + 1,
@@ -138,46 +172,131 @@ function generateDvrPDF(records: DvrRecord[], date: string) {
   ]);
 
   autoTable(doc, {
-    startY: 26,
+    startY: CONTENT_TOP + 10,
     head: [["#", "State", "Branch", "Branch Camera Count", "No Of Recording Camera", "No Of Not Working Camera", "Last Recording", "Activity Date", "Total Recording Day", "Remark", "Status"]],
     body: rows,
-    styles: { fontSize: 7, cellPadding: 2 },
-    headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: "bold", fontSize: 7 },
+    headStyles: {
+      fillColor: [29, 78, 216],
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+      fontSize: 7,
+      halign: "center",
+    },
+    bodyStyles: { fontSize: 7, cellPadding: 2 },
     alternateRowStyles: { fillColor: [248, 250, 252] },
     columnStyles: {
-      0: { cellWidth: 8 },
+      0: { cellWidth: 8, halign: "center" },
       1: { cellWidth: 20 },
-      2: { cellWidth: 32 },
-      3: { cellWidth: 20 },
-      4: { cellWidth: 24 },
-      5: { cellWidth: 20 },
-      6: { cellWidth: 26 },
-      7: { cellWidth: 22 },
-      8: { cellWidth: 18 },
+      2: { cellWidth: 32, fontStyle: "bold" },
+      3: { cellWidth: 20, halign: "center" },
+      4: { cellWidth: 24, halign: "center" },
+      5: { cellWidth: 20, halign: "center" },
+      6: { cellWidth: 26, halign: "center" },
+      7: { cellWidth: 22, halign: "center" },
+      8: { cellWidth: 18, halign: "center" },
       9: { cellWidth: 28 },
-      10: { cellWidth: 22 },
+      10: { cellWidth: 22, halign: "center" },
     },
     didParseCell: (data) => {
       if (data.column.index === 10 && data.section === "body") {
         const val = String(data.cell.raw);
+        data.cell.styles.fontStyle = "bold";
         if (val.includes("Completed")) {
           data.cell.styles.textColor = [22, 163, 74];
-          data.cell.styles.fontStyle = "bold";
         } else {
-          data.cell.styles.textColor = [239, 68, 68];
+          data.cell.styles.textColor = [220, 38, 38];
         }
       }
     },
+    margin: { left: 10, right: 10, top: HEADER_HEIGHT + 2 },
   });
 
-  const finalY = (doc as any).lastAutoTable?.finalY ?? 26;
+  const finalY = (doc as any).lastAutoTable?.finalY ?? CONTENT_TOP + 10;
   doc.setFontSize(8);
-  doc.setTextColor(100, 116, 139);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(60, 60, 60);
   doc.text(
     `Total: ${records.length}  |  Completed: ${completed.length}  |  Pending: ${pending.length}`,
-    14,
-    finalY + 8
+    pageW / 2,
+    finalY + 7,
+    { align: "center" }
   );
+
+  function drawWatermark(d: jsPDF, logoImg: HTMLImageElement) {
+    const pW = d.internal.pageSize.getWidth();
+    const pH = d.internal.pageSize.getHeight();
+    const wmSize = 80;
+    const canvasDim = wmSize * 3;
+    const wmCanvas = document.createElement("canvas");
+    wmCanvas.width = canvasDim;
+    wmCanvas.height = canvasDim;
+    const wmCtx = wmCanvas.getContext("2d")!;
+    wmCtx.save();
+    wmCtx.translate(canvasDim / 2, canvasDim / 2);
+    wmCtx.rotate((45 * Math.PI) / 180);
+    wmCtx.globalAlpha = 0.06;
+    wmCtx.drawImage(logoImg, -wmSize * 1.2, -wmSize * 1.2, wmSize * 2.4, wmSize * 2.4);
+    wmCtx.restore();
+    const wmData = wmCanvas.toDataURL("image/png");
+    d.addImage(wmData, "PNG", pW / 2 - 40, pH / 2 - 40, 80, 80);
+  }
+
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    const lPageW = doc.internal.pageSize.getWidth();
+    const lPageH = doc.internal.pageSize.getHeight();
+
+    if (logo) drawWatermark(doc, logo.img);
+
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 0, lPageW, HEADER_HEIGHT, "F");
+
+    const logoH = 14, logoW = 28;
+    if (logo) {
+      doc.addImage(logo.base64, "PNG", 10, 5, logoW, logoH);
+    } else {
+      doc.setFillColor(29, 78, 216);
+      doc.roundedRect(10, 6, logoW, logoH - 2, 2, 2, "F");
+      doc.setFontSize(7);
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.text(COMPANY_NAME, 10 + logoW / 2, 14, { align: "center" });
+    }
+
+    doc.setFontSize(14);
+    doc.setTextColor(22, 22, 22);
+    doc.setFont("helvetica", "bold");
+    doc.text(REPORT_TITLE, lPageW / 2, 11, { align: "center" });
+
+    doc.setFontSize(7.5);
+    doc.setTextColor(110, 110, 110);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${PORTAL_NAME}  |  Activity Date: ${date}`, lPageW / 2, 17, { align: "center" });
+
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.5);
+    doc.line(10, HEADER_HEIGHT, lPageW - 10, HEADER_HEIGHT);
+
+    const footerY = lPageH - 12;
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, footerY - 5, lPageW, 20, "F");
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.3);
+    doc.line(10, footerY - 3, lPageW - 10, footerY - 3);
+
+    doc.setFontSize(7);
+    doc.setTextColor(130, 130, 130);
+    doc.setFont("helvetica", "normal");
+    doc.text(COMPANY_NAME, 10, footerY + 1);
+    doc.text(`Generated: ${generatedAt}`, 10, footerY + 5);
+    doc.text(PORTAL_NAME, lPageW - 10, footerY + 1, { align: "right" });
+    doc.text("Confidential — Internal Use Only", lPageW - 10, footerY + 5, { align: "right" });
+
+    doc.setFontSize(8);
+    doc.setTextColor(60, 60, 60);
+    doc.text(`Page ${p} of ${totalPages}`, lPageW / 2, footerY + 3, { align: "center" });
+  }
 
   doc.save(`DVR_Storage_Report_${date}.pdf`);
 }
@@ -361,7 +480,7 @@ export default function DvrStorage() {
   const handleExportPDF = async () => {
     setExportingPDF(true);
     try {
-      generateDvrPDF(records, date);
+      await generateDvrPDF(records, date);
     } finally {
       setExportingPDF(false);
     }

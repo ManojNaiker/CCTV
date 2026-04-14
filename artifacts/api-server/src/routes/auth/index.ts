@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { createSession, getSession, deleteSession } from "../../lib/sessions";
 import { logger } from "../../lib/logger";
@@ -31,15 +31,19 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   const { username, password } = req.body as { username?: string; password?: string };
 
   if (!username || !password) {
-    res.status(400).json({ error: "Username and password are required" });
+    res.status(400).json({ error: "Username / email and password are required" });
     return;
   }
 
   try {
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.username, username));
+    const identifier = username.trim();
+    // Support login by username OR email
+    const [user] = await db.select().from(usersTable).where(
+      or(eq(usersTable.username, identifier), eq(usersTable.email, identifier))
+    );
 
     if (!user || !checkPassword(password, user.passwordHash)) {
-      res.status(401).json({ error: "Invalid username or password" });
+      res.status(401).json({ error: "Invalid username/email or password" });
       return;
     }
 
@@ -147,12 +151,15 @@ router.post("/auth/verify-password", async (req, res): Promise<void> => {
 router.post("/auth/forgot-password", async (req, res): Promise<void> => {
   const { username } = req.body as { username?: string };
   if (!username) {
-    res.status(400).json({ error: "Username is required" });
+    res.status(400).json({ error: "Username or email is required" });
     return;
   }
 
   try {
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.username, username.trim()));
+    const identifier = username.trim();
+    const [user] = await db.select().from(usersTable).where(
+      or(eq(usersTable.username, identifier), eq(usersTable.email, identifier))
+    );
     if (!user || !user.isActive) {
       // Don't reveal if user exists — always respond success
       res.json({ ok: true });

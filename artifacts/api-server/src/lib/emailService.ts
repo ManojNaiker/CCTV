@@ -321,55 +321,87 @@ function buildOfflinePDF(devices: OfflineDevice[], dateStr: string): Buffer {
 
 export async function sendUserCreatedEmail(userData: {
   name: string;
+  username: string;
   email: string;
   role: string;
   tempPassword?: string;
 }): Promise<void> {
-  const subject = `New User Account Created — ${userData.name}`;
+  if (!userData.email) return;
+
+  const loginUrl = process.env["REPLIT_DEV_DOMAIN"]
+    ? `https://${process.env["REPLIT_DEV_DOMAIN"]}`
+    : "the portal URL";
+
+  const subject = `Your Light Finance CCTV Portal Account is Ready`;
   const html = `
-    <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 8px;">
-      <div style="border-bottom: 2px solid #1d4ed8; padding-bottom: 16px; margin-bottom: 24px;">
-        <h2 style="color: #1e3a5f; margin: 0; font-size: 20px;">Light Finance — CCTV Portal</h2>
-        <p style="color: #6b7280; margin: 4px 0 0; font-size: 13px;">User Management Notification</p>
+    <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden;">
+
+      <!-- Header -->
+      <div style="background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%); padding: 28px 32px;">
+        <h2 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.3px;">Light Finance — CCTV Portal</h2>
+        <p style="color: #bfdbfe; margin: 4px 0 0; font-size: 13px;">Your account has been created</p>
       </div>
-      
-      <h3 style="color: #111827; font-size: 16px; margin: 0 0 16px;">New User Account Created</h3>
-      
-      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-        <tr style="border-bottom: 1px solid #f3f4f6;">
-          <td style="padding: 10px 0; color: #6b7280; width: 140px;">Name</td>
-          <td style="padding: 10px 0; color: #111827; font-weight: 600;">${userData.name}</td>
-        </tr>
-        <tr style="border-bottom: 1px solid #f3f4f6;">
-          <td style="padding: 10px 0; color: #6b7280;">Email</td>
-          <td style="padding: 10px 0; color: #111827;">${userData.email}</td>
-        </tr>
-        <tr style="border-bottom: 1px solid #f3f4f6;">
-          <td style="padding: 10px 0; color: #6b7280;">Role</td>
-          <td style="padding: 10px 0; color: #111827;">
-            <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">${userData.role}</span>
-          </td>
-        </tr>
-        ${userData.tempPassword ? `
-        <tr>
-          <td style="padding: 10px 0; color: #6b7280;">Temporary Password</td>
-          <td style="padding: 10px 0;">
-            <code style="background: #f9fafb; border: 1px solid #e5e7eb; padding: 4px 10px; border-radius: 4px; font-size: 13px; color: #111827;">${userData.tempPassword}</code>
-          </td>
-        </tr>` : ""}
-      </table>
-      
-      <div style="margin-top: 24px; padding: 12px 16px; background: #fef9c3; border-left: 3px solid #eab308; border-radius: 4px; font-size: 13px; color: #713f12;">
-        Please ensure the user changes their password on first login.
+
+      <!-- Body -->
+      <div style="padding: 28px 32px; background: #ffffff;">
+        <p style="font-size: 15px; color: #111827; margin: 0 0 6px;">Hi <strong>${userData.name}</strong>,</p>
+        <p style="font-size: 14px; color: #374151; margin: 0 0 24px; line-height: 1.6;">
+          An account has been created for you on the <strong>Light Finance CCTV Monitoring Portal</strong>. Use the credentials below to sign in.
+        </p>
+
+        <!-- Credentials Box -->
+        <div style="background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 20px 24px; margin-bottom: 24px;">
+          <p style="margin: 0 0 14px; font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;">Login Credentials</p>
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <tr style="border-bottom: 1px solid #dbeafe;">
+              <td style="padding: 10px 0; color: #6b7280; width: 130px;">User ID</td>
+              <td style="padding: 10px 0;">
+                <code style="background: #ffffff; border: 1px solid #bfdbfe; padding: 3px 10px; border-radius: 5px; font-size: 14px; color: #1d4ed8; font-weight: 600;">${userData.username}</code>
+              </td>
+            </tr>
+            ${userData.tempPassword ? `
+            <tr style="border-bottom: 1px solid #dbeafe;">
+              <td style="padding: 10px 0; color: #6b7280;">Password</td>
+              <td style="padding: 10px 0;">
+                <code style="background: #ffffff; border: 1px solid #bfdbfe; padding: 3px 10px; border-radius: 5px; font-size: 14px; color: #1d4ed8; font-weight: 600;">${userData.tempPassword}</code>
+              </td>
+            </tr>` : ""}
+            <tr style="border-bottom: 1px solid #dbeafe;">
+              <td style="padding: 10px 0; color: #6b7280;">Role</td>
+              <td style="padding: 10px 0;">
+                <span style="background: #dbeafe; color: #1d4ed8; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; text-transform: capitalize;">${userData.role}</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; color: #6b7280;">Email</td>
+              <td style="padding: 10px 0; color: #111827;">${userData.email}</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Login Button -->
+        <div style="text-align: center; margin-bottom: 24px;">
+          <a href="${loginUrl}" style="display: inline-block; background: #1d4ed8; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px; padding: 12px 32px; border-radius: 8px; letter-spacing: 0.02em;">
+            Sign In to Portal →
+          </a>
+        </div>
+
+        <div style="padding: 12px 16px; background: #fef9c3; border-left: 3px solid #eab308; border-radius: 4px; font-size: 13px; color: #713f12;">
+          For security, please change your password after your first login.
+        </div>
       </div>
-      
-      <div style="margin-top: 32px; font-size: 11px; color: #9ca3af; border-top: 1px solid #f3f4f6; padding-top: 16px;">
-        This is an automated notification from the Light Finance CCTV Monitoring System.
+
+      <!-- Footer -->
+      <div style="padding: 16px 32px; background: #f9fafb; border-top: 1px solid #f3f4f6;">
+        <p style="margin: 0; font-size: 11px; color: #9ca3af;">
+          This is an automated message from the Light Finance CCTV Monitoring System. Do not reply to this email.
+        </p>
       </div>
     </div>
   `;
 
-  await sendEmail(subject, html);
+  // Send directly to the new user's email
+  await sendEmail(subject, html, undefined, [userData.email]);
 }
 
 type OfflineDevice = {

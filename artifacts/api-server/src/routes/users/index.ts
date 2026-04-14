@@ -73,6 +73,7 @@ router.post("/users", async (req, res): Promise<void> => {
   // Send email notification (non-blocking — don't fail on email error)
   sendUserCreatedEmail({
     name: user.fullName,
+    username: user.username,
     email: user.email ?? "",
     role: user.role,
     tempPassword: parsed.data.password,

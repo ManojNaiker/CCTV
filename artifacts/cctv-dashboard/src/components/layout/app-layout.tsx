@@ -171,18 +171,31 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   );
 
   const LogoBlock = () => (
-    <div className={`relative z-10 flex items-center mb-6 ${collapsed ? "justify-center px-1" : "px-2 gap-2"}`}>
+    <div className={`relative z-10 flex items-center mb-6 ${collapsed ? "justify-center px-1" : "px-1"}`}>
       {collapsed ? (
-        <div className="h-9 w-9 rounded-xl bg-white/15 flex items-center justify-center border border-white/20 shadow-inner">
-          <Wifi className="h-4.5 w-4.5 text-white" />
+        <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center shadow-md border border-white/20 overflow-hidden">
+          <img
+            src="/logo.png"
+            alt="Light Finance"
+            className="h-9 w-9 object-contain"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
         </div>
       ) : (
-        <img
-          src="/logo.png"
-          alt="Light Finance"
-          className="h-11 w-auto object-contain brightness-0 invert"
-          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-        />
+        <div className="flex items-center gap-3 bg-white/10 border border-white/15 rounded-2xl px-3 py-2 shadow-inner w-full">
+          <div className="h-10 w-10 rounded-lg bg-white flex items-center justify-center shadow-sm shrink-0 overflow-hidden">
+            <img
+              src="/logo.png"
+              alt="Light Finance"
+              className="h-9 w-9 object-contain"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          </div>
+          <div>
+            <p className="text-white text-[13px] font-bold leading-tight tracking-wide">Light Finance</p>
+            <p className="text-white/45 text-[10px] leading-tight mt-0.5">CCTV Monitoring Portal</p>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -274,8 +287,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="flex flex-col h-full relative overflow-hidden" style={SIDEBAR_STYLE}>
                 <SidebarDecorations />
                 <div className="relative z-10 flex flex-col h-full px-4 py-6">
-                  <div className="px-2 mb-5">
-                    <img src="/logo.png" alt="Light Finance" className="h-11 w-auto object-contain brightness-0 invert" />
+                  <div className="px-1 mb-5">
+                    <div className="flex items-center gap-3 bg-white/10 border border-white/15 rounded-2xl px-3 py-2 shadow-inner">
+                      <div className="h-10 w-10 rounded-lg bg-white flex items-center justify-center shadow-sm shrink-0 overflow-hidden">
+                        <img src="/logo.png" alt="Light Finance" className="h-9 w-9 object-contain" />
+                      </div>
+                      <div>
+                        <p className="text-white text-[13px] font-bold leading-tight tracking-wide">Light Finance</p>
+                        <p className="text-white/45 text-[10px] leading-tight mt-0.5">CCTV Monitoring Portal</p>
+                      </div>
+                    </div>
                   </div>
 
                   {user && (

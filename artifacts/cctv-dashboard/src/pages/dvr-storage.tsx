@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, memo } from "react";
+import { useState, useRef, useCallback, memo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   HardDrive,
@@ -76,6 +76,12 @@ type EditableCellProps = {
 function EditableCellInner({ value, onSave, type = "text", align = "left" }: EditableCellProps) {
   const savedRef = useRef(value != null ? String(value) : "");
   const [localVal, setLocalVal] = useState(value != null ? String(value) : "");
+
+  useEffect(() => {
+    const newStr = value != null ? String(value) : "";
+    setLocalVal(newStr);
+    savedRef.current = newStr;
+  }, [value]);
 
   const handleBlur = useCallback(() => {
     if (localVal !== savedRef.current) {

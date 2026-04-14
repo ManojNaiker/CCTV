@@ -3,7 +3,10 @@ import { useAuth } from "@/context/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Eye, EyeOff, Loader2, XCircle, ShieldCheck, Wifi, Bell, CheckCircle2, ArrowLeft } from "lucide-react";
+import {
+  Eye, EyeOff, Loader2, XCircle, ShieldCheck, Wifi, Bell,
+  CheckCircle2, ArrowLeft, User, Lock, KeyRound,
+} from "lucide-react";
 import logo from "@assets/logo_1775302555993.png";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
@@ -15,14 +18,12 @@ export default function LoginPage() {
 
   const [mode, setMode] = useState<"login" | "forgot">("login");
 
-  // Login state
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Forgot password state
   const [forgotStep, setForgotStep] = useState<ForgotStep>("username");
   const [forgotUsername, setForgotUsername] = useState("");
   const [otp, setOtp] = useState("");
@@ -43,9 +44,7 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     const result = await login(username.trim(), password);
-    if (result.error) {
-      setError(result.error);
-    }
+    if (result.error) setError(result.error);
     setLoading(false);
   };
 
@@ -64,10 +63,7 @@ export default function LoginPage() {
         body: JSON.stringify({ username: forgotUsername.trim() }),
       });
       const data = await res.json() as { ok?: boolean; error?: string };
-      if (!res.ok) {
-        setForgotError(data.error || "Failed to send OTP.");
-        return;
-      }
+      if (!res.ok) { setForgotError(data.error || "Failed to send OTP."); return; }
       setForgotStep("otp");
     } catch {
       setForgotError("Network error. Please try again.");
@@ -78,18 +74,9 @@ export default function LoginPage() {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!otp.trim() || !newPassword || !confirmPassword) {
-      setForgotError("All fields are required.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setForgotError("Passwords do not match.");
-      return;
-    }
-    if (newPassword.length < 6) {
-      setForgotError("Password must be at least 6 characters.");
-      return;
-    }
+    if (!otp.trim() || !newPassword || !confirmPassword) { setForgotError("All fields are required."); return; }
+    if (newPassword !== confirmPassword) { setForgotError("Passwords do not match."); return; }
+    if (newPassword.length < 6) { setForgotError("Password must be at least 6 characters."); return; }
     setForgotLoading(true);
     setForgotError("");
     try {
@@ -99,10 +86,7 @@ export default function LoginPage() {
         body: JSON.stringify({ username: forgotUsername.trim(), otp: otp.trim(), newPassword }),
       });
       const data = await res.json() as { ok?: boolean; error?: string };
-      if (!res.ok) {
-        setForgotError(data.error || "Failed to reset password.");
-        return;
-      }
+      if (!res.ok) { setForgotError(data.error || "Failed to reset password."); return; }
       setForgotSuccess(true);
     } catch {
       setForgotError("Network error. Please try again.");
@@ -127,9 +111,7 @@ export default function LoginPage() {
       {/* Left branding panel */}
       <div
         className="hidden lg:flex flex-col justify-between flex-1 p-12 relative overflow-hidden"
-        style={{
-          background: "linear-gradient(145deg, #1e40af 0%, #1d4ed8 40%, #2563eb 70%, #3b82f6 100%)",
-        }}
+        style={{ background: "linear-gradient(145deg, #1e40af 0%, #1d4ed8 40%, #2563eb 70%, #3b82f6 100%)" }}
       >
         <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-white/5" />
         <div className="absolute top-1/3 -right-16 w-64 h-64 rounded-full bg-white/5" />
@@ -156,9 +138,9 @@ export default function LoginPage() {
 
           <div className="space-y-3">
             {[
-              { icon: ShieldCheck, text: "Secure role-based access" },
-              { icon: Wifi, text: "255+ branches — All India" },
-              { icon: Bell, text: "Instant offline alerts" },
+              { icon: ShieldCheck, text: "Secure role-based access control" },
+              { icon: Wifi, text: "255+ branches monitored — All India" },
+              { icon: Bell, text: "Instant offline alerts & notifications" },
             ].map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3">
                 <div className="h-8 w-8 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
@@ -176,58 +158,79 @@ export default function LoginPage() {
       </div>
 
       {/* Right panel */}
-      <div className="flex flex-1 lg:max-w-[440px] items-center justify-center bg-gray-50 p-8">
+      <div className="flex flex-1 lg:max-w-[460px] items-center justify-center bg-gray-50 p-8">
         <div className="w-full max-w-sm">
 
           {/* Mobile logo */}
-          <div className="lg:hidden flex justify-center mb-8">
+          <div className="lg:hidden flex justify-center mb-6">
             <img src={logo} alt="Light Finance" className="h-10 w-auto object-contain" />
           </div>
 
           {mode === "login" ? (
             <>
-              <div className="mb-8">
-                <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Welcome back</h1>
-                <p className="text-sm text-gray-500 mt-1">Sign in to your account</p>
+              {/* Heading */}
+              <div className="mb-7">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold mb-3 tracking-wide">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                  CCTV Monitoring Portal
+                </div>
+                <h1 className="text-[26px] font-bold text-gray-900 tracking-tight leading-tight">
+                  Welcome Back
+                </h1>
+                <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
+                  Sign in with your credentials to access the<br className="hidden sm:block" /> monitoring dashboard.
+                </p>
               </div>
 
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              {/* Form card */}
+              <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6 space-y-5">
                 <form onSubmit={handleSubmit} className="space-y-4">
+
+                  {/* Username */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="username" className="text-sm font-medium text-gray-700">Username or Email</Label>
-                    <Input
-                      id="username"
-                      placeholder="Enter username or email"
-                      autoComplete="username"
-                      autoFocus
-                      value={username}
-                      onChange={e => { setUsername(e.target.value); setError(""); }}
-                      disabled={loading}
-                      className="h-10 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-blue-500/30 focus-visible:border-blue-400"
-                    />
+                    <Label htmlFor="username" className="text-sm font-semibold text-gray-700">
+                      Username or Email
+                    </Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                      <Input
+                        id="username"
+                        placeholder="Enter your username or email"
+                        autoComplete="username"
+                        autoFocus
+                        value={username}
+                        onChange={e => { setUsername(e.target.value); setError(""); }}
+                        disabled={loading}
+                        className="h-11 pl-10 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-blue-500/30 focus-visible:border-blue-400 transition-colors"
+                      />
+                    </div>
                   </div>
 
+                  {/* Password */}
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="password" className="text-sm font-medium text-gray-700">Password</Label>
+                      <Label htmlFor="password" className="text-sm font-semibold text-gray-700">
+                        Password
+                      </Label>
                       <button
                         type="button"
                         onClick={() => { setMode("forgot"); setForgotUsername(username); }}
-                        className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                        className="text-xs text-blue-600 hover:text-blue-700 font-semibold transition-colors hover:underline underline-offset-2"
                       >
                         Forgot password?
                       </button>
                     </div>
                     <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                       <Input
                         id="password"
                         type={showPassword ? "text" : "password"}
-                        placeholder="Enter password"
+                        placeholder="Enter your password"
                         autoComplete="current-password"
                         value={password}
                         onChange={e => { setPassword(e.target.value); setError(""); }}
                         disabled={loading}
-                        className="h-10 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-blue-500/30 focus-visible:border-blue-400 pr-10"
+                        className="h-11 pl-10 pr-10 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-blue-500/30 focus-visible:border-blue-400 transition-colors"
                       />
                       <button
                         type="button"
@@ -240,100 +243,116 @@ export default function LoginPage() {
                     </div>
                   </div>
 
+                  {/* Error */}
                   {error && (
-                    <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-600">
-                      <XCircle className="h-4 w-4 shrink-0" />
-                      {error}
+                    <div className="flex items-start gap-2.5 rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-600">
+                      <XCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                      <span>{error}</span>
                     </div>
                   )}
 
+                  {/* Submit */}
                   <Button
                     type="submit"
-                    className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white font-medium gap-2 mt-1"
+                    className="w-full h-11 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold rounded-xl gap-2 shadow-sm shadow-blue-200 transition-all mt-1"
                     disabled={loading}
                   >
                     {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                    {loading ? "Signing in..." : "Sign In"}
+                    {loading ? "Signing in…" : "Sign In"}
                   </Button>
                 </form>
-              </div>
 
-              <p className="text-center text-xs text-gray-400 mt-5">
-                Default credentials: <span className="font-mono text-gray-500">admin</span> / <span className="font-mono text-gray-500">admin@123</span>
-              </p>
+                {/* Divider */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-gray-100" />
+                  <span className="text-xs text-gray-400 font-medium">default credentials</span>
+                  <div className="flex-1 h-px bg-gray-100" />
+                </div>
+
+                {/* Default credentials */}
+                <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="text-xs text-gray-500">
+                    <span className="block font-semibold text-gray-600 mb-0.5">Administrator</span>
+                    <span className="font-mono text-gray-700">admin</span>
+                    <span className="text-gray-400 mx-1">/</span>
+                    <span className="font-mono text-gray-700">admin@123</span>
+                  </div>
+                  <ShieldCheck className="h-5 w-5 text-blue-400 shrink-0" />
+                </div>
+              </div>
             </>
           ) : (
             <>
-              <div className="mb-8">
+              <div className="mb-7">
                 <button
                   type="button"
                   onClick={resetForgot}
-                  className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-4 transition-colors"
+                  className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-blue-600 mb-4 transition-colors font-medium"
                 >
                   <ArrowLeft className="h-4 w-4" /> Back to Login
                 </button>
-                <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Reset Password</h1>
-                <p className="text-sm text-gray-500 mt-1">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold mb-3 tracking-wide">
+                  <KeyRound className="h-3 w-3" />
+                  Password Recovery
+                </div>
+                <h1 className="text-[26px] font-bold text-gray-900 tracking-tight">Reset Password</h1>
+                <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
                   {forgotStep === "username"
-                    ? "Enter your username or email to receive an OTP on your registered email."
-                    : `OTP sent to your email. Enter it below along with your new password.`}
+                    ? "Enter your username or email address to receive an OTP on your registered email."
+                    : "OTP has been sent to your email. Enter it below along with your new password."}
                 </p>
               </div>
 
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
                 {forgotSuccess ? (
                   <div className="text-center py-4 space-y-4">
                     <div className="flex justify-center">
-                      <div className="h-14 w-14 rounded-full bg-green-100 flex items-center justify-center">
-                        <CheckCircle2 className="h-7 w-7 text-green-600" />
+                      <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center">
+                        <CheckCircle2 className="h-8 w-8 text-green-600" />
                       </div>
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-900">Password Reset Successfully!</p>
+                      <p className="font-bold text-gray-900 text-lg">Password Reset Successful!</p>
                       <p className="text-sm text-gray-500 mt-1">You can now sign in with your new password.</p>
                     </div>
-                    <Button
-                      className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={resetForgot}
-                    >
+                    <Button className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl" onClick={resetForgot}>
                       Go to Login
                     </Button>
                   </div>
                 ) : forgotStep === "username" ? (
                   <form onSubmit={handleRequestOtp} className="space-y-4">
                     <div className="space-y-1.5">
-                      <Label htmlFor="forgotUsername" className="text-sm font-medium text-gray-700">Username or Email</Label>
-                      <Input
-                        id="forgotUsername"
-                        placeholder="Enter your username or email"
-                        autoFocus
-                        value={forgotUsername}
-                        onChange={e => { setForgotUsername(e.target.value); setForgotError(""); }}
-                        disabled={forgotLoading}
-                        className="h-10 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-blue-500/30 focus-visible:border-blue-400"
-                      />
+                      <Label htmlFor="forgotUsername" className="text-sm font-semibold text-gray-700">Username or Email</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                        <Input
+                          id="forgotUsername"
+                          placeholder="Enter your username or email"
+                          autoFocus
+                          value={forgotUsername}
+                          onChange={e => { setForgotUsername(e.target.value); setForgotError(""); }}
+                          disabled={forgotLoading}
+                          className="h-11 pl-10 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-blue-500/30 focus-visible:border-blue-400"
+                        />
+                      </div>
                     </div>
 
                     {forgotError && (
-                      <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-600">
-                        <XCircle className="h-4 w-4 shrink-0" />
-                        {forgotError}
+                      <div className="flex items-start gap-2.5 rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-600">
+                        <XCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                        <span>{forgotError}</span>
                       </div>
                     )}
 
-                    <Button
-                      type="submit"
-                      className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white font-medium gap-2"
-                      disabled={forgotLoading}
-                    >
+                    <Button type="submit" className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl gap-2" disabled={forgotLoading}>
                       {forgotLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                      {forgotLoading ? "Sending OTP..." : "Send OTP"}
+                      {forgotLoading ? "Sending OTP…" : "Send OTP via Email"}
                     </Button>
                   </form>
                 ) : (
                   <form onSubmit={handleResetPassword} className="space-y-4">
                     <div className="space-y-1.5">
-                      <Label htmlFor="otp" className="text-sm font-medium text-gray-700">OTP</Label>
+                      <Label htmlFor="otp" className="text-sm font-semibold text-gray-700">One-Time Password (OTP)</Label>
                       <Input
                         id="otp"
                         placeholder="Enter 6-digit OTP"
@@ -342,70 +361,68 @@ export default function LoginPage() {
                         value={otp}
                         onChange={e => { setOtp(e.target.value.replace(/\D/g, "")); setForgotError(""); }}
                         disabled={forgotLoading}
-                        className="h-10 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-blue-500/30 focus-visible:border-blue-400 font-mono text-center tracking-[0.3em] text-lg"
+                        className="h-11 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-blue-500/30 focus-visible:border-blue-400 font-mono text-center tracking-[0.35em] text-xl"
                       />
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label htmlFor="newPassword" className="text-sm font-medium text-gray-700">New Password</Label>
+                      <Label htmlFor="newPassword" className="text-sm font-semibold text-gray-700">New Password</Label>
                       <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                         <Input
                           id="newPassword"
                           type={showNew ? "text" : "password"}
-                          placeholder="Enter new password (min. 6 chars)"
+                          placeholder="Minimum 6 characters"
                           value={newPassword}
                           onChange={e => { setNewPassword(e.target.value); setForgotError(""); }}
                           disabled={forgotLoading}
-                          className="h-10 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-blue-500/30 focus-visible:border-blue-400 pr-10"
+                          className="h-11 pl-10 pr-10 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-blue-500/30 focus-visible:border-blue-400"
                         />
                         <button type="button" tabIndex={-1} onClick={() => setShowNew(s => !s)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
                           {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label htmlFor="confirmPassword" className="text-sm font-medium text-gray-700">Confirm Password</Label>
+                      <Label htmlFor="confirmPassword" className="text-sm font-semibold text-gray-700">Confirm New Password</Label>
                       <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                         <Input
                           id="confirmPassword"
                           type={showConfirm ? "text" : "password"}
-                          placeholder="Confirm new password"
+                          placeholder="Re-enter new password"
                           value={confirmPassword}
                           onChange={e => { setConfirmPassword(e.target.value); setForgotError(""); }}
                           disabled={forgotLoading}
-                          className="h-10 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-blue-500/30 focus-visible:border-blue-400 pr-10"
+                          className="h-11 pl-10 pr-10 bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-blue-500/30 focus-visible:border-blue-400"
                         />
                         <button type="button" tabIndex={-1} onClick={() => setShowConfirm(s => !s)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
                           {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
                     </div>
 
                     {forgotError && (
-                      <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-600">
-                        <XCircle className="h-4 w-4 shrink-0" />
-                        {forgotError}
+                      <div className="flex items-start gap-2.5 rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-600">
+                        <XCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                        <span>{forgotError}</span>
                       </div>
                     )}
 
-                    <Button
-                      type="submit"
-                      className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white font-medium gap-2"
-                      disabled={forgotLoading}
-                    >
+                    <Button type="submit" className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl gap-2" disabled={forgotLoading}>
                       {forgotLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                      {forgotLoading ? "Resetting..." : "Reset Password"}
+                      {forgotLoading ? "Resetting…" : "Reset Password"}
                     </Button>
 
                     <button
                       type="button"
                       onClick={() => { setForgotStep("username"); setForgotError(""); setOtp(""); }}
-                      className="w-full text-sm text-gray-500 hover:text-blue-600 transition-colors"
+                      className="w-full text-sm text-gray-500 hover:text-blue-600 font-medium transition-colors pt-1"
                     >
-                      Resend OTP
+                      ← Resend OTP
                     </button>
                   </form>
                 )}

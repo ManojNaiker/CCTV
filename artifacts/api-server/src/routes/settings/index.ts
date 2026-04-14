@@ -346,6 +346,52 @@ router.post("/devices/:id/send-alert", async (req, res): Promise<void> => {
   }
 });
 
+// GET offline auto-alert settings
+router.get("/settings/offline-alerts", async (_req, res): Promise<void> => {
+  try {
+    const rows = await db.select().from(settingsTable);
+    const map: Record<string, string> = {};
+    for (const r of rows) map[r.key] = r.value ?? "";
+
+    res.json({
+      enabled: map["offline_auto_alert_enabled"] === "true",
+      delayHours: parseFloat(map["offline_auto_alert_delay_hours"] ?? "1"),
+      reminderHours: parseFloat(map["offline_auto_alert_reminder_hours"] ?? "4"),
+    });
+  } catch (err) {
+    logger.error({ err }, "Failed to get offline alert settings");
+    res.status(500).json({ error: "Failed to get offline alert settings" });
+  }
+});
+
+// POST save offline auto-alert settings
+router.post("/settings/offline-alerts", async (req, res): Promise<void> => {
+  const { enabled, delayHours, reminderHours } = req.body as {
+    enabled?: boolean;
+    delayHours?: number;
+    reminderHours?: number;
+  };
+
+  try {
+    const upsert = async (key: string, value: string) => {
+      await db
+        .insert(settingsTable)
+        .values({ key, value })
+        .onConflictDoUpdate({ target: settingsTable.key, set: { value } });
+    };
+
+    await upsert("offline_auto_alert_enabled", String(enabled === true));
+    await upsert("offline_auto_alert_delay_hours", String(Math.max(0.25, Number(delayHours) || 1)));
+    await upsert("offline_auto_alert_reminder_hours", String(Math.max(0, Number(reminderHours) || 4)));
+
+    logger.info({ enabled, delayHours, reminderHours }, "Offline auto-alert settings saved");
+    res.json({ message: "Offline alert settings saved successfully" });
+  } catch (err) {
+    logger.error({ err }, "Failed to save offline alert settings");
+    res.status(500).json({ error: "Failed to save offline alert settings" });
+  }
+});
+
 // POST send bulk offline alert email for all currently offline devices
 router.post("/devices/send-bulk-alert", async (req, res): Promise<void> => {
   try {

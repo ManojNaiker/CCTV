@@ -114,7 +114,7 @@ const PDF_COMPANY_NAME = "Light Finance";
 const PDF_PORTAL_NAME = "CCTV Monitoring Portal";
 const PDF_HEADER_HEIGHT = 28;
 
-function loadServerLogo(): string | null {
+export function loadServerLogo(): string | null {
   try {
     const paths = [
       resolve(process.cwd(), "../cctv-dashboard/public/logo.png"),
@@ -332,6 +332,11 @@ export async function sendUserCreatedEmail(userData: {
     ? `https://${process.env["REPLIT_DEV_DOMAIN"]}`
     : "the portal URL";
 
+  const logoBase64 = loadServerLogo();
+  const logoHtml = logoBase64
+    ? `<img src="${logoBase64}" alt="Light Finance" style="height:44px;width:auto;display:block;" />`
+    : `<div style="background-color:#ffffff;border-radius:8px;padding:6px 14px;display:inline-block;"><span style="font-size:13px;font-weight:700;color:#1d4ed8;letter-spacing:0.5px;">LIGHT FINANCE</span></div>`;
+
   const subject = `Your Light Finance CCTV Portal Account is Ready`;
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -346,15 +351,9 @@ export async function sendUserCreatedEmail(userData: {
         <td style="background-color:#1d4ed8;padding:0;">
           <table width="100%" cellpadding="0" cellspacing="0">
             <tr>
-              <td style="padding:32px 40px 28px;">
-                <table cellpadding="0" cellspacing="0">
-                  <tr>
-                    <td style="background-color:#ffffff;border-radius:8px;padding:6px 14px;display:inline-block;">
-                      <span style="font-size:13px;font-weight:700;color:#1d4ed8;letter-spacing:0.5px;">LIGHT FINANCE</span>
-                    </td>
-                  </tr>
-                </table>
-                <div style="margin-top:20px;">
+              <td style="padding:28px 40px 24px;">
+                ${logoHtml}
+                <div style="margin-top:18px;">
                   <h1 style="margin:0;font-size:24px;font-weight:700;color:#ffffff;line-height:1.3;">Account Created Successfully</h1>
                   <p style="margin:8px 0 0;font-size:14px;color:#bfdbfe;">CCTV Monitoring Portal — New User Access</p>
                 </div>

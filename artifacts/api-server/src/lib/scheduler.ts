@@ -29,6 +29,22 @@ async function getSchedulerSettings(): Promise<{ enabled: boolean; times: string
   }
 }
 
+async function getOfflineAutoAlertSettings(): Promise<{ enabled: boolean; delayHours: number; reminderHours: number }> {
+  try {
+    const rows = await db.select().from(settingsTable);
+    const map: Record<string, string> = {};
+    for (const r of rows) map[r.key] = r.value ?? "";
+
+    return {
+      enabled: map["offline_auto_alert_enabled"] === "true",
+      delayHours: parseFloat(map["offline_auto_alert_delay_hours"] ?? "1") || 1,
+      reminderHours: parseFloat(map["offline_auto_alert_reminder_hours"] ?? "4") || 4,
+    };
+  } catch {
+    return { enabled: false, delayHours: 1, reminderHours: 4 };
+  }
+}
+
 async function sendScheduledOfflineAlert(label: string): Promise<void> {
   logger.info(`Scheduled email job triggered: ${label}`);
   try {
@@ -101,6 +117,74 @@ async function sendScheduledDvrReport(): Promise<void> {
   }
 }
 
+// In-memory tracking for auto-alert: serialNumber -> { firstAlertAt, lastAlertAt }
+const autoAlertState = new Map<string, { firstAlertAt: Date; lastAlertAt: Date }>();
+
+async function runOfflineAutoAlert(): Promise<void> {
+  const { enabled, delayHours, reminderHours } = await getOfflineAutoAlertSettings();
+  if (!enabled) return;
+
+  const now = new Date();
+  const delayMs = delayHours * 60 * 60 * 1000;
+  const reminderMs = reminderHours * 60 * 60 * 1000;
+
+  try {
+    const rows = await db.select().from(devicesTable);
+    const offlineDevices = rows.filter((d) => d.status === "offline");
+    const onlineSerials = new Set(rows.filter((d) => d.status !== "offline").map((d) => d.serialNumber));
+
+    // Clear state for devices that came back online
+    for (const serial of autoAlertState.keys()) {
+      if (onlineSerials.has(serial)) {
+        autoAlertState.delete(serial);
+      }
+    }
+
+    const toAlert: typeof offlineDevices = [];
+
+    for (const device of offlineDevices) {
+      const offlineSince = device.lastSeenAt ?? device.updatedAt;
+      const offlineForMs = now.getTime() - new Date(offlineSince).getTime();
+
+      if (offlineForMs < delayMs) continue;
+
+      const state = autoAlertState.get(device.serialNumber);
+
+      if (!state) {
+        // First time — send initial alert
+        toAlert.push(device);
+        autoAlertState.set(device.serialNumber, { firstAlertAt: now, lastAlertAt: now });
+      } else if (reminderMs > 0 && now.getTime() - state.lastAlertAt.getTime() >= reminderMs) {
+        // Time for a reminder
+        toAlert.push(device);
+        autoAlertState.set(device.serialNumber, { ...state, lastAlertAt: now });
+      }
+    }
+
+    if (toAlert.length === 0) return;
+
+    await sendBulkOfflineAlert(
+      toAlert.map((d) => ({
+        branchName: d.branchName,
+        serialNumber: d.serialNumber,
+        stateName: d.stateName,
+        offlineDays: d.offlineDays ?? 1,
+        remark: d.remark,
+        email: d.email,
+        ccEmails: d.ccEmails,
+      }))
+    );
+
+    await logAction(
+      "EMAIL_SENT", "device", "bulk",
+      `Auto offline alert sent — ${toAlert.length} device(s) (delay: ${delayHours}h, reminder: ${reminderHours}h)`
+    );
+    logger.info({ count: toAlert.length, delayHours, reminderHours }, "Auto offline alert sent");
+  } catch (err) {
+    logger.error({ err }, "Auto offline alert failed");
+  }
+}
+
 export function startScheduler(): void {
   // Auto-refresh device statuses every 1 minute
   cron.schedule("* * * * *", () => {
@@ -125,6 +209,11 @@ export function startScheduler(): void {
     }
   });
 
+  // Auto offline alert — runs every 5 minutes, sends when delay/reminder thresholds are met
+  cron.schedule("*/5 * * * *", async () => {
+    await runOfflineAutoAlert();
+  });
+
   // DVR activity report — runs daily at 09:00 IST, sends on 15th (mid-month) and last day of month (end-of-month)
   cron.schedule("0 9 * * *", async () => {
     await sendScheduledDvrReport();
@@ -133,5 +222,5 @@ export function startScheduler(): void {
   // Also run one refresh immediately on startup so the dashboard is fresh right away
   setTimeout(() => autoRefreshDevices(), 5000);
 
-  logger.info("Scheduler started — device auto-refresh every min, offline email alerts at configured IST times, DVR activity report on 15th and last day of month at 09:00 IST");
+  logger.info("Scheduler started — device auto-refresh every min, offline email alerts at configured IST times, auto offline alert every 5 min, DVR activity report on 15th and last day of month at 09:00 IST");
 }

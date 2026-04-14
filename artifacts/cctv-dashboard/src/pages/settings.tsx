@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Wifi, WifiOff, ShieldCheck, Save, TestTube2, Mail, Send, Clock, Plus, Trash2 } from "lucide-react";
+import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Wifi, WifiOff, ShieldCheck, Save, TestTube2, Mail, Send, Clock, Plus, Trash2, Bell, BellOff } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -45,6 +45,13 @@ export default function Settings() {
   const [schedulerSaving, setSchedulerSaving] = useState(false);
   const [schedulerMessage, setSchedulerMessage] = useState("");
 
+  // Offline auto-alert state
+  const [offlineAlertEnabled, setOfflineAlertEnabled] = useState(false);
+  const [offlineAlertDelayHours, setOfflineAlertDelayHours] = useState("1");
+  const [offlineAlertReminderHours, setOfflineAlertReminderHours] = useState("4");
+  const [offlineAlertSaving, setOfflineAlertSaving] = useState(false);
+  const [offlineAlertMessage, setOfflineAlertMessage] = useState("");
+
   useEffect(() => {
     fetch(`${BASE}/api/settings`)
       .then((r) => r.json())
@@ -72,6 +79,15 @@ export default function Settings() {
       .then((data: { enabled: boolean; times: string[] }) => {
         if (data.enabled !== undefined) setSchedulerEnabled(data.enabled);
         if (Array.isArray(data.times)) setSchedulerTimes(data.times);
+      })
+      .catch(() => {});
+
+    fetch(`${BASE}/api/settings/offline-alerts`)
+      .then((r) => r.json())
+      .then((data: { enabled: boolean; delayHours: number; reminderHours: number }) => {
+        if (data.enabled !== undefined) setOfflineAlertEnabled(data.enabled);
+        if (data.delayHours !== undefined) setOfflineAlertDelayHours(String(data.delayHours));
+        if (data.reminderHours !== undefined) setOfflineAlertReminderHours(String(data.reminderHours));
       })
       .catch(() => {});
   }, []);
@@ -203,6 +219,32 @@ export default function Settings() {
   const handleRemoveScheduleTime = (t: string) => {
     setSchedulerTimes((prev) => prev.filter((x) => x !== t));
     setSchedulerMessage("");
+  };
+
+  const handleSaveOfflineAlerts = async () => {
+    setOfflineAlertSaving(true);
+    setOfflineAlertMessage("");
+    try {
+      const res = await fetch(`${BASE}/api/settings/offline-alerts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enabled: offlineAlertEnabled,
+          delayHours: parseFloat(offlineAlertDelayHours) || 1,
+          reminderHours: parseFloat(offlineAlertReminderHours) || 4,
+        }),
+      });
+      const data = await res.json() as { message?: string; error?: string };
+      if (res.ok) {
+        setOfflineAlertMessage("Offline alert settings saved successfully!");
+      } else {
+        setOfflineAlertMessage(data.error || "Save failed.");
+      }
+    } catch {
+      setOfflineAlertMessage("Network error — could not save changes.");
+    } finally {
+      setOfflineAlertSaving(false);
+    }
   };
 
   const handleSaveScheduler = async () => {
@@ -598,7 +640,7 @@ export default function Settings() {
 
         {/* ── Email Scheduler Tab ── */}
         <TabsContent value="scheduler" className="flex-1 overflow-y-auto mt-4">
-          <div className="max-w-2xl">
+          <div className="max-w-2xl space-y-4">
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2">
@@ -722,6 +764,146 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Offline Auto-Alert Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                    <Bell className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <CardTitle>Automatic Offline Alert Trigger</CardTitle>
+                    <CardDescription className="mt-0.5">
+                      Auto-send email when a device goes offline for a set duration, with optional periodic reminders.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-5">
+
+                {/* Enable Toggle */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
+                  <div className="flex items-center gap-2">
+                    {offlineAlertEnabled
+                      ? <Bell className="h-4 w-4 text-green-600 shrink-0" />
+                      : <BellOff className="h-4 w-4 text-muted-foreground shrink-0" />}
+                    <div>
+                      <Label className="text-sm font-medium">Auto Offline Alert</Label>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {offlineAlertEnabled
+                          ? "Active — notifications will be sent automatically"
+                          : "Disabled — no automatic notifications"}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch checked={offlineAlertEnabled} onCheckedChange={setOfflineAlertEnabled} />
+                </div>
+
+                <div className={`space-y-4 transition-opacity ${offlineAlertEnabled ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
+                  {/* Delay Hours */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="alert-delay">
+                      Initial Alert Delay{" "}
+                      <span className="text-muted-foreground font-normal text-xs">(hours after device goes offline)</span>
+                    </Label>
+                    <div className="flex items-center gap-3">
+                      <Select
+                        value={offlineAlertDelayHours}
+                        onValueChange={setOfflineAlertDelayHours}
+                        disabled={!offlineAlertEnabled}
+                      >
+                        <SelectTrigger id="alert-delay" className="w-48">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0.25">15 minutes</SelectItem>
+                          <SelectItem value="0.5">30 minutes</SelectItem>
+                          <SelectItem value="1">1 hour</SelectItem>
+                          <SelectItem value="2">2 hours</SelectItem>
+                          <SelectItem value="3">3 hours</SelectItem>
+                          <SelectItem value="4">4 hours</SelectItem>
+                          <SelectItem value="6">6 hours</SelectItem>
+                          <SelectItem value="8">8 hours</SelectItem>
+                          <SelectItem value="12">12 hours</SelectItem>
+                          <SelectItem value="24">24 hours</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Wait this long before sending the first notification
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Reminder Hours */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="alert-reminder">
+                      Reminder Interval{" "}
+                      <span className="text-muted-foreground font-normal text-xs">(repeat notifications while device stays offline)</span>
+                    </Label>
+                    <div className="flex items-center gap-3">
+                      <Select
+                        value={offlineAlertReminderHours}
+                        onValueChange={setOfflineAlertReminderHours}
+                        disabled={!offlineAlertEnabled}
+                      >
+                        <SelectTrigger id="alert-reminder" className="w-48">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">No reminders</SelectItem>
+                          <SelectItem value="1">Every 1 hour</SelectItem>
+                          <SelectItem value="2">Every 2 hours</SelectItem>
+                          <SelectItem value="3">Every 3 hours</SelectItem>
+                          <SelectItem value="4">Every 4 hours</SelectItem>
+                          <SelectItem value="6">Every 6 hours</SelectItem>
+                          <SelectItem value="8">Every 8 hours</SelectItem>
+                          <SelectItem value="12">Every 12 hours</SelectItem>
+                          <SelectItem value="24">Every 24 hours</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Set to "No reminders" to send only once
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/40 p-3 text-xs text-blue-800 dark:text-blue-300 space-y-1">
+                    <p className="font-semibold">How it works:</p>
+                    <p>1. A device goes offline and is detected by the system.</p>
+                    <p>2. After <strong>{offlineAlertDelayHours === "0.25" ? "15 min" : offlineAlertDelayHours === "0.5" ? "30 min" : `${offlineAlertDelayHours} hr`}</strong>, the first alert email is sent automatically.</p>
+                    {offlineAlertReminderHours !== "0"
+                      ? <p>3. A reminder is sent every <strong>{offlineAlertReminderHours} hr</strong> until the device comes back online.</p>
+                      : <p>3. No reminders — alert sent only once per offline event.</p>
+                    }
+                    <p>The check runs automatically every 5 minutes.</p>
+                  </div>
+                </div>
+
+                {/* Status message */}
+                {offlineAlertMessage && (
+                  <div className={`flex items-center gap-2 p-3 rounded-md text-sm ${
+                    offlineAlertMessage.includes("successfully")
+                      ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300"
+                      : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+                  }`}>
+                    {offlineAlertMessage.includes("successfully")
+                      ? <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      : <XCircle className="h-4 w-4 shrink-0" />}
+                    {offlineAlertMessage}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 pt-1">
+                  <Button onClick={handleSaveOfflineAlerts} disabled={offlineAlertSaving} className="gap-2">
+                    {offlineAlertSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    Save Alert Settings
+                  </Button>
+                </div>
+
+              </CardContent>
+            </Card>
+
           </div>
         </TabsContent>
       </Tabs>

@@ -93,7 +93,7 @@ const NAV_GROUPS = [
 ];
 
 const SIDEBAR_STYLE: React.CSSProperties = {
-  background: "linear-gradient(175deg, #1a237e 0%, #283593 30%, #1565c0 60%, #0d47a1 100%)",
+  background: "linear-gradient(175deg, #0a0f2e 0%, #0d1b4b 30%, #0a2a6e 60%, #071f52 100%)",
 };
 
 export function AppLayout({ children }: { children: React.ReactNode }) {

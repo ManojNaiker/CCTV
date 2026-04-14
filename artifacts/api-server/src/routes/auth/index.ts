@@ -53,6 +53,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       id: user.id,
       username: user.username,
       fullName: user.fullName,
+      email: user.email ?? null,
       role: user.role,
     });
   } catch (err) {
@@ -68,7 +69,7 @@ router.post("/auth/logout", (req, res): void => {
   res.json({ message: "Logged out" });
 });
 
-router.get("/auth/me", (req, res): void => {
+router.get("/auth/me", async (req, res): Promise<void> => {
   const token = req.cookies?.[COOKIE_NAME];
   if (!token) {
     res.status(401).json({ error: "Not authenticated" });
@@ -82,12 +83,57 @@ router.get("/auth/me", (req, res): void => {
     return;
   }
 
-  res.json({
-    id: session.userId,
-    username: session.username,
-    fullName: session.fullName,
-    role: session.role,
-  });
+  try {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, session.userId));
+    if (!user || !user.isActive) {
+      res.clearCookie(COOKIE_NAME, { path: "/" });
+      res.status(401).json({ error: "Session invalid" });
+      return;
+    }
+
+    res.json({
+      id: user.id,
+      username: user.username,
+      fullName: user.fullName,
+      email: user.email ?? null,
+      role: user.role,
+    });
+  } catch (err) {
+    logger.error({ err }, "auth/me error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/auth/verify-password", async (req, res): Promise<void> => {
+  const token = req.cookies?.[COOKIE_NAME];
+  if (!token) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  const session = getSession(token);
+  if (!session) {
+    res.status(401).json({ error: "Session expired" });
+    return;
+  }
+
+  const { password } = req.body as { password?: string };
+  if (!password) {
+    res.status(400).json({ error: "Password is required" });
+    return;
+  }
+
+  try {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, session.userId));
+    if (!user || !checkPassword(password, user.passwordHash)) {
+      res.status(401).json({ error: "Incorrect password" });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "verify-password error");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 export default router;

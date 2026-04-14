@@ -16,6 +16,7 @@ import {
   AtSign,
   CalendarDays,
   HardDrive,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -27,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useState } from "react";
 import { useAuth } from "@/context/auth-context";
+import { ProfileDialog } from "@/components/profile-dialog";
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme();
@@ -62,6 +64,7 @@ function ThemeToggle() {
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const { state, logout } = useAuth();
 
   const user = state.status === "authenticated" ? state.user : null;
@@ -118,7 +121,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   );
 
   const UserBlock = () => (
-    <div className="flex items-center gap-3 px-3 py-2.5 mb-4 rounded-xl bg-sidebar-accent/60 border border-sidebar-border/30">
+    <button
+      onClick={() => setProfileOpen(true)}
+      className="group w-full flex items-center gap-3 px-3 py-2.5 mb-4 rounded-xl bg-sidebar-accent/60 border border-sidebar-border/30 hover:bg-sidebar-accent hover:border-sidebar-border/60 transition-all text-left"
+      title="Edit Profile"
+    >
       <div className="flex items-center justify-center h-8 w-8 rounded-full bg-blue-500/20 border border-blue-400/30 shrink-0">
         <UserCircle className="h-4 w-4 text-blue-300" />
       </div>
@@ -126,7 +133,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <p className="text-xs font-semibold text-sidebar-foreground truncate">{user?.fullName ?? user?.username}</p>
         <p className="text-[10px] text-sidebar-foreground/40 capitalize tracking-wide">{user?.role}</p>
       </div>
-    </div>
+      <Pencil className="h-3 w-3 text-sidebar-foreground/30 group-hover:text-sidebar-foreground/60 shrink-0 transition-colors" />
+    </button>
   );
 
   return (
@@ -169,7 +177,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <img src="/logo.png" alt="Light Finance" className="h-10 w-auto object-contain" />
               </div>
               {user && (
-                <div className="flex items-center gap-2 px-2 mb-4 pb-4 border-b border-border/40">
+                <button
+                  onClick={() => { setMobileMenuOpen(false); setProfileOpen(true); }}
+                  className="group w-full flex items-center gap-2 px-2 mb-4 pb-4 border-b border-border/40 hover:bg-muted/50 rounded-lg p-2 transition-colors text-left"
+                >
                   <div className="flex items-center justify-center h-8 w-8 rounded-full bg-muted shrink-0">
                     <UserCircle className="h-4 w-4 text-muted-foreground" />
                   </div>
@@ -177,7 +188,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     <p className="text-xs font-semibold truncate">{user.fullName ?? user.username}</p>
                     <p className="text-[10px] text-muted-foreground capitalize">{user.role}</p>
                   </div>
-                </div>
+                  <Pencil className="h-3 w-3 text-muted-foreground/50 group-hover:text-muted-foreground shrink-0 transition-colors" />
+                </button>
               )}
               <nav className="flex flex-col gap-1.5">
                 <NavLinks />
@@ -199,6 +211,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+
+      <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />
     </div>
   );
 }

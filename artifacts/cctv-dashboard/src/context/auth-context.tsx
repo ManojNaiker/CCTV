@@ -6,6 +6,7 @@ export type AuthUser = {
   id: number;
   username: string;
   fullName: string;
+  email: string | null;
   role: string;
 };
 
@@ -18,6 +19,7 @@ type AuthContextType = {
   state: AuthState;
   login: (username: string, password: string) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -74,8 +76,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ status: "unauthenticated" });
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    await checkSession();
+  }, [checkSession]);
+
   return (
-    <AuthContext.Provider value={{ state, login, logout }}>
+    <AuthContext.Provider value={{ state, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

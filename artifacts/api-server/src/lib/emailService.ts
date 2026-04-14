@@ -790,21 +790,21 @@ function buildDvrReportHtml(
   <!-- Summary Stats -->
   <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:20px;">
     <tr>
-      <td style="border:1px solid #d1d5db;padding:10px 20px;text-align:center;min-width:100px;">
-        <div style="font-size:22px;font-weight:700;color:#1d4ed8;">${records.length}</div>
-        <div style="font-size:11px;color:#6b7280;margin-top:2px;">Total Branches</div>
+      <td style="border:1px solid #d1d5db;padding:5px 18px;text-align:center;">
+        <div style="font-size:18px;font-weight:700;color:#1d4ed8;line-height:1.2;">${records.length}</div>
+        <div style="font-size:10px;color:#6b7280;line-height:1.3;">Total Branches</div>
       </td>
-      <td style="border:1px solid #d1d5db;border-left:0;padding:10px 20px;text-align:center;min-width:100px;">
-        <div style="font-size:22px;font-weight:700;color:#15803d;">${completed.length}</div>
-        <div style="font-size:11px;color:#6b7280;margin-top:2px;">Completed</div>
+      <td style="border:1px solid #d1d5db;border-left:0;padding:5px 18px;text-align:center;">
+        <div style="font-size:18px;font-weight:700;color:#15803d;line-height:1.2;">${completed.length}</div>
+        <div style="font-size:10px;color:#6b7280;line-height:1.3;">Completed</div>
       </td>
-      <td style="border:1px solid #d1d5db;border-left:0;padding:10px 20px;text-align:center;min-width:100px;">
-        <div style="font-size:22px;font-weight:700;color:#ea580c;">${pending.length}</div>
-        <div style="font-size:11px;color:#6b7280;margin-top:2px;">Pending</div>
+      <td style="border:1px solid #d1d5db;border-left:0;padding:5px 18px;text-align:center;">
+        <div style="font-size:18px;font-weight:700;color:#ea580c;line-height:1.2;">${pending.length}</div>
+        <div style="font-size:10px;color:#6b7280;line-height:1.3;">Pending</div>
       </td>
-      <td style="border:1px solid #d1d5db;border-left:0;padding:10px 20px;text-align:center;min-width:100px;">
-        <div style="font-size:22px;font-weight:700;color:#b91c1c;">${notWorkingTotal}</div>
-        <div style="font-size:11px;color:#6b7280;margin-top:2px;">Not Working Cams</div>
+      <td style="border:1px solid #d1d5db;border-left:0;padding:5px 18px;text-align:center;">
+        <div style="font-size:18px;font-weight:700;color:#b91c1c;line-height:1.2;">${notWorkingTotal}</div>
+        <div style="font-size:10px;color:#6b7280;line-height:1.3;">Not Working Cams</div>
       </td>
     </tr>
   </table>

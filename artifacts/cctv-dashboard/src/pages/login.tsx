@@ -52,7 +52,7 @@ export default function LoginPage() {
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotUsername.trim()) {
-      setForgotError("Please enter your username.");
+      setForgotError("Please enter your username or email.");
       return;
     }
     setForgotLoading(true);
@@ -194,10 +194,10 @@ export default function LoginPage() {
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="username" className="text-sm font-medium text-gray-700">Username</Label>
+                    <Label htmlFor="username" className="text-sm font-medium text-gray-700">Username or Email</Label>
                     <Input
                       id="username"
-                      placeholder="Enter username"
+                      placeholder="Enter username or email"
                       autoComplete="username"
                       autoFocus
                       value={username}
@@ -275,7 +275,7 @@ export default function LoginPage() {
                 <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Reset Password</h1>
                 <p className="text-sm text-gray-500 mt-1">
                   {forgotStep === "username"
-                    ? "Enter your username to receive an OTP on your registered email."
+                    ? "Enter your username or email to receive an OTP on your registered email."
                     : `OTP sent to your email. Enter it below along with your new password.`}
                 </p>
               </div>
@@ -302,10 +302,10 @@ export default function LoginPage() {
                 ) : forgotStep === "username" ? (
                   <form onSubmit={handleRequestOtp} className="space-y-4">
                     <div className="space-y-1.5">
-                      <Label htmlFor="forgotUsername" className="text-sm font-medium text-gray-700">Username</Label>
+                      <Label htmlFor="forgotUsername" className="text-sm font-medium text-gray-700">Username or Email</Label>
                       <Input
                         id="forgotUsername"
-                        placeholder="Enter your username"
+                        placeholder="Enter your username or email"
                         autoFocus
                         value={forgotUsername}
                         onChange={e => { setForgotUsername(e.target.value); setForgotError(""); }}

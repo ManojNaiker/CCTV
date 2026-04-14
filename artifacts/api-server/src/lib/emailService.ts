@@ -759,62 +759,79 @@ function buildDvrReportHtml(
 ): string {
   const completed = records.filter((r) => r.status === "completed");
   const pending = records.filter((r) => r.status === "pending");
+  const notWorkingTotal = records.reduce((sum, r) => sum + (r.noOfNotWorkingCamera ?? 0), 0);
 
   const rows = records.map((r, i) => {
     const bgColor = i % 2 === 0 ? "#ffffff" : "#f8fafc";
     const isDone = r.status === "completed";
+    const statusColor = isDone ? "#15803d" : "#ea580c";
+    const statusLabel = isDone ? "Completed" : "Pending";
     return `
       <tr style="background-color:${bgColor};">
-        <td style="padding:8px 10px;text-align:center;border:1px solid #e5e7eb;font-size:13px;color:#6b7280;">${i + 1}</td>
-        <td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;">${r.state}</td>
-        <td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:13px;font-weight:700;color:#111827;">${r.branch}</td>
-        <td style="padding:8px 10px;text-align:center;border:1px solid #e5e7eb;font-size:13px;">${r.noOfRecordingCamera ?? "—"}</td>
-        <td style="padding:8px 10px;text-align:center;border:1px solid #e5e7eb;font-size:13px;${r.noOfNotWorkingCamera ? "color:#b91c1c;font-weight:600;" : ""}">${r.noOfNotWorkingCamera ?? "—"}</td>
-        <td style="padding:8px 10px;text-align:center;border:1px solid #e5e7eb;font-size:13px;">${r.lastRecording || "—"}</td>
-        <td style="padding:8px 10px;text-align:center;border:1px solid #e5e7eb;font-size:13px;">${r.totalRecordingDay ?? "—"}</td>
-        <td style="padding:8px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;">${r.remark || "—"}</td>
-        <td style="padding:8px 10px;text-align:center;border:1px solid #e5e7eb;font-size:13px;">
-          <span style="background:${isDone ? "#dcfce7" : "#fee2e2"};color:${isDone ? "#15803d" : "#b91c1c"};padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;">${isDone ? "✓ Done" : "Pending"}</span>
-        </td>
+        <td style="padding:6px 10px;text-align:center;border:1px solid #d1d5db;font-size:12px;color:#374151;white-space:nowrap;">${i + 1}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:12px;color:#374151;white-space:nowrap;">${r.state}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:12px;font-weight:700;color:#111827;white-space:nowrap;">${r.branch}</td>
+        <td style="padding:6px 10px;text-align:center;border:1px solid #d1d5db;font-size:12px;white-space:nowrap;">${r.noOfRecordingCamera ?? "—"}</td>
+        <td style="padding:6px 10px;text-align:center;border:1px solid #d1d5db;font-size:12px;white-space:nowrap;${r.noOfNotWorkingCamera ? "color:#b91c1c;font-weight:600;" : "color:#374151;"}">${r.noOfNotWorkingCamera ?? "—"}</td>
+        <td style="padding:6px 10px;text-align:center;border:1px solid #d1d5db;font-size:12px;white-space:nowrap;">${r.lastRecording || "—"}</td>
+        <td style="padding:6px 10px;text-align:center;border:1px solid #d1d5db;font-size:12px;white-space:nowrap;">${r.totalRecordingDay ?? "—"}</td>
+        <td style="padding:6px 10px;border:1px solid #d1d5db;font-size:12px;color:#374151;white-space:nowrap;">${r.remark || "—"}</td>
+        <td style="padding:6px 10px;text-align:center;border:1px solid #d1d5db;font-size:12px;font-weight:600;color:${statusColor};white-space:nowrap;">${statusLabel}</td>
       </tr>`;
   }).join("");
 
   return `
-<div style="font-family:Arial,sans-serif;max-width:900px;margin:0 auto;background:#f9fafb;padding:0;">
+<div style="font-family:Arial,Helvetica,sans-serif;background:#ffffff;padding:20px 24px;">
 
-  <div style="background:#1d4ed8;padding:20px 24px;border-radius:8px 8px 0 0;">
-    <h1 style="color:#ffffff;margin:0;font-size:20px;font-weight:700;">Light Finance — DVR Storage Activity Report</h1>
-    <p style="color:#bfdbfe;margin:4px 0 0;font-size:13px;">Period: ${periodLabel} &nbsp;|&nbsp; Activity Date: ${dateStr}</p>
-  </div>
+  <!-- Title -->
+  <h2 style="margin:0 0 4px;font-size:16px;font-weight:700;color:#1d4ed8;text-decoration:underline;">DVR Storage Activity Report</h2>
+  <p style="margin:0 0 16px;font-size:12px;color:#374151;">Period: ${periodLabel} &nbsp;&bull;&nbsp; Activity Date: ${dateStr}</p>
 
-  <div style="background:#eff6ff;padding:12px 24px;border-left:1px solid #bfdbfe;border-right:1px solid #bfdbfe;display:table;width:100%;box-sizing:border-box;">
-    <span style="font-size:13px;color:#374151;margin-right:24px;display:inline-block;"><strong>Total Branches:</strong> ${records.length}</span>
-    <span style="font-size:13px;color:#15803d;margin-right:24px;display:inline-block;"><strong>Completed:</strong> ${completed.length}</span>
-    <span style="font-size:13px;color:#b91c1c;display:inline-block;"><strong>Pending:</strong> ${pending.length}</span>
-  </div>
+  <!-- Summary Stats -->
+  <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:20px;">
+    <tr>
+      <td style="border:1px solid #d1d5db;padding:10px 20px;text-align:center;min-width:100px;">
+        <div style="font-size:22px;font-weight:700;color:#1d4ed8;">${records.length}</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px;">Total Branches</div>
+      </td>
+      <td style="border:1px solid #d1d5db;border-left:0;padding:10px 20px;text-align:center;min-width:100px;">
+        <div style="font-size:22px;font-weight:700;color:#15803d;">${completed.length}</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px;">Completed</div>
+      </td>
+      <td style="border:1px solid #d1d5db;border-left:0;padding:10px 20px;text-align:center;min-width:100px;">
+        <div style="font-size:22px;font-weight:700;color:#ea580c;">${pending.length}</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px;">Pending</div>
+      </td>
+      <td style="border:1px solid #d1d5db;border-left:0;padding:10px 20px;text-align:center;min-width:100px;">
+        <div style="font-size:22px;font-weight:700;color:#b91c1c;">${notWorkingTotal}</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px;">Not Working Cams</div>
+      </td>
+    </tr>
+  </table>
 
-  <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:0;overflow-x:auto;">
-    <table style="border-collapse:collapse;width:100%;font-size:13px;">
-      <thead>
-        <tr style="background:#1d4ed8;">
-          <th style="padding:9px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;font-weight:600;width:36px;">#</th>
-          <th style="padding:9px 10px;border:1px solid #1e3a8a;color:#fff;text-align:left;font-weight:600;">State</th>
-          <th style="padding:9px 10px;border:1px solid #1e3a8a;color:#fff;text-align:left;font-weight:600;">Branch</th>
-          <th style="padding:9px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;font-weight:600;">Recording Cameras</th>
-          <th style="padding:9px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;font-weight:600;">Not Working</th>
-          <th style="padding:9px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;font-weight:600;">Last Recording</th>
-          <th style="padding:9px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;font-weight:600;">Recording Days</th>
-          <th style="padding:9px 10px;border:1px solid #1e3a8a;color:#fff;text-align:left;font-weight:600;">Remark</th>
-          <th style="padding:9px 10px;border:1px solid #1e3a8a;color:#fff;text-align:center;font-weight:600;">Status</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  </div>
+  <!-- Device List Heading -->
+  <h3 style="margin:0 0 8px;font-size:14px;font-weight:700;color:#1d4ed8;text-decoration:underline;">Device List With Status</h3>
 
-  <div style="background:#f3f4f6;padding:12px 24px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 8px 8px;text-align:center;">
-    <p style="margin:0;font-size:11px;color:#9ca3af;">This is an automated DVR activity report from the Light Finance CCTV Monitoring System. Please do not reply to this email.</p>
-  </div>
+  <!-- Data Table -->
+  <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:12px;">
+    <thead>
+      <tr style="background:#f3f4f6;">
+        <th style="padding:7px 10px;border:1px solid #d1d5db;color:#111827;text-align:center;font-weight:700;white-space:nowrap;">#</th>
+        <th style="padding:7px 10px;border:1px solid #d1d5db;color:#111827;text-align:left;font-weight:700;white-space:nowrap;">State</th>
+        <th style="padding:7px 10px;border:1px solid #d1d5db;color:#111827;text-align:left;font-weight:700;white-space:nowrap;">Branch</th>
+        <th style="padding:7px 10px;border:1px solid #d1d5db;color:#111827;text-align:center;font-weight:700;white-space:nowrap;">Recording Cameras</th>
+        <th style="padding:7px 10px;border:1px solid #d1d5db;color:#111827;text-align:center;font-weight:700;white-space:nowrap;">Not Working</th>
+        <th style="padding:7px 10px;border:1px solid #d1d5db;color:#111827;text-align:center;font-weight:700;white-space:nowrap;">Last Recording</th>
+        <th style="padding:7px 10px;border:1px solid #d1d5db;color:#111827;text-align:center;font-weight:700;white-space:nowrap;">Recording Days</th>
+        <th style="padding:7px 10px;border:1px solid #d1d5db;color:#111827;text-align:left;font-weight:700;white-space:nowrap;">Remark</th>
+        <th style="padding:7px 10px;border:1px solid #d1d5db;color:#111827;text-align:center;font-weight:700;white-space:nowrap;">Status</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+
+  <!-- Footer Note -->
+  <p style="margin:20px 0 0;font-size:11px;color:#6b7280;">This is an automated DVR activity report from the Light Finance CCTV Monitoring System. Please do not reply to this email.</p>
 
 </div>`;
 }

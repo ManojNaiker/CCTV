@@ -783,12 +783,13 @@ function buildDvrReportHtml(
   return `
 <div style="font-family:Arial,Helvetica,sans-serif;background:#ffffff;padding:20px 24px;">
 
-  <!-- Title -->
-  <h2 style="margin:0 0 4px;font-size:16px;font-weight:700;color:#1d4ed8;text-decoration:underline;">DVR Storage Activity Report</h2>
-  <p style="margin:0 0 16px;font-size:12px;color:#374151;">Period: ${periodLabel} &nbsp;&bull;&nbsp; Activity Date: ${dateStr}</p>
+  <!-- Title: row 1 → row 2 blank → row 3 period text -->
+  <h2 style="margin:0 0 18px;font-size:16px;font-weight:700;color:#1d4ed8;text-decoration:underline;">DVR Storage Activity Report</h2>
+  <!-- row 3 period → row 4 blank → rows 5-6 stats -->
+  <p style="margin:0 0 18px;font-size:12px;color:#374151;">Period: ${periodLabel} &nbsp;&bull;&nbsp; Activity Date: ${dateStr}</p>
 
-  <!-- Summary Stats -->
-  <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:20px;">
+  <!-- Summary Stats: rows 5-6 → rows 7-8 two blank rows → row 9 heading -->
+  <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:36px;">
     <tr>
       <td style="border:1px solid #d1d5db;padding:5px 18px;text-align:center;">
         <div style="font-size:18px;font-weight:700;color:#1d4ed8;line-height:1.2;">${records.length}</div>
@@ -809,8 +810,8 @@ function buildDvrReportHtml(
     </tr>
   </table>
 
-  <!-- Device List Heading -->
-  <h3 style="margin:0 0 8px;font-size:14px;font-weight:700;color:#1d4ed8;text-decoration:underline;">Device List With Status</h3>
+  <!-- Device List Heading: row 9 → row 10 blank → row 11 table header -->
+  <h3 style="margin:0 0 16px;font-size:14px;font-weight:700;color:#1d4ed8;text-decoration:underline;">Device List With Status</h3>
 
   <!-- Data Table -->
   <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:12px;">
@@ -831,7 +832,8 @@ function buildDvrReportHtml(
   </table>
 
   <!-- Footer Note -->
-  <p style="margin:20px 0 0;font-size:11px;color:#6b7280;">This is an automated DVR activity report from the Light Finance CCTV Monitoring System. Please do not reply to this email.</p>
+  <!-- row 14 blank → row 15 footer -->
+  <p style="margin:18px 0 0;font-size:11px;color:#6b7280;">This is an automated DVR activity report from the Light Finance CCTV Monitoring System. Please do not reply to this email.</p>
 
 </div>`;
 }

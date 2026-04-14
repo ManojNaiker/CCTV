@@ -333,9 +333,11 @@ type RecordTableProps = {
   onUploadImage: (id: number, file: File) => void;
   onDeleteImage: (id: number) => void;
   uploadingId: number | null;
+  onSubmit: (id: number) => void;
+  submittingId: number | null;
 };
 
-function RecordTableInner({ rows, onSave, onOpenRemark, onUploadImage, onDeleteImage, uploadingId }: RecordTableProps) {
+function RecordTableInner({ rows, onSave, onOpenRemark, onUploadImage, onDeleteImage, uploadingId, onSubmit, submittingId }: RecordTableProps) {
   const imgInputRef = useRef<HTMLInputElement>(null);
   const [pendingUploadId, setPendingUploadId] = useState<number | null>(null);
 
@@ -371,6 +373,7 @@ function RecordTableInner({ rows, onSave, onOpenRemark, onUploadImage, onDeleteI
             <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[160px]">Remark</th>
             <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[100px]">Image</th>
             <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Status</th>
+            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[90px]">Action</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border/30">
@@ -475,11 +478,49 @@ function RecordTableInner({ rows, onSave, onOpenRemark, onUploadImage, onDeleteI
                   </Badge>
                 )}
               </td>
+              <td className="px-2 py-1.5 text-center">
+                {r.status === "completed" ? (
+                  <button
+                    onClick={() => onSubmit(r.id)}
+                    disabled={submittingId === r.id}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 transition-colors"
+                    title="Mark as pending again"
+                  >
+                    <CheckCircle2 className="h-3 w-3" /> Done
+                  </button>
+                ) : (
+                  (() => {
+                    const canSubmit =
+                      r.branchCameraCount !== null &&
+                      r.noOfRecordingCamera !== null &&
+                      r.noOfNotWorkingCamera !== null &&
+                      r.lastRecording !== null && r.lastRecording.trim() !== "";
+                    return (
+                      <button
+                        onClick={() => canSubmit && onSubmit(r.id)}
+                        disabled={!canSubmit || submittingId === r.id}
+                        className={[
+                          "inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold transition-colors",
+                          canSubmit
+                            ? "bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
+                            : "bg-muted text-muted-foreground/40 cursor-not-allowed",
+                        ].join(" ")}
+                        title={canSubmit ? "Click to mark as completed" : "Fill Branch Camera Count, Recording Camera, Not Working Camera & Last Recording first"}
+                      >
+                        {submittingId === r.id
+                          ? <Loader2 className="h-3 w-3 animate-spin" />
+                          : <CheckCircle2 className="h-3 w-3" />}
+                        Submit
+                      </button>
+                    );
+                  })()
+                )}
+              </td>
             </tr>
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={12} className="py-12 text-center text-muted-foreground text-sm">
+              <td colSpan={13} className="py-12 text-center text-muted-foreground text-sm">
                 No records found
               </td>
             </tr>
@@ -510,6 +551,7 @@ export default function DvrStorage() {
   const [emailCc, setEmailCc] = useState("");
   const [sendingEmail, setSendingEmail] = useState(false);
   const [imageUploadingId, setImageUploadingId] = useState<number | null>(null);
+  const [submittingId, setSubmittingId] = useState<number | null>(null);
 
   const { data: records = [], isLoading } = useQuery<DvrRecord[]>({
     queryKey: ["dvr-storage", date],
@@ -697,15 +739,103 @@ export default function DvrStorage() {
   const handleSave = useCallback(
     (id: number, field: string, value: string) => {
       updateMutation.mutate({ id, field, value });
+
+      const row = records.find((r) => r.id === id);
+      if (!row) return;
+
+      // Auto-calculate totalRecordingDay when lastRecording changes
       if (field === "lastRecording") {
-        const row = records.find((r) => r.id === id);
-        const actDate = row?.activityDate ?? getISTDateStr();
-        const days = calcTotalDays(value || null, actDate);
+        const days = calcTotalDays(value || null, row.activityDate);
         updateMutation.mutate({ id, field: "totalRecordingDay", value: days !== null ? String(days) : "" });
+      }
+
+      // Auto-calculate noOfNotWorkingCamera = branchCameraCount - noOfRecordingCamera
+      if (field === "branchCameraCount" || field === "noOfRecordingCamera") {
+        const bcc = field === "branchCameraCount" ? (value === "" ? null : Number(value)) : row.branchCameraCount;
+        const nrc = field === "noOfRecordingCamera" ? (value === "" ? null : Number(value)) : row.noOfRecordingCamera;
+        if (bcc !== null && nrc !== null && !isNaN(Number(bcc)) && !isNaN(Number(nrc))) {
+          const notWorking = Number(bcc) - Number(nrc);
+          if (notWorking >= 0) {
+            updateMutation.mutate({ id, field: "noOfNotWorkingCamera", value: String(notWorking) });
+          }
+        }
+      }
+
+      // Auto-calculate noOfRecordingCamera = branchCameraCount - noOfNotWorkingCamera
+      if (field === "noOfNotWorkingCamera") {
+        const bcc = row.branchCameraCount;
+        const nnwc = value === "" ? null : Number(value);
+        if (bcc !== null && nnwc !== null && !isNaN(nnwc)) {
+          const recording = Number(bcc) - nnwc;
+          if (recording >= 0) {
+            updateMutation.mutate({ id, field: "noOfRecordingCamera", value: String(recording) });
+          }
+        }
       }
     },
     [updateMutation, records]
   );
+
+  const handleSubmitRecord = useCallback(async (id: number) => {
+    const row = records.find((r) => r.id === id);
+    if (!row) return;
+    const newStatus = row.status === "completed" ? "pending" : "completed";
+    setSubmittingId(id);
+    try {
+      const res = await fetch(`${BASE}/api/dvr-storage/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) throw new Error();
+      queryClient.invalidateQueries({ queryKey: ["dvr-storage", date] });
+      toast({ title: newStatus === "completed" ? "Record marked as completed" : "Record marked as pending" });
+    } catch {
+      toast({ title: "Failed to update status", variant: "destructive" });
+    } finally {
+      setSubmittingId(null);
+    }
+  }, [records, date, queryClient, toast]);
+
+  const handleUploadImage = useCallback(async (id: number, file: File) => {
+    setImageUploadingId(id);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const res = await fetch(`${BASE}/api/dvr-storage/${id}/image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageData: base64 }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json() as { autoCompleted?: boolean };
+      queryClient.invalidateQueries({ queryKey: ["dvr-storage", date] });
+      if (data.autoCompleted) {
+        toast({ title: "Image uploaded & record auto-completed!" });
+      } else {
+        toast({ title: "Image uploaded" });
+      }
+    } catch {
+      toast({ title: "Image upload failed", variant: "destructive" });
+    } finally {
+      setImageUploadingId(null);
+    }
+  }, [date, queryClient, toast]);
+
+  const handleDeleteImage = useCallback(async (id: number) => {
+    try {
+      const res = await fetch(`${BASE}/api/dvr-storage/${id}/image`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      queryClient.invalidateQueries({ queryKey: ["dvr-storage", date] });
+      toast({ title: "Image removed" });
+    } catch {
+      toast({ title: "Failed to remove image", variant: "destructive" });
+    }
+  }, [date, queryClient, toast]);
 
   const handleOpenRemark = useCallback((record: DvrRecord) => {
     setRemarkDialog({ record, text: record.remark ?? "" });
@@ -1150,13 +1280,13 @@ export default function DvrStorage() {
             ) : (
               <>
                 <TabsContent value="pending" className="mt-0">
-                  <RecordTable rows={filteredPending} onSave={handleSave} onOpenRemark={handleOpenRemark} />
+                  <RecordTable rows={filteredPending} onSave={handleSave} onOpenRemark={handleOpenRemark} onUploadImage={handleUploadImage} onDeleteImage={handleDeleteImage} uploadingId={imageUploadingId} onSubmit={handleSubmitRecord} submittingId={submittingId} />
                 </TabsContent>
                 <TabsContent value="completed" className="mt-0">
-                  <RecordTable rows={filteredCompleted} onSave={handleSave} onOpenRemark={handleOpenRemark} />
+                  <RecordTable rows={filteredCompleted} onSave={handleSave} onOpenRemark={handleOpenRemark} onUploadImage={handleUploadImage} onDeleteImage={handleDeleteImage} uploadingId={imageUploadingId} onSubmit={handleSubmitRecord} submittingId={submittingId} />
                 </TabsContent>
                 <TabsContent value="all" className="mt-0">
-                  <RecordTable rows={filteredRecords} onSave={handleSave} onOpenRemark={handleOpenRemark} />
+                  <RecordTable rows={filteredRecords} onSave={handleSave} onOpenRemark={handleOpenRemark} onUploadImage={handleUploadImage} onDeleteImage={handleDeleteImage} uploadingId={imageUploadingId} onSubmit={handleSubmitRecord} submittingId={submittingId} />
                 </TabsContent>
               </>
             )}

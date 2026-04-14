@@ -147,6 +147,7 @@ router.patch("/dvr-storage/:id", async (req, res): Promise<void> => {
       lastRecording,
       totalRecordingDay,
       remark,
+      status: explicitStatus,
     } = req.body;
 
     const updateData: Record<string, unknown> = {};
@@ -174,15 +175,13 @@ router.patch("/dvr-storage/:id", async (req, res): Promise<void> => {
     updateData["totalRecordingDay"] = autoTotalDays;
     merged.totalRecordingDay = autoTotalDays;
 
-    updateData["status"] = isCompleted({
-      branchCameraCount: merged.branchCameraCount as number | null,
-      noOfRecordingCamera: merged.noOfRecordingCamera as number | null,
-      noOfNotWorkingCamera: merged.noOfNotWorkingCamera as number | null,
-      lastRecording: merged.lastRecording as string | null,
-      totalRecordingDay: merged.totalRecordingDay as number | null,
-    })
-      ? "completed"
-      : "pending";
+    // Only change status if explicitly requested (submit button) or if reverting to pending
+    if (explicitStatus === "completed") {
+      updateData["status"] = "completed";
+    } else if (explicitStatus === "pending") {
+      updateData["status"] = "pending";
+    }
+    // Otherwise keep existing status — don't auto-change on field saves
 
     const [updated] = await db
       .update(dvrStorageTable)
@@ -224,8 +223,22 @@ router.post("/dvr-storage/:id/image", async (req, res): Promise<void> => {
     writeFileSync(join(UPLOADS_DIR, filename), buffer);
 
     const imageUrl = `/api/uploads/${filename}`;
-    const [updated] = await db.update(dvrStorageTable).set({ imageUrl }).where(eq(dvrStorageTable.id, id)).returning();
-    res.json({ imageUrl, record: updated });
+
+    // After uploading image, auto-complete if all required fields are already set
+    const updateFields: Record<string, unknown> = { imageUrl };
+    const merged = { ...existing, imageUrl };
+    if (isCompleted({
+      branchCameraCount: merged.branchCameraCount,
+      noOfRecordingCamera: merged.noOfRecordingCamera,
+      noOfNotWorkingCamera: merged.noOfNotWorkingCamera,
+      lastRecording: merged.lastRecording,
+      totalRecordingDay: merged.totalRecordingDay,
+    })) {
+      updateFields["status"] = "completed";
+    }
+
+    const [updated] = await db.update(dvrStorageTable).set(updateFields).where(eq(dvrStorageTable.id, id)).returning();
+    res.json({ imageUrl, record: updated, autoCompleted: updateFields["status"] === "completed" });
   } catch (err) {
     logger.error({ err }, "Failed to upload DVR image");
     res.status(500).json({ error: "Failed to upload image" });

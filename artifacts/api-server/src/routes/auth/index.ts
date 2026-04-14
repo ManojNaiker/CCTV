@@ -176,8 +176,8 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
 
     const logoBase64 = loadServerLogo();
     const logoHtml = logoBase64
-      ? `<img src="${logoBase64}" alt="Light Finance" style="height:40px;width:auto;display:block;" />`
-      : `<div style="background-color:#ffffff;border-radius:6px;padding:5px 12px;display:inline-block;"><span style="font-size:12px;font-weight:700;color:#1d4ed8;letter-spacing:0.5px;">LIGHT FINANCE</span></div>`;
+      ? `<img src="${logoBase64}" alt="Light Finance" style="height:28px;width:auto;display:block;" />`
+      : `<div style="background-color:#ffffff;border-radius:6px;padding:5px 12px;display:inline-block;"><span style="font-size:11px;font-weight:700;color:#1d4ed8;letter-spacing:0.5px;">LIGHT FINANCE</span></div>`;
 
     const html = `<!DOCTYPE html>
 <html lang="en">

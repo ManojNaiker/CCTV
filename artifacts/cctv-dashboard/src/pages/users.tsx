@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { format } from "date-fns";
-import { Shield, ShieldAlert, ShieldCheck, MoreHorizontal, UserPlus, Users } from "lucide-react";
+import { Shield, ShieldAlert, ShieldCheck, MoreHorizontal, UserPlus, Users, Upload, Download, CheckCircle2, XCircle, FileSpreadsheet, AlertCircle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { 
   useListUsers,
@@ -45,6 +45,55 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
+const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
+
+const CSV_TEMPLATE_HEADERS = ["username", "fullName", "email", "password", "role"];
+const CSV_TEMPLATE_ROWS = [
+  ["rahulv", "Rahul Verma", "rahul.v@lightfinance.com", "Pass@1234", "viewer"],
+  ["priyak", "Priya Kapoor", "priya.k@lightfinance.com", "Pass@5678", "operator"],
+  ["admintest", "Admin User", "admin.test@lightfinance.com", "Admin@9999", "admin"],
+];
+
+function generateCsvTemplate(): string {
+  const rows = [CSV_TEMPLATE_HEADERS, ...CSV_TEMPLATE_ROWS];
+  return rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+}
+
+function parseCsv(text: string): Record<string, string>[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return [];
+
+  const parseRow = (line: string): string[] => {
+    const result: string[] = [];
+    let current = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+        else inQuotes = !inQuotes;
+      } else if (ch === "," && !inQuotes) {
+        result.push(current.trim());
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  };
+
+  const headers = parseRow(lines[0]).map((h) => h.toLowerCase());
+  return lines.slice(1).map((line) => {
+    const values = parseRow(line);
+    const obj: Record<string, string> = {};
+    headers.forEach((h, i) => { obj[h] = values[i] ?? ""; });
+    return obj;
+  }).filter((row) => Object.values(row).some((v) => v.trim()));
+}
+
+type BulkResult = { row: number; username: string; status: "success" | "error"; message: string };
+
 export default function UsersPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -55,6 +104,13 @@ export default function UsersPage() {
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createData, setCreateData] = useState({ username: "", fullName: "", email: "", password: "", role: "viewer" as any });
+
+  const [isBulkOpen, setIsBulkOpen] = useState(false);
+  const [bulkRows, setBulkRows] = useState<Record<string, string>[]>([]);
+  const [bulkFileName, setBulkFileName] = useState("");
+  const [bulkImporting, setBulkImporting] = useState(false);
+  const [bulkResults, setBulkResults] = useState<BulkResult[] | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const createMutation = useCreateUser({
     mutation: {
@@ -84,6 +140,61 @@ export default function UsersPage() {
     updateMutation.mutate({ id: user.id, data: { isActive: !user.isActive } });
   };
 
+  const handleDownloadTemplate = () => {
+    const csv = generateCsvTemplate();
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "bulk_user_template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBulkFileName(file.name);
+    setBulkResults(null);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const rows = parseCsv(text);
+      setBulkRows(rows);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleBulkImport = async () => {
+    if (bulkRows.length === 0) return;
+    setBulkImporting(true);
+    setBulkResults(null);
+    try {
+      const res = await fetch(`${BASE}/api/users/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ users: bulkRows }),
+      });
+      const data = await res.json() as { results: BulkResult[]; successCount: number; errorCount: number };
+      setBulkResults(data.results);
+      if (data.successCount > 0) {
+        queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+        toast({ title: `${data.successCount} user${data.successCount !== 1 ? "s" : ""} created successfully` });
+      }
+    } catch {
+      toast({ title: "Import failed — network error", variant: "destructive" });
+    } finally {
+      setBulkImporting(false);
+    }
+  };
+
+  const resetBulk = () => {
+    setBulkRows([]);
+    setBulkFileName("");
+    setBulkResults(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const RoleIcon = ({ role }: { role: string }) => {
     switch (role) {
       case 'admin': return <ShieldAlert className="h-3 w-3 mr-1" />;
@@ -103,6 +214,9 @@ export default function UsersPage() {
   const adminCount = (users ?? []).filter((u: any) => u.role === "admin").length;
   const operatorCount = (users ?? []).filter((u: any) => u.role === "operator").length;
   const activeCount = (users ?? []).filter((u: any) => u.isActive).length;
+
+  const successCount = bulkResults?.filter((r) => r.status === "success").length ?? 0;
+  const errorCount = bulkResults?.filter((r) => r.status === "error").length ?? 0;
 
   return (
     <div className="space-y-6">
@@ -133,6 +247,14 @@ export default function UsersPage() {
               {isLoading ? <div className="h-7 w-8 bg-white/20 animate-pulse rounded mx-auto mb-1" /> : <p className="text-2xl font-extrabold text-white">{activeCount}</p>}
               <p className="text-[10px] text-indigo-200 uppercase tracking-widest font-semibold">Active</p>
             </div>
+            <Button
+              variant="outline"
+              className="gap-2 bg-white/10 text-white border-white/30 hover:bg-white/20 font-semibold h-10"
+              onClick={() => { resetBulk(); setIsBulkOpen(true); }}
+            >
+              <Upload className="h-4 w-4" />
+              Bulk Import
+            </Button>
             <Button
               className="gap-2 bg-white text-indigo-700 hover:bg-indigo-50 border-0 font-semibold h-10"
               onClick={() => setIsCreateOpen(true)}
@@ -301,6 +423,188 @@ export default function UsersPage() {
             >
               {createMutation.isPending ? "Adding..." : "Add User"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Bulk Import Dialog ── */}
+      <Dialog open={isBulkOpen} onOpenChange={(open) => { setIsBulkOpen(open); if (!open) resetBulk(); }}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-indigo-600" />
+              Bulk User Import
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Step 1: Download template */}
+            <div className="rounded-lg border border-indigo-200 bg-indigo-50 dark:bg-indigo-950/20 dark:border-indigo-800/40 p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">Step 1 — Download the CSV Template</p>
+                  <p className="text-xs text-indigo-700 dark:text-indigo-400 mt-1">
+                    Fill in the template with user details. Columns: <span className="font-mono">username, fullName, email, password, role</span>
+                  </p>
+                  <p className="text-xs text-indigo-600 dark:text-indigo-500 mt-1">
+                    Role must be: <span className="font-mono font-bold">admin</span>, <span className="font-mono font-bold">operator</span>, or <span className="font-mono font-bold">viewer</span>
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 shrink-0 border-indigo-300 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-700 dark:text-indigo-300"
+                  onClick={handleDownloadTemplate}
+                >
+                  <Download className="h-4 w-4" />
+                  Download Template
+                </Button>
+              </div>
+            </div>
+
+            {/* Step 2: Upload CSV */}
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">Step 2 — Upload Filled CSV</p>
+              <label
+                htmlFor="bulk-csv-upload"
+                className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-border rounded-lg cursor-pointer hover:bg-muted/40 transition-colors"
+              >
+                <Upload className="h-6 w-6 text-muted-foreground mb-2" />
+                <span className="text-sm text-muted-foreground">
+                  {bulkFileName ? <span className="font-medium text-foreground">{bulkFileName}</span> : "Click to choose CSV file"}
+                </span>
+                {bulkRows.length > 0 && (
+                  <span className="text-xs text-indigo-600 mt-1">{bulkRows.length} row{bulkRows.length !== 1 ? "s" : ""} detected</span>
+                )}
+                <input
+                  id="bulk-csv-upload"
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+              </label>
+            </div>
+
+            {/* Preview table */}
+            {bulkRows.length > 0 && !bulkResults && (
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">Preview ({bulkRows.length} users)</p>
+                <div className="rounded-lg border overflow-hidden">
+                  <div className="overflow-x-auto max-h-48">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted/50 sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-semibold text-muted-foreground">#</th>
+                          <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Username</th>
+                          <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Full Name</th>
+                          <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Email</th>
+                          <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Role</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/40">
+                        {bulkRows.map((row, i) => (
+                          <tr key={i} className="hover:bg-muted/20">
+                            <td className="px-3 py-2 text-muted-foreground">{i + 1}</td>
+                            <td className="px-3 py-2 font-mono font-semibold">{row.username || <span className="text-red-500 italic">missing</span>}</td>
+                            <td className="px-3 py-2">{row.fullname || row.fullName || "—"}</td>
+                            <td className="px-3 py-2 text-muted-foreground">{row.email || "—"}</td>
+                            <td className="px-3 py-2">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                row.role === "admin" ? "bg-red-100 text-red-700" :
+                                row.role === "operator" ? "bg-blue-100 text-blue-700" :
+                                "bg-slate-100 text-slate-600"
+                              }`}>{row.role || "viewer"}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Results */}
+            {bulkResults && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1.5 text-sm text-green-700 font-semibold">
+                    <CheckCircle2 className="h-4 w-4" /> {successCount} created
+                  </span>
+                  {errorCount > 0 && (
+                    <span className="flex items-center gap-1.5 text-sm text-red-600 font-semibold">
+                      <XCircle className="h-4 w-4" /> {errorCount} failed
+                    </span>
+                  )}
+                </div>
+                <div className="rounded-lg border overflow-hidden">
+                  <div className="overflow-x-auto max-h-52">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted/50 sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-semibold text-muted-foreground">#</th>
+                          <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Username</th>
+                          <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Status</th>
+                          <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Message</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/40">
+                        {bulkResults.map((r) => (
+                          <tr key={r.row} className={r.status === "error" ? "bg-red-50/50 dark:bg-red-950/10" : ""}>
+                            <td className="px-3 py-2 text-muted-foreground">{r.row}</td>
+                            <td className="px-3 py-2 font-mono font-semibold">{r.username}</td>
+                            <td className="px-3 py-2">
+                              {r.status === "success"
+                                ? <span className="flex items-center gap-1 text-green-700"><CheckCircle2 className="h-3.5 w-3.5" /> Success</span>
+                                : <span className="flex items-center gap-1 text-red-600"><XCircle className="h-3.5 w-3.5" /> Error</span>}
+                            </td>
+                            <td className="px-3 py-2 text-muted-foreground">{r.message}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {errorCount === 0 && (
+                  <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-700">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    All users imported successfully!
+                  </div>
+                )}
+                {errorCount > 0 && successCount > 0 && (
+                  <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-700">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    {successCount} users created, {errorCount} row{errorCount !== 1 ? "s" : ""} had errors. Fix the errors and re-import only the failed rows.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
+            {bulkResults ? (
+              <Button variant="outline" onClick={() => { resetBulk(); setIsBulkOpen(false); }}>
+                Close
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => { resetBulk(); setIsBulkOpen(false); }}>Cancel</Button>
+                <Button
+                  onClick={handleBulkImport}
+                  disabled={bulkRows.length === 0 || bulkImporting}
+                  className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  {bulkImporting ? (
+                    <><span className="animate-spin h-4 w-4 border-2 border-white/30 border-t-white rounded-full inline-block" /> Importing...</>
+                  ) : (
+                    <><Upload className="h-4 w-4" /> Import {bulkRows.length > 0 ? `${bulkRows.length} Users` : "Users"}</>
+                  )}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

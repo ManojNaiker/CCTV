@@ -82,6 +82,79 @@ router.post("/users", async (req, res): Promise<void> => {
   res.status(201).json(GetUserResponse.parse(formatUser(user)));
 });
 
+router.post("/users/bulk", async (req, res): Promise<void> => {
+  const { users } = req.body as { users?: unknown[] };
+
+  if (!Array.isArray(users) || users.length === 0) {
+    res.status(400).json({ error: "users array is required" });
+    return;
+  }
+
+  if (users.length > 200) {
+    res.status(400).json({ error: "Maximum 200 users per import" });
+    return;
+  }
+
+  const results: { row: number; username: string; status: "success" | "error"; message: string }[] = [];
+
+  for (let i = 0; i < users.length; i++) {
+    const row = users[i] as Record<string, unknown>;
+    const rowNum = i + 1;
+
+    const username = String(row.username ?? "").trim();
+    const fullName = String(row.fullName ?? "").trim();
+    const email = String(row.email ?? "").trim();
+    const password = String(row.password ?? "").trim();
+    const role = String(row.role ?? "viewer").trim().toLowerCase();
+
+    if (!username || !password) {
+      results.push({ row: rowNum, username: username || "(empty)", status: "error", message: "Username and password are required" });
+      continue;
+    }
+
+    if (!["admin", "operator", "viewer"].includes(role)) {
+      results.push({ row: rowNum, username, status: "error", message: `Invalid role '${role}' — must be admin, operator, or viewer` });
+      continue;
+    }
+
+    try {
+      const [user] = await db.insert(usersTable).values({
+        username,
+        fullName: fullName || username,
+        email: email || null,
+        role: role as "admin" | "operator" | "viewer",
+        passwordHash: hashPassword(password),
+        isActive: true,
+      }).returning();
+
+      await logAction("CREATE", "user", String(user.id), `Bulk import: user '${user.username}' created with role '${user.role}'`);
+
+      if (email) {
+        sendUserCreatedEmail({
+          name: user.fullName,
+          username: user.username,
+          email,
+          role: user.role,
+          tempPassword: password,
+        }).catch(() => {});
+      }
+
+      results.push({ row: rowNum, username, status: "success", message: "Created successfully" });
+    } catch (err: any) {
+      const isDuplicate = String(err?.message ?? "").includes("unique") || String(err?.code ?? "") === "23505";
+      results.push({
+        row: rowNum,
+        username,
+        status: "error",
+        message: isDuplicate ? `Username '${username}' already exists` : String(err?.message ?? "Unknown error"),
+      });
+    }
+  }
+
+  const successCount = results.filter((r) => r.status === "success").length;
+  res.status(200).json({ results, successCount, errorCount: results.length - successCount });
+});
+
 router.get("/users/:id", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = GetUserParams.safeParse({ id: parseInt(raw, 10) });

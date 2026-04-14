@@ -361,27 +361,27 @@ function RecordTableInner({ rows, onSave, onOpenRemark, onUploadImage, onDeleteI
       <table className="w-full text-xs border-collapse">
         <thead>
           <tr className="border-b bg-muted/40">
-            <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">#</th>
-            <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">State</th>
-            <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[130px]">Branch</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[110px]">Branch Camera Count</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[130px]">No Of Recording Camera</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[140px]">No Of Not Working Camera</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[120px]">Last Recording</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Activity Date</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[120px]">Total Recording Day</th>
-            <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[160px]">Remark</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[100px]">Image</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Status</th>
-            <th className="px-3 py-2.5 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[90px]">Action</th>
+            <th className="px-2 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">#</th>
+            <th className="px-2 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">State</th>
+            <th className="px-2 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider min-w-[100px]">Branch</th>
+            <th className="px-2 py-2 text-center font-semibold text-muted-foreground uppercase tracking-wider min-w-[72px]">Branch Camera Count</th>
+            <th className="px-2 py-2 text-center font-semibold text-muted-foreground uppercase tracking-wider min-w-[72px]">Recording Cameras</th>
+            <th className="px-2 py-2 text-center font-semibold text-muted-foreground uppercase tracking-wider min-w-[72px]">Not Working</th>
+            <th className="px-2 py-2 text-center font-semibold text-muted-foreground uppercase tracking-wider min-w-[100px]">Last Recording</th>
+            <th className="px-2 py-2 text-center font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Activity Date</th>
+            <th className="px-2 py-2 text-center font-semibold text-muted-foreground uppercase tracking-wider min-w-[60px]">Total Days</th>
+            <th className="px-2 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wider min-w-[120px]">Remark</th>
+            <th className="px-2 py-2 text-center font-semibold text-muted-foreground uppercase tracking-wider min-w-[72px]">Image</th>
+            <th className="px-2 py-2 text-center font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+            <th className="px-2 py-2 text-center font-semibold text-muted-foreground uppercase tracking-wider min-w-[72px]">Action</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border/30">
           {rows.map((r, idx) => (
             <tr key={r.id} className={`hover:bg-blue-50/30 dark:hover:bg-blue-950/10 transition-colors ${idx % 2 === 0 ? "" : "bg-muted/5"}`}>
-              <td className="px-3 py-2 text-muted-foreground/50 font-mono">{idx + 1}</td>
-              <td className="px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">{r.state}</td>
-              <td className="px-3 py-2 font-semibold whitespace-nowrap">{r.branch}</td>
+              <td className="px-2 py-1.5 text-muted-foreground/50 font-mono">{idx + 1}</td>
+              <td className="px-2 py-1.5 font-medium text-muted-foreground whitespace-nowrap">{r.state}</td>
+              <td className="px-2 py-1.5 font-semibold whitespace-nowrap">{r.branch}</td>
               <td className="px-2 py-2 text-center">
                 <EditableCell value={r.branchCameraCount} type="number" align="center"
                   onSave={(v) => onSave(r.id, "branchCameraCount", v)} />
@@ -398,8 +398,8 @@ function RecordTableInner({ rows, onSave, onOpenRemark, onUploadImage, onDeleteI
                 <EditableCell value={r.lastRecording} type="date" align="center"
                   onSave={(v) => onSave(r.id, "lastRecording", v)} />
               </td>
-              <td className="px-3 py-2 text-center text-muted-foreground">{r.activityDate}</td>
-              <td className="px-3 py-2 text-center font-mono text-sm">
+              <td className="px-2 py-1.5 text-center text-muted-foreground">{r.activityDate}</td>
+              <td className="px-2 py-1.5 text-center font-mono text-sm">
                 {(() => {
                   const days = calcTotalDays(r.lastRecording, r.activityDate);
                   return days !== null
@@ -467,7 +467,7 @@ function RecordTableInner({ rows, onSave, onOpenRemark, onUploadImage, onDeleteI
                   </button>
                 )}
               </td>
-              <td className="px-3 py-2 text-center">
+              <td className="px-2 py-1.5 text-center">
                 {r.status === "completed" ? (
                   <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 text-[10px] gap-1">
                     <CheckCircle2 className="h-3 w-3" /> Done

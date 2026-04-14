@@ -175,9 +175,6 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
     otpStore.set(username.trim(), { otp, expiresAt: new Date(Date.now() + 10 * 60 * 1000) });
 
     const logoBase64 = loadServerLogo();
-    const logoHtml = logoBase64
-      ? `<img src="${logoBase64}" alt="Light Finance" style="height:28px;width:auto;display:block;" />`
-      : `<div style="background-color:#ffffff;border-radius:6px;padding:5px 12px;display:inline-block;"><span style="font-size:11px;font-weight:700;color:#1d4ed8;letter-spacing:0.5px;">LIGHT FINANCE</span></div>`;
 
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -189,12 +186,21 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
 
       <!-- Header -->
       <tr>
-        <td style="background-color:#1d4ed8;padding:28px 40px 24px;">
-          ${logoHtml}
-          <div style="margin-top:18px;">
-            <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;line-height:1.3;">Password Reset Request</h1>
-            <p style="margin:6px 0 0;font-size:13px;color:#bfdbfe;">CCTV Monitoring Portal</p>
-          </div>
+        <td style="background-color:#1d4ed8;padding:16px 24px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="width:130px;vertical-align:middle;">
+                ${logoBase64
+                  ? `<img src="${logoBase64}" alt="Light Finance" style="display:block;width:120px;max-width:120px;height:auto;max-height:70px;" />`
+                  : `<div style="background-color:#ffffff;border-radius:6px;padding:5px 12px;display:inline-block;"><span style="font-size:11px;font-weight:700;color:#1d4ed8;letter-spacing:0.5px;">LIGHT FINANCE</span></div>`
+                }
+              </td>
+              <td style="vertical-align:middle;padding-left:16px;">
+                <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;line-height:1.3;">Password Reset Request</h1>
+                <p style="margin:4px 0 0;font-size:12px;color:#bfdbfe;">CCTV Monitoring Portal</p>
+              </td>
+            </tr>
+          </table>
         </td>
       </tr>
       <tr><td style="background-color:#1e40af;height:4px;"></td></tr>

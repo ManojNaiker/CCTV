@@ -333,9 +333,6 @@ export async function sendUserCreatedEmail(userData: {
     : "the portal URL";
 
   const logoBase64 = loadServerLogo();
-  const logoHtml = logoBase64
-    ? `<img src="${logoBase64}" alt="Light Finance" style="height:28px;width:auto;display:block;" />`
-    : `<div style="background-color:#ffffff;border-radius:8px;padding:5px 12px;display:inline-block;"><span style="font-size:11px;font-weight:700;color:#1d4ed8;letter-spacing:0.5px;">LIGHT FINANCE</span></div>`;
 
   const subject = `Your Light Finance CCTV Portal Account is Ready`;
   const html = `<!DOCTYPE html>
@@ -348,22 +345,25 @@ export async function sendUserCreatedEmail(userData: {
 
       <!-- Header -->
       <tr>
-        <td style="background-color:#1d4ed8;padding:0;">
+        <td style="background-color:#1d4ed8;padding:16px 24px;">
           <table width="100%" cellpadding="0" cellspacing="0">
             <tr>
-              <td style="padding:28px 40px 24px;">
-                ${logoHtml}
-                <div style="margin-top:18px;">
-                  <h1 style="margin:0;font-size:24px;font-weight:700;color:#ffffff;line-height:1.3;">Account Created Successfully</h1>
-                  <p style="margin:8px 0 0;font-size:14px;color:#bfdbfe;">CCTV Monitoring Portal — New User Access</p>
-                </div>
+              <td style="width:130px;vertical-align:middle;">
+                ${logoBase64
+                  ? `<img src="${logoBase64}" alt="Light Finance" style="display:block;width:120px;max-width:120px;height:auto;max-height:70px;" />`
+                  : `<div style="background-color:#ffffff;border-radius:8px;padding:5px 12px;display:inline-block;"><span style="font-size:11px;font-weight:700;color:#1d4ed8;letter-spacing:0.5px;">LIGHT FINANCE</span></div>`
+                }
+              </td>
+              <td style="vertical-align:middle;padding-left:16px;">
+                <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;line-height:1.3;">Account Created Successfully</h1>
+                <p style="margin:4px 0 0;font-size:12px;color:#bfdbfe;">CCTV Monitoring Portal — New User Access</p>
               </td>
             </tr>
-            <!-- Blue accent bar -->
-            <tr><td style="background-color:#1e40af;height:4px;"></td></tr>
           </table>
         </td>
       </tr>
+      <!-- Blue accent bar -->
+      <tr><td style="background-color:#1e40af;height:4px;"></td></tr>
 
       <!-- Greeting -->
       <tr>

@@ -600,6 +600,30 @@ export default function DvrStorage() {
     XLSX.writeFile(wb, `DVR_Storage_${date}.xlsx`);
   };
 
+  const handleDownloadTemplate = () => {
+    if (records.length === 0) {
+      toast({ title: "No records loaded. Please initialize the report first.", variant: "destructive" });
+      return;
+    }
+    const templateRows = records.map((r) => ({
+      State: r.state,
+      Branch: r.branch,
+      "Branch Camera Count": "",
+      "No Of Recording Camera": "",
+      "No Of Not Working Camera": "",
+      "Last Recording": "",
+      Remark: "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(templateRows);
+    ws["!cols"] = [
+      { wch: 16 }, { wch: 32 }, { wch: 22 }, { wch: 24 }, { wch: 26 }, { wch: 16 }, { wch: 28 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Bulk Update Template");
+    XLSX.writeFile(wb, `DVR_Bulk_Update_Template_${date}.xlsx`);
+    toast({ title: "Template downloaded — fill in the data and upload using Bulk Update" });
+  };
+
   const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -617,14 +641,23 @@ export default function DvrStorage() {
         return;
       }
 
-      const normalized = rows.map((row) => ({
-        branch: String(row["Branch"] ?? "").trim(),
-        branchCameraCount: row["Branch Camera Count"] ?? null,
-        noOfRecordingCamera: row["No Of Recording Camera"] ?? null,
-        noOfNotWorkingCamera: row["No Of Not Working Camera"] ?? null,
-        lastRecording: row["Last Recording"] ? String(row["Last Recording"]).trim() : null,
-        remark: row["Remark"] ? String(row["Remark"]).trim() : null,
-      }));
+      const normalized = rows.map((row) => {
+        const entry: Record<string, unknown> = {
+          branch: String(row["Branch"] ?? "").trim(),
+        };
+        // Only include fields that have actual data — empty cells keep the existing DB value
+        if (row["Branch Camera Count"] !== undefined && row["Branch Camera Count"] !== "")
+          entry.branchCameraCount = row["Branch Camera Count"];
+        if (row["No Of Recording Camera"] !== undefined && row["No Of Recording Camera"] !== "")
+          entry.noOfRecordingCamera = row["No Of Recording Camera"];
+        if (row["No Of Not Working Camera"] !== undefined && row["No Of Not Working Camera"] !== "")
+          entry.noOfNotWorkingCamera = row["No Of Not Working Camera"];
+        if (row["Last Recording"] !== undefined && String(row["Last Recording"]).trim() !== "")
+          entry.lastRecording = String(row["Last Recording"]).trim();
+        if (row["Remark"] !== undefined && String(row["Remark"]).trim() !== "")
+          entry.remark = String(row["Remark"]).trim();
+        return entry;
+      });
 
       const res = await fetch(`${BASE}/api/dvr-storage/bulk-update`, {
         method: "POST",
@@ -948,9 +981,18 @@ export default function DvrStorage() {
             />
             <Button
               className="gap-2 bg-white/15 text-white hover:bg-white/25 border border-white/20 h-10"
+              onClick={handleDownloadTemplate}
+              disabled={records.length === 0}
+              title="Download Excel template with branches pre-filled"
+            >
+              <Download className="h-4 w-4" />
+              Template
+            </Button>
+            <Button
+              className="gap-2 bg-white/15 text-white hover:bg-white/25 border border-white/20 h-10"
               onClick={() => fileInputRef.current?.click()}
               disabled={bulkUploading || records.length === 0}
-              title="Upload Excel/CSV to bulk update records"
+              title="Upload filled template to bulk update records"
             >
               {bulkUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
               Bulk Update

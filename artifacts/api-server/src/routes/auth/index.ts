@@ -3,6 +3,14 @@ import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { createSession, getSession, deleteSession } from "../../lib/sessions";
 import { logger } from "../../lib/logger";
+import { sendEmail } from "../../lib/emailService";
+
+// In-memory OTP store: key = username, value = { otp, expiresAt }
+const otpStore = new Map<string, { otp: string; expiresAt: Date }>();
+
+function generateOtp(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
 
 const router: IRouter = Router();
 
@@ -133,6 +141,100 @@ router.post("/auth/verify-password", async (req, res): Promise<void> => {
   } catch (err) {
     logger.error({ err }, "verify-password error");
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/auth/forgot-password", async (req, res): Promise<void> => {
+  const { username } = req.body as { username?: string };
+  if (!username) {
+    res.status(400).json({ error: "Username is required" });
+    return;
+  }
+
+  try {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.username, username.trim()));
+    if (!user || !user.isActive) {
+      // Don't reveal if user exists — always respond success
+      res.json({ ok: true });
+      return;
+    }
+
+    if (!user.email) {
+      res.status(422).json({ error: "No email address is linked to this account. Please contact your administrator." });
+      return;
+    }
+
+    const otp = generateOtp();
+    otpStore.set(username.trim(), { otp, expiresAt: new Date(Date.now() + 10 * 60 * 1000) });
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 8px;">
+        <h2 style="color: #1e3a5f; margin: 0 0 4px;">Light Finance — CCTV Portal</h2>
+        <p style="color: #6b7280; margin: 0 0 24px; font-size: 13px;">Password Reset Request</p>
+        <p style="font-size: 14px; color: #111827;">Hi <strong>${user.fullName || user.username}</strong>,</p>
+        <p style="font-size: 14px; color: #374151; margin-bottom: 20px;">Use the OTP below to reset your password. It is valid for <strong>10 minutes</strong>.</p>
+        <div style="text-align: center; background: #f0f7ff; border: 2px dashed #93c5fd; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+          <p style="margin: 0 0 8px; font-size: 13px; color: #6b7280; letter-spacing: 0.05em; text-transform: uppercase;">Your OTP</p>
+          <span style="font-size: 36px; font-weight: 700; letter-spacing: 12px; color: #1d4ed8; font-family: monospace;">${otp}</span>
+        </div>
+        <p style="font-size: 12px; color: #9ca3af;">If you did not request a password reset, please ignore this email.</p>
+        <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 20px 0;" />
+        <p style="font-size: 11px; color: #9ca3af;">Light Finance · CCTV Monitoring System · Automated notification</p>
+      </div>
+    `;
+
+    await sendEmail("Password Reset OTP — Light Finance CCTV Portal", html, undefined, [user.email]);
+    logger.info({ username: user.username }, "OTP sent for password reset");
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "forgot-password error");
+    res.status(500).json({ error: "Failed to send OTP. Please try again." });
+  }
+});
+
+router.post("/auth/reset-password", async (req, res): Promise<void> => {
+  const { username, otp, newPassword } = req.body as { username?: string; otp?: string; newPassword?: string };
+
+  if (!username || !otp || !newPassword) {
+    res.status(400).json({ error: "Username, OTP, and new password are required" });
+    return;
+  }
+  if (newPassword.length < 6) {
+    res.status(400).json({ error: "Password must be at least 6 characters" });
+    return;
+  }
+
+  const stored = otpStore.get(username.trim());
+  if (!stored) {
+    res.status(400).json({ error: "No OTP was requested for this user. Please request a new OTP." });
+    return;
+  }
+  if (stored.expiresAt < new Date()) {
+    otpStore.delete(username.trim());
+    res.status(400).json({ error: "OTP has expired. Please request a new one." });
+    return;
+  }
+  if (stored.otp !== otp.trim()) {
+    res.status(400).json({ error: "Incorrect OTP. Please check and try again." });
+    return;
+  }
+
+  try {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.username, username.trim()));
+    if (!user || !user.isActive) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    const passwordHash = Buffer.from(newPassword).toString("base64");
+    await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, user.id));
+    otpStore.delete(username.trim());
+
+    logger.info({ username: user.username }, "Password reset successful");
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "reset-password error");
+    res.status(500).json({ error: "Failed to reset password. Please try again." });
   }
 });
 

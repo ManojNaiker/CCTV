@@ -29,17 +29,36 @@ function EmailTag({ email, onRemove }: { email: string; onRemove: () => void }) 
 type ParsedRow = { branchName: string; stateName: string; ccEmails: string };
 type ApplyResult = { updated: number; notFound: string[] };
 
+function parseCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+    } else if (ch === "," && !inQuotes) {
+      result.push(current.trim());
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
 function parseCsv(text: string): ParsedRow[] {
   const lines = text.trim().split(/\r?\n/);
   if (lines.length < 2) return [];
-  const header = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, "").toLowerCase());
+  const header = parseCsvLine(lines[0]).map(h => h.toLowerCase());
   const branchIdx = header.findIndex(h => h.includes("branch"));
   const stateIdx = header.findIndex(h => h.includes("state"));
   const ccIdx = header.findIndex(h => h.includes("cc") || h.includes("email"));
   if (branchIdx === -1) return [];
 
   return lines.slice(1).map(line => {
-    const cols = line.match(/(".*?"|[^,]*)/g)?.map(c => c.trim().replace(/^"|"$/g, "")) ?? [];
+    const cols = parseCsvLine(line);
     return {
       branchName: cols[branchIdx] ?? "",
       stateName: stateIdx >= 0 ? (cols[stateIdx] ?? "") : "",

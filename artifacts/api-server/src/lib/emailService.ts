@@ -561,24 +561,30 @@ export async function sendOfflineAlert(device: {
   const dateStr = new Date().toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" });
   const subject = `CCTV Offline Status | ${dateStr}`;
 
-  const toPrimary: string[] = [];
+  const rawTo: string[] = [];
   if (device.email) {
-    toPrimary.push(...device.email.split(",").map((e) => e.trim()).filter(Boolean));
+    rawTo.push(...device.email.split(",").map((e) => e.trim()).filter(Boolean));
   }
 
-  const ccRecipients: string[] = [];
+  const rawCc: string[] = [];
   if (device.ccEmails) {
-    ccRecipients.push(...device.ccEmails.split(",").map((e) => e.trim()).filter(Boolean));
+    rawCc.push(...device.ccEmails.split(",").map((e) => e.trim()).filter(Boolean));
   }
 
   const globalCcList = await getSetting("email_cc_list");
   if (globalCcList) {
-    ccRecipients.push(...globalCcList.split(",").map((e) => e.trim()).filter(Boolean));
+    rawCc.push(...globalCcList.split(",").map((e) => e.trim()).filter(Boolean));
   }
+
+  // Deduplicate TO and CC; remove from CC any already in TO
+  const uniqueTo = rawTo.filter((v, i, arr) => arr.indexOf(v) === i);
+  const uniqueCc = rawCc.filter((v, i, arr) => arr.indexOf(v) === i && !uniqueTo.includes(v));
+
+  logger.info({ branch: device.branchName, to: uniqueTo, cc: uniqueCc }, "Sending offline alert email");
 
   const html = buildOfflineAlertHtml([device]);
   const pdfBuffer = buildOfflinePDF([device], dateStr);
-  await sendEmail(subject, html, undefined, toPrimary, ccRecipients, [
+  await sendEmail(subject, html, undefined, uniqueTo, uniqueCc, [
     { filename: `CCTV_Offline_Report_${dateStr}.pdf`, content: pdfBuffer, contentType: "application/pdf" },
   ]);
 }
@@ -608,8 +614,14 @@ export async function sendBulkOfflineAlert(devices: OfflineDevice[]): Promise<vo
     ccRecipients.push(...globalCcList.split(",").map((e) => e.trim()).filter(Boolean));
   }
 
+  // Deduplicate TO; deduplicate CC and remove any already in TO
   const uniqueTo = toPrimary.filter((v, i, arr) => arr.indexOf(v) === i);
-  const uniqueCc = ccRecipients.filter((v, i, arr) => arr.indexOf(v) === i);
+  const uniqueCc = ccRecipients.filter((v, i, arr) => arr.indexOf(v) === i && !uniqueTo.includes(v));
+
+  logger.info(
+    { offlineCount: devices.length, to: uniqueTo, cc: uniqueCc },
+    "Sending bulk offline alert — combined unique recipient list"
+  );
 
   const html = buildOfflineAlertHtml(devices);
   const pdfBuffer = buildOfflinePDF(devices, dateStr);

@@ -330,13 +330,24 @@ function BranchRow({ device }: { device: any }) {
   };
 
   const handleSave = async () => {
+    // Auto-commit any email still typed in the input box before saving
+    let finalEmails = emails;
+    if (newEmail.trim() && newEmail.includes("@") && newEmail.includes(".")) {
+      const extra = newEmail.trim().toLowerCase();
+      if (!finalEmails.includes(extra)) {
+        finalEmails = [...finalEmails, extra];
+        setEmails(finalEmails);
+      }
+      setNewEmail("");
+    }
+
     setSaving(true);
     setSaveStatus("idle");
     try {
       const res = await fetch(`${BASE}/api/devices/${device.id}/cc`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ccEmails: emails.join(", ") || null }),
+        body: JSON.stringify({ ccEmails: finalEmails.join(", ") || null }),
       });
       if (res.ok) {
         setSaveStatus("success");

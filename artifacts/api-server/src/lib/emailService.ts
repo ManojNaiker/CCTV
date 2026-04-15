@@ -605,8 +605,18 @@ export async function sendBulkOfflineAlert(devices: OfflineDevice[]): Promise<vo
   const ccRecipients: string[] = [];
 
   for (const d of devices) {
-    if (d.email) toPrimary.push(...d.email.split(",").map((e) => e.trim()).filter(Boolean));
-    if (d.ccEmails) ccRecipients.push(...d.ccEmails.split(",").map((e) => e.trim()).filter(Boolean));
+    const branchTo = d.email ? d.email.split(",").map((e) => e.trim()).filter(Boolean) : [];
+    const branchCc = d.ccEmails ? d.ccEmails.split(",").map((e) => e.trim()).filter(Boolean) : [];
+
+    if (branchTo.length === 0 && branchCc.length === 0) {
+      logger.warn(
+        { branch: d.branchName, serialNumber: d.serialNumber },
+        "Offline device has no email or CC configured — it will be skipped for email"
+      );
+    }
+
+    toPrimary.push(...branchTo);
+    ccRecipients.push(...branchCc);
   }
 
   const globalCcList = await getSetting("email_cc_list");
@@ -619,7 +629,12 @@ export async function sendBulkOfflineAlert(devices: OfflineDevice[]): Promise<vo
   const uniqueCc = ccRecipients.filter((v, i, arr) => arr.indexOf(v) === i && !uniqueTo.includes(v));
 
   logger.info(
-    { offlineCount: devices.length, to: uniqueTo, cc: uniqueCc },
+    {
+      offlineCount: devices.length,
+      branches: devices.map(d => ({ branch: d.branchName, hasEmail: !!d.email, hasCc: !!d.ccEmails })),
+      to: uniqueTo,
+      cc: uniqueCc,
+    },
     "Sending bulk offline alert — combined unique recipient list"
   );
 

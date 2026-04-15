@@ -2,7 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import app from "./app";
 import { logger } from "./lib/logger";
-import { runMigrations, db, usersTable } from "@workspace/db";
+import { ensureDatabaseExists, runMigrations, db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { startScheduler } from "./lib/scheduler";
 
@@ -42,8 +42,12 @@ async function seedDefaultAdmin() {
   }
 }
 
-logger.info("Running database migrations...");
-runMigrations(migrationsFolder)
+logger.info("Ensuring database exists...");
+ensureDatabaseExists()
+  .then(() => {
+    logger.info("Running database migrations...");
+    return runMigrations(migrationsFolder);
+  })
   .then(async () => {
     logger.info("Database migrations complete");
     await seedDefaultAdmin();

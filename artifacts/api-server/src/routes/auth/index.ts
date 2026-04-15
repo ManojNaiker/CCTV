@@ -3,7 +3,7 @@ import { eq, or } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { createSession, getSession, deleteSession } from "../../lib/sessions";
 import { logger } from "../../lib/logger";
-import { sendEmail, loadServerLogo } from "../../lib/emailService";
+import { sendEmail } from "../../lib/emailService";
 
 // In-memory OTP store: key = username, value = { otp, expiresAt }
 const otpStore = new Map<string, { otp: string; expiresAt: Date }>();
@@ -174,8 +174,6 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
     const otp = generateOtp();
     otpStore.set(username.trim(), { otp, expiresAt: new Date(Date.now() + 10 * 60 * 1000) });
 
-    const logoBase64 = loadServerLogo();
-
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Password Reset OTP</title></head>
@@ -186,21 +184,9 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
 
       <!-- Header -->
       <tr>
-        <td style="background-color:#1d4ed8;padding:16px 24px;">
-          <table width="100%" cellpadding="0" cellspacing="0">
-            <tr>
-              <td style="width:130px;vertical-align:middle;">
-                ${logoBase64
-                  ? `<img src="${logoBase64}" alt="Light Finance" style="display:block;width:120px;max-width:120px;height:auto;max-height:70px;" />`
-                  : `<div style="background-color:#ffffff;border-radius:6px;padding:5px 12px;display:inline-block;"><span style="font-size:11px;font-weight:700;color:#1d4ed8;letter-spacing:0.5px;">LIGHT FINANCE</span></div>`
-                }
-              </td>
-              <td style="vertical-align:middle;padding-left:16px;">
-                <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;line-height:1.3;">Password Reset Request</h1>
-                <p style="margin:4px 0 0;font-size:12px;color:#bfdbfe;">CCTV Monitoring Portal</p>
-              </td>
-            </tr>
-          </table>
+        <td style="background-color:#1d4ed8;padding:20px 24px;">
+          <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;line-height:1.3;">Password Reset Request</h1>
+          <p style="margin:4px 0 0;font-size:12px;color:#bfdbfe;">CCTV Monitoring Portal</p>
         </td>
       </tr>
       <tr><td style="background-color:#1e40af;height:4px;"></td></tr>
